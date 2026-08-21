@@ -489,6 +489,15 @@
     color:var(--navy-2); text-decoration:none;
   }
   .verif-folder-link:hover{text-decoration:underline;}
+  .verif-folder-btn{
+    appearance:none; border:1px solid var(--line); border-radius:6px;
+    background:#fff; color:var(--navy-2); font-size:11px; font-weight:700;
+    padding:6px 10px; cursor:pointer; margin-top:6px;
+  }
+  .verif-folder-btn:hover{border-color:var(--navy-2);}
+  .verif-folder-btn:disabled{opacity:0.6; cursor:default;}
+  .verif-folder-status{display:block; font-size:11px; margin-top:4px; color:var(--ink-soft);}
+  .verif-folder-status.error{color:var(--red); font-weight:700;}
   .save-status{font-size:11px; color:var(--ink-soft);}
   .save-status.ok{color:var(--green); font-weight:700;}
   .save-status.error{color:var(--red); font-weight:700;}
@@ -1047,6 +1056,39 @@ function initApp(appData){
   const employees = appData.employees.map(e => computeDerived({...e}));
   const managers = (appData.managers || []).map(e => computeDerived({...e}));
 
+  // Bouton "Voir les fiches déjà envoyées" — commun à tous les onglets (formations,
+  // gestion, postes). Va chercher le dossier Drive à la demande via Apps Script.
+  function wireFolderButtonsGlobal(container){
+    container.querySelectorAll('.verif-folder-btn').forEach(btn => {
+      btn.addEventListener('click', async (ev) => {
+        ev.stopPropagation();
+        const scope = btn.dataset.scope;
+        const key = btn.dataset.key;
+        const statusSpan = btn.nextElementSibling;
+        btn.disabled = true;
+        statusSpan.textContent = 'Ouverture…';
+        statusSpan.className = 'verif-folder-status pending';
+        try{
+          const res = await fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            headers: {'Content-Type': 'text/plain;charset=utf-8'},
+            body: JSON.stringify({ sheet: 'get_verif_folder', scope, key })
+          });
+          const data = await res.json();
+          if(!data.ok) throw new Error(data.error || 'Dossier introuvable');
+          window.open(data.folderUrl, '_blank', 'noopener');
+          statusSpan.textContent = '';
+          statusSpan.className = 'verif-folder-status';
+        } catch(err){
+          statusSpan.textContent = 'Erreur : ' + err.message;
+          statusSpan.className = 'verif-folder-status error';
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    });
+  }
+
   // ============================================================
   // ONGLET "type Formations" réutilisable (équipiers + équipe de gestion)
   // ============================================================
@@ -1147,7 +1189,8 @@ function initApp(appData){
           <button type="button" class="verif-upload-btn" data-nom="${safeNom}" data-key="${key}">📤 Envoyer</button>
         </div>
         <span class="verif-upload-status"></span>
-        <a class="verif-folder-link" data-key="${key}" href="#" style="display:none;" target="_blank" rel="noopener">📁 Voir les fiches déjà envoyées</a>
+        <button type="button" class="verif-folder-btn" data-nom="${safeNom}" data-scope="formation" data-key="${key}">📁 Voir les fiches déjà envoyées</button>
+        <span class="verif-folder-status"></span>
       </div>`;
     }
 
@@ -1268,7 +1311,6 @@ function initApp(appData){
           const wrap = btn.closest('.verif-upload');
           const fileInput = wrap.querySelector('.verif-file-input');
           const statusSpan = wrap.querySelector('.verif-upload-status');
-          const folderLink = wrap.querySelector('.verif-folder-link');
           const file = fileInput.files[0];
 
           if(!file){
@@ -1304,10 +1346,6 @@ function initApp(appData){
             statusSpan.textContent = '✓ Fiche envoyée';
             statusSpan.className = 'verif-upload-status ok';
             fileInput.value = '';
-            if(folderLink && data.folderUrl){
-              folderLink.href = data.folderUrl;
-              folderLink.style.display = 'inline-block';
-            }
           } catch(err){
             statusSpan.textContent = 'Erreur : ' + err.message;
             statusSpan.className = 'verif-upload-status error';
@@ -1316,6 +1354,13 @@ function initApp(appData){
           }
         });
       });
+      wireFolderButtons(container);
+    }
+
+    // Bouton "Voir les fiches déjà envoyées" — toujours visible, va chercher le
+    // dossier Drive à la demande (pas besoin d'avoir uploadé quoi que ce soit avant).
+    function wireFolderButtons(container){
+      wireFolderButtonsGlobal(container);
     }
 
     const tbody = document.getElementById(cfg.ids.tableBody);
@@ -1722,7 +1767,8 @@ function initApp(appData){
           <button type="button" class="poste-upload-btn" data-nom="${safeNom}" data-key="${p.key}">📤 Envoyer</button>
         </div>
         <span class="verif-upload-status"></span>
-        <a class="verif-folder-link" data-key="${p.key}" href="#" style="display:none;" target="_blank" rel="noopener">📁 Voir les fiches déjà envoyées</a>
+        <button type="button" class="verif-folder-btn" data-nom="${safeNom}" data-scope="poste" data-key="${p.key}">📁 Voir les fiches déjà envoyées</button>
+        <span class="verif-folder-status"></span>
       </div>
     </div>`;
   }
@@ -1733,6 +1779,7 @@ function initApp(appData){
       .map((p, idx) => VERIF_AVAILABLE.has(p.key) ? posteItemHtml(emp, p, idx) : '')
       .join('');
     wirePosteUploadButtons(posteUploadList);
+    wireFolderButtonsGlobal(posteUploadList);
     posteUploadModal.style.display = 'flex';
   }
   function closePosteModal(){ posteUploadModal.style.display = 'none'; }
@@ -1747,7 +1794,6 @@ function initApp(appData){
         const item = btn.closest('.verif-upload');
         const fileInput = item.querySelector('.poste-file-input');
         const statusSpan = item.querySelector('.verif-upload-status');
-        const folderLink = item.querySelector('.verif-folder-link');
         const file = fileInput.files[0];
 
         if(!file){
@@ -1783,10 +1829,6 @@ function initApp(appData){
           statusSpan.textContent = '✓ Fiche envoyée';
           statusSpan.className = 'verif-upload-status ok';
           fileInput.value = '';
-          if(folderLink && data.folderUrl){
-            folderLink.href = data.folderUrl;
-            folderLink.style.display = 'inline-block';
-          }
         } catch(err){
           statusSpan.textContent = 'Erreur : ' + err.message;
           statusSpan.className = 'verif-upload-status error';
