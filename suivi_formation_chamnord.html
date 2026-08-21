@@ -665,12 +665,14 @@
   </div>
   <nav class="tabnav">
     <button class="tab-btn active" data-tab="formations">Formations</button>
+    <button class="tab-btn" data-tab="gestion">Équipe de gestion</button>
     <button class="tab-btn" data-tab="polyvalence">Postes &amp; Polyvalence</button>
   </nav>
 </header>
 
 <div class="stats-wrap" id="statsWrap">
   <div class="stats" id="statsRow"></div>
+  <div class="stats" id="statsRowGestion" style="display:none;"></div>
 </div>
 
 <main>
@@ -720,6 +722,52 @@
     Aucun équipier ne correspond à cette recherche.
   </div>
 </section>
+
+<section id="tab-gestion" style="display:none;">
+  <div class="controls">
+    <div class="search-box">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="text" id="searchInputGestion" placeholder="Rechercher un membre de l'équipe de gestion…">
+    </div>
+    <select id="sortSelectGestion">
+      <option value="urgency">Trier par urgence</option>
+      <option value="name">Trier par nom</option>
+      <option value="anciennete">Trier par ancienneté</option>
+    </select>
+    <button class="add-btn" id="addManagerBtn">+ Ajouter un membre</button>
+  </div>
+
+  <div class="chips-row" id="trainingChipsGestion"></div>
+
+  <div class="legend">
+    <span><i class="dot red"></i> En retard</span>
+    <span><i class="dot orange"></i> À échéance sous 30 jours</span>
+    <span><i class="dot green"></i> À jour</span>
+    <span><i class="dot gray"></i> Non renseigné</span>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Équipe de gestion</th>
+          <th>Prévention &amp; Sécurité <br><span style="font-weight:400;text-transform:none;">(6 mois)</span></th>
+          <th>Hygiène &amp; Sécurité alim. <br><span style="font-weight:400;text-transform:none;">(6 mois)</span></th>
+          <th>MTSRI <br><span style="font-weight:400;text-transform:none;">(tous les ans)</span></th>
+          <th>Culture Service <br><span style="font-weight:400;text-transform:none;">(1er mois)</span></th>
+        </tr>
+      </thead>
+      <tbody id="tableBodyGestion"></tbody>
+    </table>
+  </div>
+
+  <div class="cards" id="cardsWrapGestion"></div>
+
+  <div class="empty-state" id="emptyStateGestion" style="display:none;">
+    Personne ne correspond à cette recherche.
+  </div>
+</section>
+
 
 <section id="tab-polyvalence" style="display:none;">
 
@@ -781,15 +829,33 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="addManagerModal" style="display:none;">
+  <div class="modal-card">
+    <h3>Nouveau membre — équipe de gestion</h3>
+    <p class="modal-sub">La date butoir de Culture Service est calculée automatiquement (1 mois après l'entrée).</p>
+    <form id="addManagerForm">
+      <label for="newMgrNom">Nom complet</label>
+      <input type="text" id="newMgrNom" required placeholder="NOM Prénom" autocomplete="off">
+      <label for="newMgrDate">Date d'entrée</label>
+      <input type="date" id="newMgrDate" required>
+      <div class="modal-error" id="addManagerError" style="display:none;"></div>
+      <div class="modal-actions">
+        <button type="button" id="cancelAddManager">Annuler</button>
+        <button type="submit" id="submitAddManager">Ajouter</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 </div><!-- /#appRoot -->
 
 <script>
 function initApp(appData){
-  const raw = appData.employees;
-  const POSTES = appData.postes;
   const today = new Date();
   today.setHours(0,0,0,0);
   document.getElementById('todayLabel').textContent = today.toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
+
+  const POSTES = appData.postes;
 
   const TRAININGS = [
     {key:'secu',    label:'Prévention & Sécurité',      faitKey:'secuFait',    butoirKey:'secuButoir',    period:'6 mois',        oneTime:false},
@@ -812,6 +878,13 @@ function initApp(appData){
   function frDate(d){
     if(!d) return '—';
     return d.toLocaleDateString('fr-FR', {day:'2-digit', month:'2-digit', year:'numeric'});
+  }
+
+  function addMonthsJS(dateStr, months){
+    const [y,m,d] = dateStr.split('-').map(Number);
+    const dt = new Date(y, m-1, d);
+    dt.setMonth(dt.getMonth() + months);
+    return dt.toISOString().slice(0,10);
   }
 
   // Recurring trainings (6 mois / an) : l'urgence se calcule toujours sur la date butoir,
@@ -843,7 +916,7 @@ function initApp(appData){
     return t.oneTime ? statusOneTime(e[t.faitKey], e[t.butoirKey]) : statusRecurring(e[t.butoirKey]);
   }
 
-  // Calcule les statuts dérivés (pastilles, pire statut) d'un équipier.
+  // Calcule les statuts dérivés (pastilles, pire statut) d'une personne.
   // Rappelée après chaque modification pour que l'affichage se mette à jour sans recharger la page.
   function computeDerived(e){
     const statuses = {};
@@ -862,13 +935,12 @@ function initApp(appData){
     e.statuses = statuses;
     e.worst = worst;
     e.worstDays = worstDays === Infinity ? 9999 : worstDays;
-    e.polyScore = e.skills.filter(Boolean).length;
-    e.polyPct = e.polyScore / POSTES.length;
+    if(e.skills){
+      e.polyScore = e.skills.filter(Boolean).length;
+      e.polyPct = e.polyScore / POSTES.length;
+    }
     return e;
   }
-
-  // Precompute per-employee: worst status across all trainings + all statuses for rendering.
-  const employees = raw.map(e => computeDerived({...e}));
 
   // ---------------- Sauvegarde vers Google Sheets (Apps Script) ----------------
   async function postUpdate(sheetName, nom, field, value){
@@ -882,394 +954,433 @@ function initApp(appData){
     return data;
   }
 
-  function findEmployee(nom){
-    return employees.find(e => e.nom === nom);
-  }
+  const employees = appData.employees.map(e => computeDerived({...e}));
+  const managers = (appData.managers || []).map(e => computeDerived({...e}));
 
-  // Renvoie le statut "pertinent" d'un équipier compte tenu du focus formation en cours :
-  // si une formation précise est sélectionnée, on utilise son statut ; sinon le pire statut global.
-  let trainingFocus = null; // null = toutes les formations confondues
-  function relevantStatus(e){
-    if(trainingFocus){
-      const s = e.statuses[trainingFocus];
-      const bucket = (s.level === 'done') ? 'green' : s.level;
-      return {level: bucket, days: (s.days == null ? 9999 : s.days)};
+  // ============================================================
+  // ONGLET "type Formations" réutilisable (équipiers + équipe de gestion)
+  // ============================================================
+  function createRosterTab(cfg){
+    const list = cfg.list;
+    const trainings = cfg.trainings; // sous-ensemble de TRAININGS applicable à cet onglet
+    const afterChange = cfg.afterChange || function(){};
+
+    function findPerson(nom){
+      return list.find(e => e.nom === nom);
     }
-    return {level: e.worst, days: e.worstDays};
-  }
 
-  function computeCounts(){
-    let red=0, orange=0, green=0;
-    employees.forEach(e => {
-      const s = relevantStatus(e);
-      if(s.level === 'red') red++;
-      else if(s.level === 'orange') orange++;
-      else if(s.level === 'green') green++;
-    });
-    return {red, orange, green};
-  }
-
-  // ---------- Stats cards (dynamiques selon le focus formation) ----------
-  const statsRow = document.getElementById('statsRow');
-  let activeFilter = 'all';
-
-  function renderStats(){
-    const c = computeCounts();
-    const suffix = trainingFocus ? ` · ${TRAININGS.find(t=>t.key===trainingFocus).label}` : '';
-    const statDefs = [
-      {key:'all', cls:'all', num: employees.length, label:'Équipiers suivis'},
-      {key:'red', cls:'red', num: c.red, label:'En retard' + suffix},
-      {key:'orange', cls:'orange', num: c.orange, label:'Échéance sous 30 j' + suffix},
-      {key:'green', cls:'green', num: c.green, label:'À jour' + suffix}
-    ];
-    statsRow.innerHTML = '';
-    statDefs.forEach(s => {
-      const div = document.createElement('div');
-      div.className = 'stat-card ' + s.cls + (s.key === activeFilter ? ' active' : '');
-      div.dataset.filter = s.key;
-      div.innerHTML = `<div class="stat-num">${s.num}</div><div class="stat-label">${s.label}</div>`;
-      div.addEventListener('click', () => {
-        activeFilter = (activeFilter === s.key) ? 'all' : s.key;
-        renderStats();
-        render();
-      });
-      statsRow.appendChild(div);
-    });
-  }
-  renderStats();
-
-  // ---------- Filtre par formation (chips) ----------
-  const chipsWrap = document.getElementById('trainingChips');
-  function renderChips(){
-    const items = [{key:null, label:'Toutes les formations'}, ...TRAININGS.map(t => ({key:t.key, label:t.label}))];
-    chipsWrap.innerHTML = items.map(it => `
-      <button class="chip ${trainingFocus === it.key ? 'active' : ''}" data-key="${it.key === null ? '' : it.key}">${it.label}</button>
-    `).join('');
-    chipsWrap.querySelectorAll('.chip').forEach(btn => {
-      btn.addEventListener('click', () => {
-        trainingFocus = btn.dataset.key || null;
-        renderChips();
-        renderStats();
-        render();
-      });
-    });
-  }
-  renderChips();
-
-  // ---------- pill renderer ----------
-  function pillHtml(t, s){
-    if(s.level === 'gray'){
-      return `<span class="pill gray"><span class="pill-days">N/A</span><span class="pill-date">non renseigné</span></span>`;
-    }
-    if(s.level === 'done'){
-      return `<span class="pill green"><span class="pill-days">✓ Fait</span><span class="pill-date">le ${frDate(s.fait)}</span></span>`;
-    }
-    let daysLabel;
-    if(s.days < 0) daysLabel = `Retard ${Math.abs(s.days)} j`;
-    else if(s.days === 0) daysLabel = `Échéance aujourd'hui`;
-    else daysLabel = t.oneTime ? `À faire (${s.days} j)` : `Dans ${s.days} j`;
-    return `<span class="pill ${s.level}"><span class="pill-days">${daysLabel}</span><span class="pill-date">butoir ${frDate(s.butoir)}</span></span>`;
-  }
-
-  function detailCardHtml(e){
-    return TRAININGS.map(t => {
-      const fait = e[t.faitKey] || '';
-      const butoir = parseDate(e[t.butoirKey]);
-      const s = e.statuses[t.key];
-      const statusLine = t.oneTime
-        ? (s.level === 'done' ? `<div class="detail-row"><span>Statut</span><span style="color:var(--green);">✓ Réalisé</span></div>`
-                               : `<div class="detail-row"><span>Statut</span><span style="color:var(--red);">À réaliser</span></div>`)
-        : '';
-      return `<div class="detail-card">
-        <h4>${t.label} <span style="text-transform:none;font-weight:400;">(${t.period})</span></h4>
-        <div class="detail-row"><span>Date butoir</span><span>${frDate(butoir)}</span></div>
-        ${statusLine}
-        <div class="detail-edit">
-          <label>Fait le</label>
-          <input type="date" class="fait-input" data-nom="${e.nom.replace(/"/g,'&quot;')}" data-field="${t.faitKey}" value="${fait}">
-          <button class="save-btn" data-nom="${e.nom.replace(/"/g,'&quot;')}" data-field="${t.faitKey}">Enregistrer</button>
-          <span class="save-status"></span>
-        </div>
-      </div>`;
-    }).join('');
-  }
-
-  function deleteSectionHtml(nom){
-    return `<div class="delete-section">
-      <button class="delete-emp-btn" data-nom="${nom.replace(/"/g,'&quot;')}">Supprimer cet équipier</button>
-      <span class="delete-status"></span>
-    </div>`;
-  }
-
-  function wireDeleteButton(container, nom, onDeleted){
-    const btn = container.querySelector('.delete-emp-btn');
-    if(!btn) return;
-    btn.addEventListener('click', async (ev) => {
-      ev.stopPropagation();
-      const confirmed = window.confirm(`Supprimer définitivement ${nom} ? Cette action modifie directement le Google Sheet et ne peut pas être annulée depuis le site.`);
-      if(!confirmed) return;
-      const statusSpan = btn.nextElementSibling;
-      btn.disabled = true;
-      statusSpan.textContent = 'Suppression…';
-      statusSpan.className = 'delete-status pending';
-      try{
-        await postUpdate('delete_employee', nom, 'delete', null);
-        const idx = employees.findIndex(e => e.nom === nom);
-        if(idx !== -1) employees.splice(idx, 1);
-        computePolyStats();
-        renderStats();
-        render();
-        renderKpis();
-        renderBars();
-        renderMatrix();
-        onDeleted();
-      } catch(err){
-        statusSpan.textContent = 'Erreur : ' + err.message;
-        statusSpan.className = 'delete-status error';
-        btn.disabled = false;
+    let trainingFocus = null; // null = toutes les formations confondues
+    function relevantStatus(e){
+      if(trainingFocus){
+        const s = e.statuses[trainingFocus];
+        const bucket = (s.level === 'done') ? 'green' : s.level;
+        return {level: bucket, days: (s.days == null ? 9999 : s.days)};
       }
-    });
-  }
-
-  // ---------- render ----------
-  const tbody = document.getElementById('tableBody');
-  const cardsWrap = document.getElementById('cardsWrap');
-  const emptyState = document.getElementById('emptyState');
-  const searchInput = document.getElementById('searchInput');
-  const sortSelect = document.getElementById('sortSelect');
-
-  function getFiltered(){
-    const q = searchInput.value.trim().toLowerCase();
-    let list = employees.filter(e => e.nom.toLowerCase().includes(q));
-    if(activeFilter !== 'all'){
-      list = list.filter(e => relevantStatus(e).level === activeFilter);
+      return {level: e.worst, days: e.worstDays};
     }
-    const sortMode = sortSelect.value;
-    list = list.slice().sort((a,b) => {
-      if(sortMode === 'name') return a.nom.localeCompare(b.nom, 'fr');
-      if(sortMode === 'anciennete') return (b.ancienneteMois||0) - (a.ancienneteMois||0);
-      // urgency: red first (most overdue), then orange (soonest), then green, gray last
-      const rank = {red:0, orange:1, green:2, gray:3};
-      const sa = relevantStatus(a), sb = relevantStatus(b);
-      if(rank[sa.level] !== rank[sb.level]) return rank[sa.level] - rank[sb.level];
-      return sa.days - sb.days;
-    });
-    return list;
-  }
 
-  function render(){
-    const list = getFiltered();
-    emptyState.style.display = list.length ? 'none' : 'block';
-
-    // Table (desktop)
-    tbody.innerHTML = '';
-    list.forEach((e, idx) => {
-      const rowId = 'row-' + idx;
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td>
-          <div class="name-cell">${e.nom}</div>
-          <div class="name-sub">${e.ancienneteMois != null ? e.ancienneteMois + ' mois d\'ancienneté' : ''}</div>
-        </td>
-        <td>${pillHtml(TRAININGS[0], e.statuses.secu)}</td>
-        <td>${pillHtml(TRAININGS[1], e.statuses.hygiene)}</td>
-        <td>${pillHtml(TRAININGS[2], e.statuses.mtsri)}</td>
-        <td>${pillHtml(TRAININGS[3], e.statuses.culture)}</td>
-        <td>${pillHtml(TRAININGS[4], e.statuses.suivi4s)}</td>
-      `;
-      tr.addEventListener('click', () => {
-        const existing = document.getElementById(rowId);
-        if(existing){ existing.remove(); return; }
-        document.querySelectorAll('.expand-row').forEach(r => r.remove());
-        const exp = document.createElement('tr');
-        exp.className = 'expand-row';
-        exp.id = rowId;
-        exp.innerHTML = `<td colspan="6"><div class="expand-inner">${detailCardHtml(e)}</div>${deleteSectionHtml(e.nom)}</td>`;
-        tr.after(exp);
-        wireSaveButtons(exp);
-        wireDeleteButton(exp, e.nom, () => { exp.remove(); tr.remove(); });
+    function computeCounts(){
+      let red=0, orange=0, green=0;
+      list.forEach(e => {
+        const s = relevantStatus(e);
+        if(s.level === 'red') red++;
+        else if(s.level === 'orange') orange++;
+        else if(s.level === 'green') green++;
       });
-      tbody.appendChild(tr);
-    });
+      return {red, orange, green};
+    }
 
-    // Cards (mobile)
-    cardsWrap.innerHTML = '';
-    list.forEach(e => {
-      const card = document.createElement('div');
-      card.className = 'emp-card';
-      card.innerHTML = `
-        <div class="emp-card-head">
-          <div class="name">${e.nom}</div>
-          <div class="anc">${e.ancienneteMois != null ? e.ancienneteMois + ' mois' : ''}</div>
-        </div>
-        <div class="emp-card-grid">
-          <div><div class="label">Prévention &amp; Sécurité</div>${pillHtml(TRAININGS[0], e.statuses.secu)}</div>
-          <div><div class="label">Hygiène &amp; Sécurité alim.</div>${pillHtml(TRAININGS[1], e.statuses.hygiene)}</div>
-          <div><div class="label">MTSRI</div>${pillHtml(TRAININGS[2], e.statuses.mtsri)}</div>
-          <div><div class="label">Culture Service</div>${pillHtml(TRAININGS[3], e.statuses.culture)}</div>
-          <div><div class="label">Suivi à 4 semaines</div>${pillHtml(TRAININGS[4], e.statuses.suivi4s)}</div>
-        </div>
-        <button class="edit-toggle-btn">Saisir une date de réalisation</button>
-        <div class="card-detail" style="display:none;"></div>
-      `;
-      const editBtn = card.querySelector('.edit-toggle-btn');
-      const detailWrap = card.querySelector('.card-detail');
-      editBtn.addEventListener('click', () => {
-        const isOpen = detailWrap.style.display !== 'none';
-        if(isOpen){ detailWrap.style.display = 'none'; editBtn.textContent = 'Saisir une date de réalisation'; return; }
-        detailWrap.innerHTML = `<div class="expand-inner">${detailCardHtml(e)}</div>${deleteSectionHtml(e.nom)}`;
-        detailWrap.style.display = 'block';
-        editBtn.textContent = 'Masquer';
-        wireSaveButtons(detailWrap);
-        wireDeleteButton(detailWrap, e.nom, () => { card.remove(); });
-      });
-      cardsWrap.appendChild(card);
-    });
-  }
+    const statsRow = document.getElementById(cfg.ids.statsRow);
+    let activeFilter = 'all';
 
-  // Branche les boutons "Enregistrer" des fiches de détail (desktop + mobile) sur la sauvegarde.
-  function wireSaveButtons(container){
-    container.querySelectorAll('.save-btn').forEach(btn => {
-      btn.addEventListener('click', async (ev) => {
-        ev.stopPropagation();
-        const nom = btn.dataset.nom;
-        const field = btn.dataset.field;
-        const input = container.querySelector(`.fait-input[data-nom="${CSS.escape(nom)}"][data-field="${field}"]`);
-        const value = input.value; // 'YYYY-MM-DD' ou ''
-        const statusSpan = btn.nextElementSibling;
-        btn.disabled = true;
-        statusSpan.textContent = 'Enregistrement…';
-        statusSpan.className = 'save-status pending';
-        try{
-          await postUpdate('formations', nom, field, value);
-          const emp = findEmployee(nom);
-          emp[field] = value || null;
-          // Si l'API a recalculé une date butoir (formations récurrentes), on la reflète localement.
-          const auto = {secuFait:'secuButoir', hygieneFait:'hygieneButoir', mtsriFait:'mtsriButoir'}[field];
-          if(auto && value){
-            const [y,m,d] = value.split('-').map(Number);
-            const dt = new Date(y, m-1, d);
-            const months = field === 'mtsriFait' ? 12 : 6;
-            dt.setMonth(dt.getMonth() + months);
-            emp[auto] = dt.toISOString().slice(0,10);
-          }
-          computeDerived(emp);
+    function renderStats(){
+      const c = computeCounts();
+      const suffix = trainingFocus ? ` · ${trainings.find(t=>t.key===trainingFocus).label}` : '';
+      const statDefs = [
+        {key:'all', cls:'all', num: list.length, label: cfg.personLabelPlural + ' suivis'},
+        {key:'red', cls:'red', num: c.red, label:'En retard' + suffix},
+        {key:'orange', cls:'orange', num: c.orange, label:'Échéance sous 30 j' + suffix},
+        {key:'green', cls:'green', num: c.green, label:'À jour' + suffix}
+      ];
+      statsRow.innerHTML = '';
+      statDefs.forEach(s => {
+        const div = document.createElement('div');
+        div.className = 'stat-card ' + s.cls + (s.key === activeFilter ? ' active' : '');
+        div.dataset.filter = s.key;
+        div.innerHTML = `<div class="stat-num">${s.num}</div><div class="stat-label">${s.label}</div>`;
+        div.addEventListener('click', () => {
+          activeFilter = (activeFilter === s.key) ? 'all' : s.key;
           renderStats();
           render();
-          statusSpan.textContent = '✓ Enregistré';
-          statusSpan.className = 'save-status ok';
+        });
+        statsRow.appendChild(div);
+      });
+    }
+
+    const chipsWrap = document.getElementById(cfg.ids.chips);
+    function renderChips(){
+      const items = [{key:null, label:'Toutes les formations'}, ...trainings.map(t => ({key:t.key, label:t.label}))];
+      chipsWrap.innerHTML = items.map(it => `
+        <button class="chip ${trainingFocus === it.key ? 'active' : ''}" data-key="${it.key === null ? '' : it.key}">${it.label}</button>
+      `).join('');
+      chipsWrap.querySelectorAll('.chip').forEach(btn => {
+        btn.addEventListener('click', () => {
+          trainingFocus = btn.dataset.key || null;
+          renderChips();
+          renderStats();
+          render();
+        });
+      });
+    }
+
+    function pillHtml(t, s){
+      if(s.level === 'gray'){
+        return `<span class="pill gray"><span class="pill-days">N/A</span><span class="pill-date">non renseigné</span></span>`;
+      }
+      if(s.level === 'done'){
+        return `<span class="pill green"><span class="pill-days">✓ Fait</span><span class="pill-date">le ${frDate(s.fait)}</span></span>`;
+      }
+      let daysLabel;
+      if(s.days < 0) daysLabel = `Retard ${Math.abs(s.days)} j`;
+      else if(s.days === 0) daysLabel = `Échéance aujourd'hui`;
+      else daysLabel = t.oneTime ? `À faire (${s.days} j)` : `Dans ${s.days} j`;
+      return `<span class="pill ${s.level}"><span class="pill-days">${daysLabel}</span><span class="pill-date">butoir ${frDate(s.butoir)}</span></span>`;
+    }
+
+    function detailCardHtml(e){
+      return trainings.map(t => {
+        const fait = e[t.faitKey] || '';
+        const butoir = parseDate(e[t.butoirKey]);
+        const s = e.statuses[t.key];
+        const statusLine = t.oneTime
+          ? (s.level === 'done' ? `<div class="detail-row"><span>Statut</span><span style="color:var(--green);">✓ Réalisé</span></div>`
+                                 : `<div class="detail-row"><span>Statut</span><span style="color:var(--red);">À réaliser</span></div>`)
+          : '';
+        return `<div class="detail-card">
+          <h4>${t.label} <span style="text-transform:none;font-weight:400;">(${t.period})</span></h4>
+          <div class="detail-row"><span>Date butoir</span><span>${frDate(butoir)}</span></div>
+          ${statusLine}
+          <div class="detail-edit">
+            <label>Fait le</label>
+            <input type="date" class="fait-input" data-nom="${e.nom.replace(/"/g,'&quot;')}" data-field="${t.faitKey}" value="${fait}">
+            <button class="save-btn" data-nom="${e.nom.replace(/"/g,'&quot;')}" data-field="${t.faitKey}">Enregistrer</button>
+            <span class="save-status"></span>
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    function deleteSectionHtml(nom){
+      return `<div class="delete-section">
+        <button class="delete-emp-btn" data-nom="${nom.replace(/"/g,'&quot;')}">Supprimer ${cfg.personLabelSingular}</button>
+        <span class="delete-status"></span>
+      </div>`;
+    }
+
+    function wireDeleteButton(container, nom, onDeleted){
+      const btn = container.querySelector('.delete-emp-btn');
+      if(!btn) return;
+      btn.addEventListener('click', async (ev) => {
+        ev.stopPropagation();
+        const confirmed = window.confirm(`Supprimer définitivement ${nom} ? Cette action modifie directement le Google Sheet et ne peut pas être annulée depuis le site.`);
+        if(!confirmed) return;
+        const statusSpan = btn.nextElementSibling;
+        btn.disabled = true;
+        statusSpan.textContent = 'Suppression…';
+        statusSpan.className = 'delete-status pending';
+        try{
+          await postUpdate(cfg.deleteSheetKey, nom, 'delete', null);
+          const idx = list.findIndex(e => e.nom === nom);
+          if(idx !== -1) list.splice(idx, 1);
+          renderStats();
+          render();
+          afterChange();
+          onDeleted();
         } catch(err){
           statusSpan.textContent = 'Erreur : ' + err.message;
-          statusSpan.className = 'save-status error';
-        } finally {
+          statusSpan.className = 'delete-status error';
           btn.disabled = false;
         }
       });
-    });
-  }
-
-  searchInput.addEventListener('input', render);
-  sortSelect.addEventListener('change', render);
-  sortSelect.value = 'urgency';
-  render();
-
-  // ================= AJOUT D'UN NOUVEL ÉQUIPIER =================
-  function addMonthsJS(dateStr, months){
-    const [y,m,d] = dateStr.split('-').map(Number);
-    const dt = new Date(y, m-1, d);
-    dt.setMonth(dt.getMonth() + months);
-    return dt.toISOString().slice(0,10);
-  }
-
-  const addEmployeeBtn = document.getElementById('addEmployeeBtn');
-  const addEmployeeModal = document.getElementById('addEmployeeModal');
-  const addEmployeeForm = document.getElementById('addEmployeeForm');
-  const newEmpNom = document.getElementById('newEmpNom');
-  const newEmpDate = document.getElementById('newEmpDate');
-  const addEmployeeError = document.getElementById('addEmployeeError');
-  const submitAddEmployee = document.getElementById('submitAddEmployee');
-  const cancelAddEmployee = document.getElementById('cancelAddEmployee');
-
-  function openAddEmployeeModal(){
-    addEmployeeForm.reset();
-    addEmployeeError.style.display = 'none';
-    addEmployeeModal.style.display = 'flex';
-    newEmpNom.focus();
-  }
-  function closeAddEmployeeModal(){
-    addEmployeeModal.style.display = 'none';
-  }
-
-  addEmployeeBtn.addEventListener('click', openAddEmployeeModal);
-  cancelAddEmployee.addEventListener('click', closeAddEmployeeModal);
-  addEmployeeModal.addEventListener('click', (e) => { if(e.target === addEmployeeModal) closeAddEmployeeModal(); });
-
-  addEmployeeForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const nom = newEmpNom.value.trim();
-    const dateEntree = newEmpDate.value;
-    if(!nom || !dateEntree) return;
-
-    if(findEmployee(nom)){
-      addEmployeeError.textContent = 'Un équipier avec ce nom existe déjà.';
-      addEmployeeError.style.display = 'block';
-      return;
     }
 
-    submitAddEmployee.disabled = true;
-    addEmployeeError.style.display = 'none';
-    try{
-      await postUpdate('new_employee', nom, 'dateEntree', dateEntree);
-
-      const suivi4sButoir = addMonthsJS(dateEntree, 1);
-      const today0 = new Date(); today0.setHours(0,0,0,0);
-      const entreeDt = new Date(dateEntree + 'T00:00:00');
-      const ancienneteMois = Math.max(0, Math.round((today0 - entreeDt) / (1000*60*60*24*30.44)));
-
-      const newEmp = computeDerived({
-        nom, dateEntree, ancienneteMois,
-        suivi4sButoir, suivi4sFait: null,
-        secuFait: null, secuButoir: null,
-        hygieneFait: null, hygieneButoir: null,
-        mtsriFait: null, mtsriButoir: null,
-        cultureButoir: suivi4sButoir, cultureFait: null,
-        skills: POSTES.map(() => false)
+    function wireSaveButtons(container){
+      container.querySelectorAll('.save-btn').forEach(btn => {
+        btn.addEventListener('click', async (ev) => {
+          ev.stopPropagation();
+          const nom = btn.dataset.nom;
+          const field = btn.dataset.field;
+          const input = container.querySelector(`.fait-input[data-nom="${CSS.escape(nom)}"][data-field="${field}"]`);
+          const value = input.value; // 'YYYY-MM-DD' ou ''
+          const statusSpan = btn.nextElementSibling;
+          btn.disabled = true;
+          statusSpan.textContent = 'Enregistrement…';
+          statusSpan.className = 'save-status pending';
+          try{
+            await postUpdate(cfg.sheetKey, nom, field, value);
+            const emp = findPerson(nom);
+            emp[field] = value || null;
+            const auto = {secuFait:'secuButoir', hygieneFait:'hygieneButoir', mtsriFait:'mtsriButoir'}[field];
+            if(auto && value){
+              const [y,m,d] = value.split('-').map(Number);
+              const dt = new Date(y, m-1, d);
+              const months = field === 'mtsriFait' ? 12 : 6;
+              dt.setMonth(dt.getMonth() + months);
+              emp[auto] = dt.toISOString().slice(0,10);
+            }
+            computeDerived(emp);
+            renderStats();
+            render();
+            statusSpan.textContent = '✓ Enregistré';
+            statusSpan.className = 'save-status ok';
+          } catch(err){
+            statusSpan.textContent = 'Erreur : ' + err.message;
+            statusSpan.className = 'save-status error';
+          } finally {
+            btn.disabled = false;
+          }
+        });
       });
-      employees.push(newEmp);
+    }
 
+    const tbody = document.getElementById(cfg.ids.tableBody);
+    const cardsWrap = document.getElementById(cfg.ids.cardsWrap);
+    const emptyState = document.getElementById(cfg.ids.emptyState);
+    const searchInput = document.getElementById(cfg.ids.search);
+    const sortSelect = document.getElementById(cfg.ids.sort);
+
+    function getFiltered(){
+      const q = searchInput.value.trim().toLowerCase();
+      let filtered = list.filter(e => e.nom.toLowerCase().includes(q));
+      if(activeFilter !== 'all'){
+        filtered = filtered.filter(e => relevantStatus(e).level === activeFilter);
+      }
+      const sortMode = sortSelect.value;
+      filtered = filtered.slice().sort((a,b) => {
+        if(sortMode === 'name') return a.nom.localeCompare(b.nom, 'fr');
+        if(sortMode === 'anciennete') return (b.ancienneteMois||0) - (a.ancienneteMois||0);
+        const rank = {red:0, orange:1, green:2, gray:3};
+        const sa = relevantStatus(a), sb = relevantStatus(b);
+        if(rank[sa.level] !== rank[sb.level]) return rank[sa.level] - rank[sb.level];
+        return sa.days - sb.days;
+      });
+      return filtered;
+    }
+
+    function render(){
+      const filtered = getFiltered();
+      emptyState.style.display = filtered.length ? 'none' : 'block';
+      const colCount = trainings.length + 1;
+
+      tbody.innerHTML = '';
+      filtered.forEach((e, idx) => {
+        const rowId = cfg.sheetKey + '-row-' + idx;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>
+            <div class="name-cell">${e.nom}</div>
+            <div class="name-sub">${e.ancienneteMois != null ? e.ancienneteMois + ' mois d\'ancienneté' : ''}</div>
+          </td>
+          ${trainings.map(t => `<td>${pillHtml(t, e.statuses[t.key])}</td>`).join('')}
+        `;
+        tr.addEventListener('click', () => {
+          const existing = document.getElementById(rowId);
+          if(existing){ existing.remove(); return; }
+          tbody.querySelectorAll('.expand-row').forEach(r => r.remove());
+          const exp = document.createElement('tr');
+          exp.className = 'expand-row';
+          exp.id = rowId;
+          exp.innerHTML = `<td colspan="${colCount}"><div class="expand-inner">${detailCardHtml(e)}</div>${deleteSectionHtml(e.nom)}</td>`;
+          tr.after(exp);
+          wireSaveButtons(exp);
+          wireDeleteButton(exp, e.nom, () => { exp.remove(); tr.remove(); });
+        });
+        tbody.appendChild(tr);
+      });
+
+      cardsWrap.innerHTML = '';
+      filtered.forEach(e => {
+        const card = document.createElement('div');
+        card.className = 'emp-card';
+        card.innerHTML = `
+          <div class="emp-card-head">
+            <div class="name">${e.nom}</div>
+            <div class="anc">${e.ancienneteMois != null ? e.ancienneteMois + ' mois' : ''}</div>
+          </div>
+          <div class="emp-card-grid">
+            ${trainings.map(t => `<div><div class="label">${t.label}</div>${pillHtml(t, e.statuses[t.key])}</div>`).join('')}
+          </div>
+          <button class="edit-toggle-btn">Saisir une date de réalisation</button>
+          <div class="card-detail" style="display:none;"></div>
+        `;
+        const editBtn = card.querySelector('.edit-toggle-btn');
+        const detailWrap = card.querySelector('.card-detail');
+        editBtn.addEventListener('click', () => {
+          const isOpen = detailWrap.style.display !== 'none';
+          if(isOpen){ detailWrap.style.display = 'none'; editBtn.textContent = 'Saisir une date de réalisation'; return; }
+          detailWrap.innerHTML = `<div class="expand-inner">${detailCardHtml(e)}</div>${deleteSectionHtml(e.nom)}`;
+          detailWrap.style.display = 'block';
+          editBtn.textContent = 'Masquer';
+          wireSaveButtons(detailWrap);
+          wireDeleteButton(detailWrap, e.nom, () => { card.remove(); });
+        });
+        cardsWrap.appendChild(card);
+      });
+    }
+
+    searchInput.addEventListener('input', render);
+    sortSelect.addEventListener('change', render);
+    sortSelect.value = 'urgency';
+
+    // ---------------- Ajout d'une nouvelle personne ----------------
+    const addBtn = document.getElementById(cfg.ids.addBtn);
+    const modal = document.getElementById(cfg.ids.modal);
+    const form = document.getElementById(cfg.ids.form);
+    const nomInput = document.getElementById(cfg.ids.nomInput);
+    const dateInput = document.getElementById(cfg.ids.dateInput);
+    const errorEl = document.getElementById(cfg.ids.error);
+    const submitBtn = document.getElementById(cfg.ids.submitBtn);
+    const cancelBtn = document.getElementById(cfg.ids.cancelBtn);
+
+    function openModal(){
+      form.reset();
+      errorEl.style.display = 'none';
+      modal.style.display = 'flex';
+      nomInput.focus();
+    }
+    function closeModal(){
+      modal.style.display = 'none';
+    }
+
+    addBtn.addEventListener('click', openModal);
+    cancelBtn.addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => { if(e.target === modal) closeModal(); });
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const nom = nomInput.value.trim();
+      const dateEntree = dateInput.value;
+      if(!nom || !dateEntree) return;
+
+      if(findPerson(nom)){
+        errorEl.textContent = 'Une personne avec ce nom existe déjà.';
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      submitBtn.disabled = true;
+      errorEl.style.display = 'none';
+      try{
+        await postUpdate(cfg.addSheetKey, nom, 'dateEntree', dateEntree);
+
+        const suivi4sButoir = addMonthsJS(dateEntree, 1);
+        const entreeDt = new Date(dateEntree + 'T00:00:00');
+        const ancienneteMois = Math.max(0, Math.round((today - entreeDt) / (1000*60*60*24*30.44)));
+
+        const base = {
+          nom, dateEntree, ancienneteMois,
+          secuFait: null, secuButoir: null,
+          hygieneFait: null, hygieneButoir: null,
+          mtsriFait: null, mtsriButoir: null,
+          cultureButoir: suivi4sButoir, cultureFait: null
+        };
+        if(cfg.hasSuivi4s){
+          base.suivi4sButoir = suivi4sButoir;
+          base.suivi4sFait = null;
+        }
+        if(cfg.hasSkills) base.skills = POSTES.map(() => false);
+
+        const newPerson = computeDerived(base);
+        list.push(newPerson);
+
+        renderStats();
+        render();
+        afterChange();
+
+        closeModal();
+      } catch(err){
+        errorEl.textContent = 'Erreur : ' + err.message;
+        errorEl.style.display = 'block';
+      } finally {
+        submitBtn.disabled = false;
+      }
+    });
+
+    renderStats();
+    renderChips();
+    render();
+
+    return { findPerson, list };
+  }
+
+  // ---- Instanciation onglet Équipiers ----
+  createRosterTab({
+    list: employees,
+    trainings: TRAININGS,
+    sheetKey: 'formations',
+    addSheetKey: 'new_employee',
+    deleteSheetKey: 'delete_employee',
+    personLabelSingular: 'cet équipier',
+    personLabelPlural: 'Équipiers',
+    hasSkills: true,
+    hasSuivi4s: true,
+    ids: {
+      search:'searchInput', sort:'sortSelect', addBtn:'addEmployeeBtn', chips:'trainingChips',
+      statsRow:'statsRow', tableBody:'tableBody', cardsWrap:'cardsWrap', emptyState:'emptyState',
+      modal:'addEmployeeModal', form:'addEmployeeForm', nomInput:'newEmpNom', dateInput:'newEmpDate',
+      error:'addEmployeeError', submitBtn:'submitAddEmployee', cancelBtn:'cancelAddEmployee'
+    },
+    afterChange: function(){
       computePolyStats();
-      renderStats();
-      render();
       renderKpis();
       renderBars();
       renderMatrix();
-
-      closeAddEmployeeModal();
-    } catch(err){
-      addEmployeeError.textContent = 'Erreur : ' + err.message;
-      addEmployeeError.style.display = 'block';
-    } finally {
-      submitAddEmployee.disabled = false;
     }
+  });
+
+  // ---- Instanciation onglet Équipe de gestion ----
+  createRosterTab({
+    list: managers,
+    trainings: TRAININGS.filter(t => t.key !== 'suivi4s'),
+    sheetKey: 'gestion',
+    addSheetKey: 'new_manager',
+    deleteSheetKey: 'delete_manager',
+    personLabelSingular: 'ce membre',
+    personLabelPlural: 'Membres',
+    hasSkills: false,
+    hasSuivi4s: false,
+    ids: {
+      search:'searchInputGestion', sort:'sortSelectGestion', addBtn:'addManagerBtn', chips:'trainingChipsGestion',
+      statsRow:'statsRowGestion', tableBody:'tableBodyGestion', cardsWrap:'cardsWrapGestion', emptyState:'emptyStateGestion',
+      modal:'addManagerModal', form:'addManagerForm', nomInput:'newMgrNom', dateInput:'newMgrDate',
+      error:'addManagerError', submitBtn:'submitAddManager', cancelBtn:'cancelAddManager'
+    },
+    afterChange: function(){}
   });
 
   // ================= TAB NAVIGATION =================
   const tabBtns = document.querySelectorAll('.tab-btn');
   const tabFormations = document.getElementById('tab-formations');
+  const tabGestion = document.getElementById('tab-gestion');
   const tabPolyvalence = document.getElementById('tab-polyvalence');
   const statsWrap = document.getElementById('statsWrap');
+  const statsRowEl = document.getElementById('statsRow');
+  const statsRowGestionEl = document.getElementById('statsRowGestion');
 
   tabBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       tabBtns.forEach(b => b.classList.toggle('active', b === btn));
-      const isForm = btn.dataset.tab === 'formations';
-      tabFormations.style.display = isForm ? '' : 'none';
-      tabPolyvalence.style.display = isForm ? 'none' : '';
-      statsWrap.style.display = isForm ? '' : 'none';
+      const tab = btn.dataset.tab; // 'formations' | 'gestion' | 'polyvalence'
+      tabFormations.style.display = tab === 'formations' ? '' : 'none';
+      tabGestion.style.display = tab === 'gestion' ? '' : 'none';
+      tabPolyvalence.style.display = tab === 'polyvalence' ? '' : 'none';
+      statsWrap.style.display = tab === 'polyvalence' ? 'none' : '';
+      statsRowEl.style.display = tab === 'formations' ? '' : 'none';
+      statsRowGestionEl.style.display = tab === 'gestion' ? '' : 'none';
     });
   });
 
-  // ================= POLYVALENCE TAB =================
+  // ================= POLYVALENCE TAB (équipiers uniquement) =================
   const GROUP_LABELS = {production:'Production', service:'Service', autres:'Autres'};
   const GROUP_ORDER = ['production','service','autres'];
 
@@ -1290,8 +1401,6 @@ function initApp(appData){
 
   function pct1(x){ return (x*100).toFixed(0) + '%'; }
 
-
-  // ---- KPI cards ----
   function renderKpis(){
     const wrap = document.getElementById('polyKpis');
     const cards = [
@@ -1314,7 +1423,6 @@ function initApp(appData){
     `).join('');
   }
 
-  // ---- Bar chart per poste ----
   function renderBars(){
     const wrap = document.getElementById('posteBars');
     const sorted = posteStats.slice().sort((a,b) => a.pct - b.pct);
@@ -1330,10 +1438,9 @@ function initApp(appData){
     `).join('');
   }
 
-  // ---- Matrix ----
   const polySearchInput = document.getElementById('polySearchInput');
   const polySortSelect = document.getElementById('polySortSelect');
-  let matrixSortKey = null; // poste idx or null (uses select value)
+  let matrixSortKey = null;
 
   function renderMatrix(){
     const table = document.getElementById('matrixTable');
@@ -1348,7 +1455,6 @@ function initApp(appData){
         if(mode === 'name') return a.nom.localeCompare(b.nom, 'fr');
         if(mode === 'score_asc') return a.polyScore - b.polyScore;
         if(mode === 'score_desc') return b.polyScore - a.polyScore;
-        // date_entree (par défaut) : du plus ancien au plus récent
         return (a.dateEntree || '9999-99-99').localeCompare(b.dateEntree || '9999-99-99');
       });
     }
@@ -1378,7 +1484,7 @@ function initApp(appData){
         const nom = dot.dataset.nom;
         const idx = parseInt(dot.dataset.idx, 10);
         const poste = POSTES[idx];
-        const emp = findEmployee(nom);
+        const emp = employees.find(e => e.nom === nom);
         const newValue = !emp.skills[idx];
         dot.classList.add('saving');
         try{
