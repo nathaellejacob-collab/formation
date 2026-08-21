@@ -202,6 +202,42 @@
     color:var(--ink);
     cursor:pointer;
   }
+  .add-btn{
+    appearance:none; border:none; border-radius:999px;
+    background:var(--navy); color:#fff; font-size:13.5px; font-weight:700;
+    padding:10px 18px; cursor:pointer; white-space:nowrap;
+  }
+  .add-btn:hover{background:var(--navy-2);}
+
+  /* ---------- MODAL (ajout équipier) ---------- */
+  .modal-overlay{
+    position:fixed; inset:0; z-index:95;
+    background:rgba(20,20,20,0.45);
+    display:flex; align-items:center; justify-content:center;
+    padding:20px;
+  }
+  .modal-card{
+    background:var(--panel); border-radius:14px; padding:26px 26px 22px;
+    max-width:380px; width:100%; box-shadow:0 20px 50px -20px rgba(0,0,0,0.5);
+  }
+  .modal-card h3{margin:0 0 6px; font-size:18px; font-weight:800; color:var(--ink);}
+  .modal-sub{margin:0 0 16px; font-size:12px; color:var(--ink-soft); line-height:1.4;}
+  #addEmployeeForm{display:flex; flex-direction:column; gap:6px;}
+  #addEmployeeForm label{font-size:11.5px; font-weight:700; color:var(--ink-soft); margin-top:8px;}
+  #addEmployeeForm input{
+    padding:10px 12px; border-radius:8px; border:1px solid var(--line);
+    font-size:13.5px; outline:none;
+  }
+  #addEmployeeForm input:focus{border-color:var(--amber-dark); box-shadow:0 0 0 3px rgba(232,163,61,0.18);}
+  .modal-actions{display:flex; justify-content:flex-end; gap:10px; margin-top:18px;}
+  .modal-actions button{
+    appearance:none; border-radius:8px; font-size:13px; font-weight:700; padding:10px 16px; cursor:pointer;
+  }
+  #cancelAddEmployee{background:transparent; border:1px solid var(--line); color:var(--ink-soft);}
+  #submitAddEmployee{background:var(--navy); border:none; color:#fff;}
+  #submitAddEmployee:hover{background:var(--navy-2);}
+  #submitAddEmployee:disabled{opacity:0.6; cursor:default;}
+  .modal-error{color:var(--red); font-size:12px; margin-top:8px;}
   .legend{
     display:flex;
     gap:14px;
@@ -411,6 +447,21 @@
   .card-detail .expand-inner{
     display:grid; grid-template-columns:1fr; gap:12px; padding:0;
   }
+
+  .delete-section{
+    padding:14px 20px 18px; border-top:1px dashed var(--line); margin-top:4px;
+    display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+  }
+  .delete-emp-btn{
+    appearance:none; border:1px solid var(--red-line); border-radius:8px;
+    background:var(--red-bg); color:var(--red); font-size:12px; font-weight:700;
+    padding:8px 14px; cursor:pointer;
+  }
+  .delete-emp-btn:hover{background:var(--red); color:#fff;}
+  .delete-emp-btn:disabled{opacity:0.6; cursor:default;}
+  .delete-status{font-size:11px; color:var(--ink-soft);}
+  .delete-status.pending{color:var(--amber-dark);}
+  .delete-status.error{color:var(--red); font-weight:700;}
 
   /* ---------- CARDS (mobile) ---------- */
   .cards{display:none;}
@@ -635,6 +686,7 @@
       <option value="name">Trier par nom</option>
       <option value="anciennete">Trier par ancienneté</option>
     </select>
+    <button class="add-btn" id="addEmployeeBtn">+ Ajouter un équipier</button>
   </div>
 
   <div class="chips-row" id="trainingChips"></div>
@@ -710,6 +762,24 @@
 </main>
 
 <footer>Tableau de polyvalence Chamnord · généré pour les formateurs · cliquez une ligne pour voir le détail des dates</footer>
+
+<div class="modal-overlay" id="addEmployeeModal" style="display:none;">
+  <div class="modal-card">
+    <h3>Nouvel équipier</h3>
+    <p class="modal-sub">Les dates butoirs de Suivi 4 semaines et Culture Service sont calculées automatiquement (1 mois après l'entrée). Les autres formations se renseignent ensuite normalement.</p>
+    <form id="addEmployeeForm">
+      <label for="newEmpNom">Nom complet</label>
+      <input type="text" id="newEmpNom" required placeholder="NOM Prénom" autocomplete="off">
+      <label for="newEmpDate">Date d'entrée</label>
+      <input type="date" id="newEmpDate" required>
+      <div class="modal-error" id="addEmployeeError" style="display:none;"></div>
+      <div class="modal-actions">
+        <button type="button" id="cancelAddEmployee">Annuler</button>
+        <button type="submit" id="submitAddEmployee">Ajouter</button>
+      </div>
+    </form>
+  </div>
+</div>
 
 </div><!-- /#appRoot -->
 
@@ -924,6 +994,43 @@ function initApp(appData){
     }).join('');
   }
 
+  function deleteSectionHtml(nom){
+    return `<div class="delete-section">
+      <button class="delete-emp-btn" data-nom="${nom.replace(/"/g,'&quot;')}">Supprimer cet équipier</button>
+      <span class="delete-status"></span>
+    </div>`;
+  }
+
+  function wireDeleteButton(container, nom, onDeleted){
+    const btn = container.querySelector('.delete-emp-btn');
+    if(!btn) return;
+    btn.addEventListener('click', async (ev) => {
+      ev.stopPropagation();
+      const confirmed = window.confirm(`Supprimer définitivement ${nom} ? Cette action modifie directement le Google Sheet et ne peut pas être annulée depuis le site.`);
+      if(!confirmed) return;
+      const statusSpan = btn.nextElementSibling;
+      btn.disabled = true;
+      statusSpan.textContent = 'Suppression…';
+      statusSpan.className = 'delete-status pending';
+      try{
+        await postUpdate('delete_employee', nom, 'delete', null);
+        const idx = employees.findIndex(e => e.nom === nom);
+        if(idx !== -1) employees.splice(idx, 1);
+        computePolyStats();
+        renderStats();
+        render();
+        renderKpis();
+        renderBars();
+        renderMatrix();
+        onDeleted();
+      } catch(err){
+        statusSpan.textContent = 'Erreur : ' + err.message;
+        statusSpan.className = 'delete-status error';
+        btn.disabled = false;
+      }
+    });
+  }
+
   // ---------- render ----------
   const tbody = document.getElementById('tableBody');
   const cardsWrap = document.getElementById('cardsWrap');
@@ -977,9 +1084,10 @@ function initApp(appData){
         const exp = document.createElement('tr');
         exp.className = 'expand-row';
         exp.id = rowId;
-        exp.innerHTML = `<td colspan="6"><div class="expand-inner">${detailCardHtml(e)}</div></td>`;
+        exp.innerHTML = `<td colspan="6"><div class="expand-inner">${detailCardHtml(e)}</div>${deleteSectionHtml(e.nom)}</td>`;
         tr.after(exp);
         wireSaveButtons(exp);
+        wireDeleteButton(exp, e.nom, () => { exp.remove(); tr.remove(); });
       });
       tbody.appendChild(tr);
     });
@@ -1009,10 +1117,11 @@ function initApp(appData){
       editBtn.addEventListener('click', () => {
         const isOpen = detailWrap.style.display !== 'none';
         if(isOpen){ detailWrap.style.display = 'none'; editBtn.textContent = 'Saisir une date de réalisation'; return; }
-        detailWrap.innerHTML = `<div class="expand-inner">${detailCardHtml(e)}</div>`;
+        detailWrap.innerHTML = `<div class="expand-inner">${detailCardHtml(e)}</div>${deleteSectionHtml(e.nom)}`;
         detailWrap.style.display = 'block';
         editBtn.textContent = 'Masquer';
         wireSaveButtons(detailWrap);
+        wireDeleteButton(detailWrap, e.nom, () => { card.remove(); });
       });
       cardsWrap.appendChild(card);
     });
@@ -1063,6 +1172,86 @@ function initApp(appData){
   sortSelect.addEventListener('change', render);
   sortSelect.value = 'urgency';
   render();
+
+  // ================= AJOUT D'UN NOUVEL ÉQUIPIER =================
+  function addMonthsJS(dateStr, months){
+    const [y,m,d] = dateStr.split('-').map(Number);
+    const dt = new Date(y, m-1, d);
+    dt.setMonth(dt.getMonth() + months);
+    return dt.toISOString().slice(0,10);
+  }
+
+  const addEmployeeBtn = document.getElementById('addEmployeeBtn');
+  const addEmployeeModal = document.getElementById('addEmployeeModal');
+  const addEmployeeForm = document.getElementById('addEmployeeForm');
+  const newEmpNom = document.getElementById('newEmpNom');
+  const newEmpDate = document.getElementById('newEmpDate');
+  const addEmployeeError = document.getElementById('addEmployeeError');
+  const submitAddEmployee = document.getElementById('submitAddEmployee');
+  const cancelAddEmployee = document.getElementById('cancelAddEmployee');
+
+  function openAddEmployeeModal(){
+    addEmployeeForm.reset();
+    addEmployeeError.style.display = 'none';
+    addEmployeeModal.style.display = 'flex';
+    newEmpNom.focus();
+  }
+  function closeAddEmployeeModal(){
+    addEmployeeModal.style.display = 'none';
+  }
+
+  addEmployeeBtn.addEventListener('click', openAddEmployeeModal);
+  cancelAddEmployee.addEventListener('click', closeAddEmployeeModal);
+  addEmployeeModal.addEventListener('click', (e) => { if(e.target === addEmployeeModal) closeAddEmployeeModal(); });
+
+  addEmployeeForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const nom = newEmpNom.value.trim();
+    const dateEntree = newEmpDate.value;
+    if(!nom || !dateEntree) return;
+
+    if(findEmployee(nom)){
+      addEmployeeError.textContent = 'Un équipier avec ce nom existe déjà.';
+      addEmployeeError.style.display = 'block';
+      return;
+    }
+
+    submitAddEmployee.disabled = true;
+    addEmployeeError.style.display = 'none';
+    try{
+      await postUpdate('new_employee', nom, 'dateEntree', dateEntree);
+
+      const suivi4sButoir = addMonthsJS(dateEntree, 1);
+      const today0 = new Date(); today0.setHours(0,0,0,0);
+      const entreeDt = new Date(dateEntree + 'T00:00:00');
+      const ancienneteMois = Math.max(0, Math.round((today0 - entreeDt) / (1000*60*60*24*30.44)));
+
+      const newEmp = computeDerived({
+        nom, dateEntree, ancienneteMois,
+        suivi4sButoir, suivi4sFait: null,
+        secuFait: null, secuButoir: null,
+        hygieneFait: null, hygieneButoir: null,
+        mtsriFait: null, mtsriButoir: null,
+        cultureButoir: suivi4sButoir, cultureFait: null,
+        skills: POSTES.map(() => false)
+      });
+      employees.push(newEmp);
+
+      computePolyStats();
+      renderStats();
+      render();
+      renderKpis();
+      renderBars();
+      renderMatrix();
+
+      closeAddEmployeeModal();
+    } catch(err){
+      addEmployeeError.textContent = 'Erreur : ' + err.message;
+      addEmployeeError.style.display = 'block';
+    } finally {
+      submitAddEmployee.disabled = false;
+    }
+  });
 
   // ================= TAB NAVIGATION =================
   const tabBtns = document.querySelectorAll('.tab-btn');
@@ -1231,7 +1420,7 @@ function initApp(appData){
 // Le site lit et écrit en direct dans un Google Sheet, via une petite
 // passerelle Google Apps Script (voir Code.gs). Colle ici l'URL de ton
 // déploiement Apps Script (se termine par /exec) :
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxyoVZtmgC62PyEz7Wrq1NqK7ejrKd-qwILvwweukfwkz7nQnj4ZuquuC_U0aYoD-I0kQ/exec';
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyoR0ozwG5MTktI82mo3Sv8hM6HdNqmlyaTlfxLGcc7jiNcy3GBLs4DK5N029qzRTd6zQ/exec';
 
 // Mot de passe par défaut : "chamnord2026"
 // Pour le changer, remplace directement la valeur ci-dessous.
