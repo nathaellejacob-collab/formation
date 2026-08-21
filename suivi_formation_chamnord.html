@@ -380,6 +380,38 @@
   .detail-row span:first-child{color:var(--ink-soft);}
   .detail-row span:last-child{font-weight:700;}
 
+  .detail-edit{
+    margin-top:10px; padding-top:10px; border-top:1px dashed var(--line);
+    display:flex; flex-wrap:wrap; align-items:center; gap:6px;
+  }
+  .detail-edit label{font-size:11px; color:var(--ink-soft); width:100%;}
+  .detail-edit input[type="date"]{
+    flex:1 1 130px; padding:6px 8px; border-radius:6px; border:1px solid var(--line);
+    font-size:12.5px; color:var(--ink);
+  }
+  .detail-edit .save-btn{
+    appearance:none; border:none; border-radius:6px; background:var(--navy); color:#fff;
+    font-size:11.5px; font-weight:700; padding:7px 12px; cursor:pointer;
+  }
+  .detail-edit .save-btn:hover{background:var(--navy-2);}
+  .detail-edit .save-btn:disabled{opacity:0.6; cursor:default;}
+  .save-status{font-size:11px; color:var(--ink-soft);}
+  .save-status.ok{color:var(--green); font-weight:700;}
+  .save-status.error{color:var(--red); font-weight:700;}
+  .save-status.pending{color:var(--amber-dark);}
+
+  .edit-toggle-btn{
+    margin-top:10px; width:100%;
+    appearance:none; border:1px solid var(--line); border-radius:8px;
+    background:#faf8f2; color:var(--ink); font-size:12px; font-weight:700;
+    padding:9px 10px; cursor:pointer;
+  }
+  .edit-toggle-btn:hover{border-color:var(--amber-dark);}
+  .card-detail{margin-top:10px;}
+  .card-detail .expand-inner{
+    display:grid; grid-template-columns:1fr; gap:12px; padding:0;
+  }
+
   /* ---------- CARDS (mobile) ---------- */
   .cards{display:none;}
   .emp-card{
@@ -518,6 +550,9 @@
     display:inline-block; width:16px; height:16px; border-radius:5px;
     background:#e7e4da;
   }
+  .matrix-dot.clickable{cursor:pointer; transition:transform .08s ease;}
+  .matrix-dot.clickable:hover{transform:scale(1.25); outline:2px solid var(--ink); outline-offset:1px;}
+  .matrix-dot.saving{opacity:0.4;}
   .matrix-dot.on.production{background:var(--amber);}
   .matrix-dot.on.service{background:var(--teal);}
   .matrix-dot.on.autres{background:var(--plum);}
@@ -738,8 +773,9 @@ function initApp(appData){
     return t.oneTime ? statusOneTime(e[t.faitKey], e[t.butoirKey]) : statusRecurring(e[t.butoirKey]);
   }
 
-  // Precompute per-employee: worst status across all trainings + all statuses for rendering.
-  const employees = raw.map(e => {
+  // Calcule les statuts dérivés (pastilles, pire statut) d'un équipier.
+  // Rappelée après chaque modification pour que l'affichage se mette à jour sans recharger la page.
+  function computeDerived(e){
     const statuses = {};
     TRAININGS.forEach(t => { statuses[t.key] = statusForTraining(t, e); });
     const rank = {red:0, orange:1, gray:2, done:3, green:3};
@@ -753,8 +789,32 @@ function initApp(appData){
         worstDays = s.days;
       }
     });
-    return {...e, statuses, worst, worstDays: worstDays === Infinity ? 9999 : worstDays};
-  });
+    e.statuses = statuses;
+    e.worst = worst;
+    e.worstDays = worstDays === Infinity ? 9999 : worstDays;
+    e.polyScore = e.skills.filter(Boolean).length;
+    e.polyPct = e.polyScore / POSTES.length;
+    return e;
+  }
+
+  // Precompute per-employee: worst status across all trainings + all statuses for rendering.
+  const employees = raw.map(e => computeDerived({...e}));
+
+  // ---------------- Sauvegarde vers Google Sheets (Apps Script) ----------------
+  async function postUpdate(sheetName, nom, field, value){
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'text/plain;charset=utf-8'}, // évite le preflight CORS avec Apps Script
+      body: JSON.stringify({sheet: sheetName, nom, field, value})
+    });
+    const data = await res.json();
+    if(!data.ok) throw new Error(data.error || 'Échec de la sauvegarde');
+    return data;
+  }
+
+  function findEmployee(nom){
+    return employees.find(e => e.nom === nom);
+  }
 
   // Renvoie le statut "pertinent" d'un équipier compte tenu du focus formation en cours :
   // si une formation précise est sélectionnée, on utilise son statut ; sinon le pire statut global.
@@ -843,7 +903,7 @@ function initApp(appData){
 
   function detailCardHtml(e){
     return TRAININGS.map(t => {
-      const fait = parseDate(e[t.faitKey]);
+      const fait = e[t.faitKey] || '';
       const butoir = parseDate(e[t.butoirKey]);
       const s = e.statuses[t.key];
       const statusLine = t.oneTime
@@ -852,9 +912,14 @@ function initApp(appData){
         : '';
       return `<div class="detail-card">
         <h4>${t.label} <span style="text-transform:none;font-weight:400;">(${t.period})</span></h4>
-        <div class="detail-row"><span>Fait le</span><span>${frDate(fait)}</span></div>
         <div class="detail-row"><span>Date butoir</span><span>${frDate(butoir)}</span></div>
         ${statusLine}
+        <div class="detail-edit">
+          <label>Fait le</label>
+          <input type="date" class="fait-input" data-nom="${e.nom.replace(/"/g,'&quot;')}" data-field="${t.faitKey}" value="${fait}">
+          <button class="save-btn" data-nom="${e.nom.replace(/"/g,'&quot;')}" data-field="${t.faitKey}">Enregistrer</button>
+          <span class="save-status"></span>
+        </div>
       </div>`;
     }).join('');
   }
@@ -914,6 +979,7 @@ function initApp(appData){
         exp.id = rowId;
         exp.innerHTML = `<td colspan="6"><div class="expand-inner">${detailCardHtml(e)}</div></td>`;
         tr.after(exp);
+        wireSaveButtons(exp);
       });
       tbody.appendChild(tr);
     });
@@ -935,8 +1001,61 @@ function initApp(appData){
           <div><div class="label">Culture Service</div>${pillHtml(TRAININGS[3], e.statuses.culture)}</div>
           <div><div class="label">Suivi à 4 semaines</div>${pillHtml(TRAININGS[4], e.statuses.suivi4s)}</div>
         </div>
+        <button class="edit-toggle-btn">Saisir une date de réalisation</button>
+        <div class="card-detail" style="display:none;"></div>
       `;
+      const editBtn = card.querySelector('.edit-toggle-btn');
+      const detailWrap = card.querySelector('.card-detail');
+      editBtn.addEventListener('click', () => {
+        const isOpen = detailWrap.style.display !== 'none';
+        if(isOpen){ detailWrap.style.display = 'none'; editBtn.textContent = 'Saisir une date de réalisation'; return; }
+        detailWrap.innerHTML = `<div class="expand-inner">${detailCardHtml(e)}</div>`;
+        detailWrap.style.display = 'block';
+        editBtn.textContent = 'Masquer';
+        wireSaveButtons(detailWrap);
+      });
       cardsWrap.appendChild(card);
+    });
+  }
+
+  // Branche les boutons "Enregistrer" des fiches de détail (desktop + mobile) sur la sauvegarde.
+  function wireSaveButtons(container){
+    container.querySelectorAll('.save-btn').forEach(btn => {
+      btn.addEventListener('click', async (ev) => {
+        ev.stopPropagation();
+        const nom = btn.dataset.nom;
+        const field = btn.dataset.field;
+        const input = container.querySelector(`.fait-input[data-nom="${CSS.escape(nom)}"][data-field="${field}"]`);
+        const value = input.value; // 'YYYY-MM-DD' ou ''
+        const statusSpan = btn.nextElementSibling;
+        btn.disabled = true;
+        statusSpan.textContent = 'Enregistrement…';
+        statusSpan.className = 'save-status pending';
+        try{
+          await postUpdate('formations', nom, field, value);
+          const emp = findEmployee(nom);
+          emp[field] = value || null;
+          // Si l'API a recalculé une date butoir (formations récurrentes), on la reflète localement.
+          const auto = {secuFait:'secuButoir', hygieneFait:'hygieneButoir', mtsriFait:'mtsriButoir'}[field];
+          if(auto && value){
+            const [y,m,d] = value.split('-').map(Number);
+            const dt = new Date(y, m-1, d);
+            const months = field === 'mtsriFait' ? 12 : 6;
+            dt.setMonth(dt.getMonth() + months);
+            emp[auto] = dt.toISOString().slice(0,10);
+          }
+          computeDerived(emp);
+          renderStats();
+          render();
+          statusSpan.textContent = '✓ Enregistré';
+          statusSpan.className = 'save-status ok';
+        } catch(err){
+          statusSpan.textContent = 'Erreur : ' + err.message;
+          statusSpan.className = 'save-status error';
+        } finally {
+          btn.disabled = false;
+        }
+      });
     });
   }
 
@@ -965,27 +1084,23 @@ function initApp(appData){
   const GROUP_LABELS = {production:'Production', service:'Service', autres:'Autres'};
   const GROUP_ORDER = ['production','service','autres'];
 
-  // Per-poste stats
-  const posteStats = POSTES.map((p, idx) => {
-    const trained = employees.filter(e => e.skills[idx]).length;
-    return {...p, idx, trained, total: employees.length, pct: employees.length ? trained/employees.length : 0};
-  });
-
-  const groupStats = GROUP_ORDER.map(g => {
-    const items = posteStats.filter(p => p.group === g);
-    const avg = items.reduce((s,p) => s + p.pct, 0) / items.length;
-    return {group:g, label:GROUP_LABELS[g], pct:avg};
-  });
-  const globalPct = posteStats.reduce((s,p) => s + p.pct, 0) / posteStats.length;
-
-  // Per-employee polyvalence score
-  employees.forEach(e => {
-    const total = e.skills.filter(Boolean).length;
-    e.polyScore = total;
-    e.polyPct = total / POSTES.length;
-  });
+  let posteStats, groupStats, globalPct;
+  function computePolyStats(){
+    posteStats = POSTES.map((p, idx) => {
+      const trained = employees.filter(e => e.skills[idx]).length;
+      return {...p, idx, trained, total: employees.length, pct: employees.length ? trained/employees.length : 0};
+    });
+    groupStats = GROUP_ORDER.map(g => {
+      const items = posteStats.filter(p => p.group === g);
+      const avg = items.reduce((s,p) => s + p.pct, 0) / items.length;
+      return {group:g, label:GROUP_LABELS[g], pct:avg};
+    });
+    globalPct = posteStats.reduce((s,p) => s + p.pct, 0) / posteStats.length;
+  }
+  computePolyStats();
 
   function pct1(x){ return (x*100).toFixed(0) + '%'; }
+
 
   // ---- KPI cards ----
   function renderKpis(){
@@ -1058,7 +1173,7 @@ function initApp(appData){
     const tbody = '<tbody>' + list.map(e => `
       <tr>
         <td class="name-col">${e.nom}<div class="matrix-name-sub">${e.dateEntree ? frDate(parseDate(e.dateEntree)) : ''}</div></td>
-        ${POSTES.map((p, idx) => `<td class="cell-td"><span class="matrix-dot ${e.skills[idx] ? 'on '+p.group : ''}" title="${p.label}"></span></td>`).join('')}
+        ${POSTES.map((p, idx) => `<td class="cell-td"><span class="matrix-dot clickable ${e.skills[idx] ? 'on '+p.group : ''}" data-nom="${e.nom.replace(/"/g,'&quot;')}" data-idx="${idx}" title="${p.label} — cliquer pour ${e.skills[idx] ? 'retirer' : 'valider'}"></span></td>`).join('')}
         <td>
           <div class="score-cell">${e.polyScore}/${POSTES.length}</div>
           <div class="score-bar-mini"><i style="width:${(e.polyPct*100).toFixed(0)}%;"></i></div>
@@ -1067,6 +1182,30 @@ function initApp(appData){
     `).join('') + '</tbody>';
 
     table.innerHTML = thead + tbody;
+
+    table.querySelectorAll('.matrix-dot.clickable').forEach(dot => {
+      dot.addEventListener('click', async () => {
+        if(dot.classList.contains('saving')) return;
+        const nom = dot.dataset.nom;
+        const idx = parseInt(dot.dataset.idx, 10);
+        const poste = POSTES[idx];
+        const emp = findEmployee(nom);
+        const newValue = !emp.skills[idx];
+        dot.classList.add('saving');
+        try{
+          await postUpdate('polyvalence', nom, poste.label, newValue);
+          emp.skills[idx] = newValue;
+          computeDerived(emp);
+          computePolyStats();
+          renderKpis();
+          renderBars();
+          renderMatrix();
+        } catch(err){
+          alert('Échec de la sauvegarde : ' + err.message);
+          dot.classList.remove('saving');
+        }
+      });
+    });
 
     table.querySelectorAll('thead th[data-idx]').forEach(th => {
       th.addEventListener('click', () => {
@@ -1089,22 +1228,15 @@ function initApp(appData){
 // CHARGEMENT DES DONNÉES + ÉCRAN DE MOT DE PASSE
 // ============================================================
 //
-// Le tableau ne contient plus les données "en dur" : il va chercher un
-// fichier formation_data.json à côté de cette page à chaque ouverture.
-// Pour mettre le site à jour : relance export_formation_data.py sur le
-// tableur Excel, puis pousse le nouveau formation_data.json au même
-// endroit que ce fichier HTML (même repo GitHub Pages).
-//
-// DATA_URL : chemin ou URL du JSON. Par défaut, un fichier dans le même
-// dossier que la page. Tu peux aussi pointer vers une URL complète
-// (ex: raw.githubusercontent.com/.../formation_data.json).
-const DATA_URL = 'formation_data.json';
+// Le site lit et écrit en direct dans un Google Sheet, via une petite
+// passerelle Google Apps Script (voir Code.gs). Colle ici l'URL de ton
+// déploiement Apps Script (se termine par /exec) :
+const APPS_SCRIPT_URL = 'COLLE_ICI_TON_URL_APPS_SCRIPT';
 
 // Mot de passe par défaut : "chamnord2026"
-// Pour le changer : génère le hash SHA-256 du nouveau mot de passe, par ex. dans un terminal :
-//   python3 -c "import hashlib; print(hashlib.sha256('TON_NOUVEAU_MDP'.encode()).hexdigest())"
-// puis colle le résultat ci-dessous.
-const PASSWORD_HASH = '4c5c225b9c96342278e976b0ca4bfdcb80b7a8eef6df1e14d3d977075c41bec9';
+// Pour le changer, remplace directement la valeur ci-dessous.
+// (Rappel : ce n'est pas une vraie sécurité, juste un frein d'accès côté client — voir note plus haut.)
+const PASSWORD = 'chamnord2026';
 
 (function(){
   const authGate = document.getElementById('authGate');
@@ -1114,15 +1246,10 @@ const PASSWORD_HASH = '4c5c225b9c96342278e976b0ca4bfdcb80b7a8eef6df1e14d3d977075
   const loadingState = document.getElementById('loadingState');
   const appRoot = document.getElementById('appRoot');
 
-  async function sha256Hex(str){
-    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
-    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
-  }
-
   async function loadData(){
     loadingState.style.display = 'flex';
     try{
-      const res = await fetch(DATA_URL, {cache:'no-store'});
+      const res = await fetch(APPS_SCRIPT_URL, {cache:'no-store'});
       if(!res.ok) throw new Error('HTTP ' + res.status);
       const appData = await res.json();
       loadingState.style.display = 'none';
@@ -1130,17 +1257,17 @@ const PASSWORD_HASH = '4c5c225b9c96342278e976b0ca4bfdcb80b7a8eef6df1e14d3d977075
       initApp(appData);
     } catch(err){
       loadingState.innerHTML = `<div class="load-error">
-        Impossible de charger les données depuis <b>${DATA_URL}</b> (${err.message}).<br><br>
-        Vérifie que <code>formation_data.json</code> est bien déposé au même endroit que cette page,
-        ou ajuste la constante <code>DATA_URL</code> en haut de app.js.
+        Impossible de charger les données depuis Google Sheets (${err.message}).<br><br>
+        Vérifie que <code>APPS_SCRIPT_URL</code> en haut de app.js pointe bien vers ton
+        déploiement Apps Script (URL en <code>/exec</code>), et qu'il est accessible
+        "à tout le monde".
       </div>`;
     }
   }
 
-  authForm.addEventListener('submit', async (e) => {
+  authForm.addEventListener('submit', (e) => {
     e.preventDefault();
-    const hash = await sha256Hex(authInput.value);
-    if(hash === PASSWORD_HASH){
+    if(authInput.value === PASSWORD){
       authGate.style.display = 'none';
       loadData();
     } else {
