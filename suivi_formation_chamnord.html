@@ -1,0 +1,1157 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Suivi Formation — Crew Academy</title>
+<style>
+  :root{
+    --ink:#1b2430;
+    --ink-soft:#4a5568;
+    --paper:#f4f2ec;
+    --panel:#ffffff;
+    --line:#e2ded2;
+    --amber:#e8a33d;
+    --amber-dark:#b9781f;
+    --red:#c2452f;
+    --red-bg:#fbe9e5;
+    --red-line:#f0c3ba;
+    --orange:#c97a1a;
+    --orange-bg:#fdf1de;
+    --orange-line:#f2d6a2;
+    --green:#3f7a52;
+    --green-bg:#e9f2ea;
+    --green-line:#c7dfcc;
+    --gray:#8a8f98;
+    --gray-bg:#eef0f0;
+    --navy:#1e2a38;
+    --navy-2:#28374a;
+    --teal:#2f7276;
+    --teal-bg:#e6f1f1;
+    --teal-line:#bcdbdc;
+    --plum:#7d5aab;
+    --plum-bg:#efe8f7;
+    --plum-line:#d8c5ec;
+    --radius:10px;
+    font-size:16px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Segoe UI', Inter, -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  /* ---------- HEADER ---------- */
+  header.top{
+    background:linear-gradient(135deg, var(--navy) 0%, var(--navy-2) 100%);
+    color:#fff;
+    padding:28px 28px 24px;
+    position:relative;
+    overflow:hidden;
+  }
+  header.top::after{
+    content:"";
+    position:absolute;
+    right:-60px; top:-60px;
+    width:220px; height:220px;
+    border-radius:50%;
+    background:radial-gradient(circle, rgba(232,163,61,0.35), transparent 70%);
+  }
+  .top-inner{
+    position:relative;
+    z-index:1;
+    max-width:1200px;
+    margin:0 auto;
+    display:flex;
+    flex-wrap:wrap;
+    justify-content:space-between;
+    align-items:flex-end;
+    gap:18px;
+  }
+  .eyebrow{
+    text-transform:uppercase;
+    letter-spacing:0.14em;
+    font-size:11.5px;
+    color:var(--amber);
+    font-weight:700;
+    margin:0 0 6px;
+  }
+  h1{
+    margin:0;
+    font-size:clamp(24px, 3.4vw, 32px);
+    font-weight:800;
+    letter-spacing:-0.01em;
+  }
+  .subtitle{
+    margin:6px 0 0;
+    color:#c9d2dd;
+    font-size:14.5px;
+  }
+  .today-chip{
+    background:rgba(255,255,255,0.08);
+    border:1px solid rgba(255,255,255,0.18);
+    border-radius:999px;
+    padding:8px 16px;
+    font-size:13px;
+    color:#e7ecf2;
+    white-space:nowrap;
+  }
+  .today-chip b{color:#fff;}
+
+  /* ---------- TAB NAV ---------- */
+  .tabnav{
+    position:relative;
+    z-index:1;
+    max-width:1200px;
+    margin:20px auto 0;
+    display:flex;
+    gap:6px;
+  }
+  .tab-btn{
+    appearance:none;
+    border:1px solid rgba(255,255,255,0.16);
+    background:rgba(255,255,255,0.06);
+    color:#c9d2dd;
+    font-size:13.5px;
+    font-weight:700;
+    padding:10px 18px;
+    border-radius:999px 999px 0 0;
+    cursor:pointer;
+    transition:background .12s ease, color .12s ease;
+  }
+  .tab-btn:hover{background:rgba(255,255,255,0.12); color:#fff;}
+  .tab-btn.active{
+    background:var(--paper);
+    color:var(--ink);
+    border-color:var(--paper);
+  }
+
+  /* ---------- STATS ---------- */
+  .stats-wrap{
+    max-width:1200px;
+    margin:14px auto 0;
+    padding:0 28px;
+    position:relative;
+    z-index:2;
+  }
+  .stats{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:14px;
+  }
+  .stat-card{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:16px 18px;
+    box-shadow:0 8px 20px -14px rgba(20,20,20,0.35);
+    cursor:pointer;
+    transition:transform .12s ease, box-shadow .12s ease;
+  }
+  .stat-card:hover{transform:translateY(-2px); box-shadow:0 12px 22px -14px rgba(20,20,20,0.4);}
+  .stat-card.active{outline:2px solid var(--ink); outline-offset:2px;}
+  .stat-num{font-size:28px; font-weight:800; line-height:1;}
+  .stat-label{font-size:12.5px; color:var(--ink-soft); margin-top:6px; font-weight:600;}
+  .stat-card.red .stat-num{color:var(--red);}
+  .stat-card.orange .stat-num{color:var(--orange);}
+  .stat-card.green .stat-num{color:var(--green);}
+  .stat-card.all .stat-num{color:var(--ink);}
+
+  /* ---------- MAIN ---------- */
+  main{
+    max-width:1200px;
+    margin:0 auto;
+    padding:22px 28px 60px;
+  }
+
+  .controls{
+    display:flex;
+    flex-wrap:wrap;
+    gap:12px;
+    align-items:center;
+    margin-bottom:16px;
+  }
+  .search-box{
+    flex:1 1 260px;
+    position:relative;
+  }
+  .search-box input{
+    width:100%;
+    padding:11px 14px 11px 38px;
+    border-radius:999px;
+    border:1px solid var(--line);
+    background:var(--panel);
+    font-size:14px;
+    color:var(--ink);
+    outline:none;
+  }
+  .search-box input:focus{border-color:var(--amber-dark); box-shadow:0 0 0 3px rgba(232,163,61,0.18);}
+  .search-box svg{
+    position:absolute; left:13px; top:50%; transform:translateY(-50%);
+    width:15px; height:15px; color:var(--ink-soft);
+  }
+  select#sortSelect{
+    padding:10px 14px;
+    border-radius:999px;
+    border:1px solid var(--line);
+    background:var(--panel);
+    font-size:13.5px;
+    color:var(--ink);
+    cursor:pointer;
+  }
+  .legend{
+    display:flex;
+    gap:14px;
+    flex-wrap:wrap;
+    font-size:12px;
+    color:var(--ink-soft);
+    margin:2px 0 18px;
+  }
+  .chips-row{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    margin-bottom:14px;
+  }
+  .chip{
+    appearance:none;
+    border:1px solid var(--line);
+    background:var(--panel);
+    color:var(--ink-soft);
+    font-size:12.5px;
+    font-weight:600;
+    padding:7px 14px;
+    border-radius:999px;
+    cursor:pointer;
+    transition:all .12s ease;
+  }
+  .chip:hover{border-color:var(--amber-dark); color:var(--ink);}
+  .chip.active{
+    background:var(--navy);
+    border-color:var(--navy);
+    color:#fff;
+  }
+
+  /* ---------- AUTH GATE ---------- */
+  .auth-gate{
+    position:fixed; inset:0; z-index:100;
+    background:linear-gradient(135deg, var(--navy) 0%, var(--navy-2) 100%);
+    display:flex; align-items:center; justify-content:center;
+    padding:20px;
+  }
+  .auth-card{
+    background:var(--panel);
+    border-radius:14px;
+    padding:32px 30px;
+    max-width:360px;
+    width:100%;
+    box-shadow:0 20px 50px -20px rgba(0,0,0,0.5);
+  }
+  .auth-eyebrow{
+    text-transform:uppercase; letter-spacing:0.12em; font-size:11px;
+    color:var(--amber-dark); font-weight:700; margin-bottom:6px;
+  }
+  .auth-card h2{margin:0 0 8px; font-size:20px; font-weight:800; color:var(--ink);}
+  .auth-card p{margin:0 0 18px; font-size:13px; color:var(--ink-soft); line-height:1.4;}
+  #authForm{display:flex; flex-direction:column; gap:10px;}
+  #authInput{
+    padding:11px 14px; border-radius:8px; border:1px solid var(--line);
+    font-size:14px; outline:none;
+  }
+  #authInput:focus{border-color:var(--amber-dark); box-shadow:0 0 0 3px rgba(232,163,61,0.18);}
+  #authForm button{
+    appearance:none; border:none; border-radius:8px;
+    background:var(--navy); color:#fff; font-weight:700; font-size:13.5px;
+    padding:11px 14px; cursor:pointer;
+  }
+  #authForm button:hover{background:var(--navy-2);}
+  .auth-error{color:var(--red); font-size:12.5px; margin-top:10px;}
+
+  /* ---------- LOADING / ERROR STATE ---------- */
+  .loading-state{
+    position:fixed; inset:0; z-index:90;
+    background:var(--paper);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:14px;
+  }
+  .loading-spinner{
+    width:34px; height:34px; border-radius:50%;
+    border:3px solid var(--line); border-top-color:var(--amber-dark);
+    animation:spin 0.8s linear infinite;
+  }
+  @keyframes spin{ to { transform:rotate(360deg); } }
+  .loading-state p{color:var(--ink-soft); font-size:13.5px;}
+  .load-error{
+    max-width:420px; text-align:center; color:var(--red);
+    background:var(--red-bg); border:1px solid var(--red-line);
+    padding:16px 18px; border-radius:10px; font-size:13px; line-height:1.5;
+  }
+  .legend span{display:inline-flex; align-items:center; gap:6px;}
+  .dot{width:9px;height:9px;border-radius:50%;display:inline-block;}
+  .dot.red{background:var(--red);}
+  .dot.orange{background:var(--orange);}
+  .dot.green{background:var(--green);}
+  .dot.gray{background:var(--gray);}
+
+  .empty-state{
+    text-align:center;
+    padding:60px 20px;
+    color:var(--ink-soft);
+    background:var(--panel);
+    border:1px dashed var(--line);
+    border-radius:var(--radius);
+  }
+
+  /* ---------- TABLE (desktop) ---------- */
+  .table-wrap{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    overflow:hidden;
+    box-shadow:0 10px 26px -20px rgba(20,20,20,0.4);
+  }
+  table{
+    width:100%;
+    border-collapse:collapse;
+    font-size:13.5px;
+  }
+  thead th{
+    text-align:left;
+    background:#efece2;
+    color:var(--ink-soft);
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:0.05em;
+    font-weight:700;
+    padding:12px 14px;
+    border-bottom:1px solid var(--line);
+    white-space:nowrap;
+  }
+  tbody tr{
+    border-bottom:1px solid var(--line);
+    cursor:pointer;
+    transition:background .1s ease;
+  }
+  tbody tr:last-child{border-bottom:none;}
+  tbody tr:hover{background:#faf8f2;}
+  tbody td{padding:12px 14px; vertical-align:middle;}
+  .name-cell{font-weight:700; color:var(--ink);}
+  .name-sub{font-weight:400; color:var(--ink-soft); font-size:11.5px; margin-top:2px;}
+
+  .pill{
+    display:inline-flex;
+    flex-direction:column;
+    gap:1px;
+    padding:6px 10px;
+    border-radius:8px;
+    font-size:11.5px;
+    font-weight:700;
+    line-height:1.25;
+    min-width:96px;
+  }
+  .pill .pill-days{font-weight:800; font-size:12.5px;}
+  .pill .pill-date{font-weight:500; opacity:0.85; font-size:10.5px;}
+  .pill.red{background:var(--red-bg); color:var(--red); border:1px solid var(--red-line);}
+  .pill.orange{background:var(--orange-bg); color:var(--orange); border:1px solid var(--orange-line);}
+  .pill.green{background:var(--green-bg); color:var(--green); border:1px solid var(--green-line);}
+  .pill.gray{background:var(--gray-bg); color:var(--gray); border:1px solid #dcdfe2;}
+
+  .expand-row td{
+    background:#faf9f4;
+    padding:0;
+  }
+  .expand-inner{
+    padding:16px 20px 20px 20px;
+    display:grid;
+    grid-template-columns:repeat(auto-fit, minmax(200px,1fr));
+    gap:14px;
+  }
+  .detail-card{
+    background:#fff;
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:12px 14px;
+  }
+  .detail-card h4{margin:0 0 8px; font-size:12px; text-transform:uppercase; letter-spacing:0.04em; color:var(--ink-soft);}
+  .detail-row{display:flex; justify-content:space-between; font-size:12.5px; margin-top:4px;}
+  .detail-row span:first-child{color:var(--ink-soft);}
+  .detail-row span:last-child{font-weight:700;}
+
+  /* ---------- CARDS (mobile) ---------- */
+  .cards{display:none;}
+  .emp-card{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:14px 16px;
+    margin-bottom:12px;
+    box-shadow:0 8px 18px -16px rgba(20,20,20,0.4);
+  }
+  .emp-card-head{
+    display:flex; justify-content:space-between; align-items:center;
+    margin-bottom:10px;
+  }
+  .emp-card-head .name{font-weight:800; font-size:15px;}
+  .emp-card-head .anc{font-size:11.5px; color:var(--ink-soft);}
+  .emp-card-grid{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
+  .emp-card-grid .label{font-size:10.5px; text-transform:uppercase; color:var(--ink-soft); letter-spacing:0.03em; margin-bottom:3px;}
+
+  /* ---------- POLYVALENCE TAB ---------- */
+  .poly-kpis{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:14px;
+    margin-bottom:26px;
+  }
+  .kpi-card{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:18px 18px 16px;
+    box-shadow:0 8px 20px -14px rgba(20,20,20,0.35);
+  }
+  .kpi-card .kpi-label{
+    font-size:11.5px; text-transform:uppercase; letter-spacing:0.05em;
+    font-weight:700; color:var(--ink-soft); margin-bottom:10px;
+  }
+  .kpi-ring-row{display:flex; align-items:center; gap:12px;}
+  .kpi-pct{font-size:26px; font-weight:800;}
+  .kpi-sub{font-size:11.5px; color:var(--ink-soft); margin-top:2px;}
+  .kpi-track{
+    width:100%; height:7px; border-radius:99px; background:#ece8dc; margin-top:12px; overflow:hidden;
+  }
+  .kpi-fill{height:100%; border-radius:99px;}
+  .kpi-card.global .kpi-pct{color:var(--navy-2);}
+  .kpi-card.global .kpi-fill{background:linear-gradient(90deg, var(--navy), var(--navy-2));}
+  .kpi-card.production .kpi-pct{color:var(--amber-dark);}
+  .kpi-card.production .kpi-fill{background:var(--amber);}
+  .kpi-card.service .kpi-pct{color:var(--teal);}
+  .kpi-card.service .kpi-fill{background:var(--teal);}
+  .kpi-card.autres .kpi-pct{color:var(--plum);}
+  .kpi-card.autres .kpi-fill{background:var(--plum);}
+
+  .panel-block{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:20px 22px 24px;
+    margin-bottom:20px;
+    box-shadow:0 10px 26px -22px rgba(20,20,20,0.4);
+  }
+  .panel-head h3{margin:0 0 4px; font-size:16px; font-weight:800;}
+  .panel-head p{margin:0 0 16px; font-size:12.5px; color:var(--ink-soft);}
+
+  .bar-row{
+    display:grid;
+    grid-template-columns:220px 1fr 84px;
+    align-items:center;
+    gap:12px;
+    padding:8px 0;
+  }
+  .bar-row .bname{font-size:12px; font-weight:600; color:var(--ink); line-height:1.25;}
+  .bar-row .btag{
+    display:inline-block; font-size:9.5px; text-transform:uppercase; letter-spacing:0.04em;
+    font-weight:700; padding:1px 6px; border-radius:5px; margin-top:2px;
+  }
+  .btag.production{background:var(--orange-bg); color:var(--amber-dark);}
+  .btag.service{background:var(--teal-bg); color:var(--teal);}
+  .btag.autres{background:var(--plum-bg); color:var(--plum);}
+  .btrack{height:14px; border-radius:7px; background:#ece8dc; overflow:hidden;}
+  .bfill{height:100%; border-radius:7px;}
+  .bfill.production{background:linear-gradient(90deg, var(--amber), var(--amber-dark));}
+  .bfill.service{background:linear-gradient(90deg, #4d9a9e, var(--teal));}
+  .bfill.autres{background:linear-gradient(90deg, #9c7cc9, var(--plum));}
+  .bar-row .bval{font-size:12px; font-weight:700; text-align:right; color:var(--ink-soft);}
+
+  .matrix-wrap{
+    overflow:auto;
+    border:1px solid var(--line);
+    border-radius:8px;
+    max-height:640px;
+  }
+  table.matrix-table{border-collapse:separate; border-spacing:0; font-size:12px; width:100%;}
+  table.matrix-table thead th{
+    position:sticky; top:0; z-index:3;
+    background:#efece2;
+    padding:8px 5px;
+    border-bottom:1px solid var(--line);
+    font-size:9.5px;
+    font-weight:700;
+    text-align:center;
+    white-space:normal;
+    line-height:1.2;
+    width:96px;
+    max-width:96px;
+    cursor:pointer;
+    color:var(--ink-soft);
+    vertical-align:bottom;
+  }
+  table.matrix-table thead th:hover{color:var(--ink);}
+  table.matrix-table thead th.name-col{
+    position:sticky; left:0; top:0; z-index:4;
+    text-align:left;
+    background:#efece2;
+    min-width:170px;
+  }
+  table.matrix-table thead th.score-col{min-width:70px;}
+  table.matrix-table tbody td.name-col{
+    position:sticky; left:0; z-index:2;
+    background:#fff;
+    font-weight:700;
+    padding:7px 10px;
+    white-space:nowrap;
+    border-bottom:1px solid var(--line);
+    border-right:1px solid var(--line);
+  }
+  .matrix-name-sub{font-weight:400; color:var(--ink-soft); font-size:10.5px; margin-top:1px;}
+  table.matrix-table tbody tr:nth-child(even) td.name-col{background:#fbfaf6;}
+  table.matrix-table tbody tr:nth-child(even) td.cell-td{background:#fbfaf6;}
+  table.matrix-table tbody td{
+    text-align:center;
+    padding:6px 4px;
+    border-bottom:1px solid var(--line);
+  }
+  .matrix-dot{
+    display:inline-block; width:16px; height:16px; border-radius:5px;
+    background:#e7e4da;
+  }
+  .matrix-dot.on.production{background:var(--amber);}
+  .matrix-dot.on.service{background:var(--teal);}
+  .matrix-dot.on.autres{background:var(--plum);}
+  .score-cell{font-weight:800; font-size:12px;}
+  .score-bar-mini{width:52px; height:6px; border-radius:99px; background:#ece8dc; margin:3px auto 0; overflow:hidden;}
+  .score-bar-mini i{display:block; height:100%; background:var(--ink); border-radius:99px;}
+
+  @media (max-width: 880px){
+    .poly-kpis{grid-template-columns:repeat(2,1fr);}
+    .bar-row{grid-template-columns:110px 1fr 60px;}
+  }
+
+  footer{
+    text-align:center;
+    font-size:12px;
+    color:var(--ink-soft);
+    padding:20px;
+  }
+
+  @media (max-width: 880px){
+    .table-wrap{display:none;}
+    .cards{display:block;}
+    .stats{grid-template-columns:repeat(2,1fr);}
+    header.top{padding:22px 18px 20px;}
+    main{padding:18px 16px 50px;}
+  }
+</style>
+</head>
+<body>
+
+<div class="auth-gate" id="authGate">
+  <div class="auth-card">
+    <div class="auth-eyebrow">Crew Academy · Chamnord</div>
+    <h2>Accès protégé</h2>
+    <p>Ce tableau contient des données personnelles des équipiers (noms, dates). Merci de saisir le mot de passe pour continuer.</p>
+    <form id="authForm">
+      <input type="password" id="authInput" placeholder="Mot de passe" autocomplete="current-password" required>
+      <button type="submit">Accéder au tableau</button>
+    </form>
+    <div class="auth-error" id="authError" style="display:none;">Mot de passe incorrect, réessaie.</div>
+  </div>
+</div>
+
+<div class="loading-state" id="loadingState" style="display:none;">
+  <div class="loading-spinner"></div>
+  <p>Chargement des données…</p>
+</div>
+
+<div id="appRoot" style="display:none;">
+
+<header class="top">
+  <div class="top-inner">
+    <div>
+      <p class="eyebrow">Crew Academy · Chamnord</p>
+      <h1>Suivi des formations</h1>
+      <p class="subtitle">Échéances de formation et polyvalence des équipiers</p>
+    </div>
+    <div class="today-chip">Aujourd'hui : <b id="todayLabel"></b></div>
+  </div>
+  <nav class="tabnav">
+    <button class="tab-btn active" data-tab="formations">Formations</button>
+    <button class="tab-btn" data-tab="polyvalence">Postes &amp; Polyvalence</button>
+  </nav>
+</header>
+
+<div class="stats-wrap" id="statsWrap">
+  <div class="stats" id="statsRow"></div>
+</div>
+
+<main>
+
+<section id="tab-formations">
+  <div class="controls">
+    <div class="search-box">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="text" id="searchInput" placeholder="Rechercher un équipier…">
+    </div>
+    <select id="sortSelect">
+      <option value="urgency">Trier par urgence</option>
+      <option value="name">Trier par nom</option>
+      <option value="anciennete">Trier par ancienneté</option>
+    </select>
+  </div>
+
+  <div class="chips-row" id="trainingChips"></div>
+
+  <div class="legend">
+    <span><i class="dot red"></i> En retard</span>
+    <span><i class="dot orange"></i> À échéance sous 30 jours</span>
+    <span><i class="dot green"></i> À jour</span>
+    <span><i class="dot gray"></i> Non renseigné</span>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Équipier</th>
+          <th>Prévention &amp; Sécurité <br><span style="font-weight:400;text-transform:none;">(6 mois)</span></th>
+          <th>Hygiène &amp; Sécurité alim. <br><span style="font-weight:400;text-transform:none;">(6 mois)</span></th>
+          <th>MTSRI <br><span style="font-weight:400;text-transform:none;">(tous les ans)</span></th>
+          <th>Culture Service <br><span style="font-weight:400;text-transform:none;">(1er mois)</span></th>
+          <th>Suivi 4 semaines</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </div>
+
+  <div class="cards" id="cardsWrap"></div>
+
+  <div class="empty-state" id="emptyState" style="display:none;">
+    Aucun équipier ne correspond à cette recherche.
+  </div>
+</section>
+
+<section id="tab-polyvalence" style="display:none;">
+
+  <div class="poly-kpis" id="polyKpis"></div>
+
+  <div class="panel-block">
+    <div class="panel-head">
+      <h3>Taux de maîtrise par poste</h3>
+      <p>Part des équipiers formés sur chaque poste, du plus fragile au plus solide.</p>
+    </div>
+    <div class="bar-chart" id="posteBars"></div>
+  </div>
+
+  <div class="panel-block">
+    <div class="panel-head" style="display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:12px;">
+      <div>
+        <h3>Matrice de polyvalence</h3>
+        <p>Un point = un poste maîtrisé. Cliquez une colonne pour trier, cherchez un nom pour le repérer.</p>
+      </div>
+      <div class="controls" style="margin:0;">
+        <div class="search-box" style="flex:0 0 220px;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" id="polySearchInput" placeholder="Rechercher un équipier…">
+        </div>
+        <select id="polySortSelect">
+          <option value="date_entree">Trier par date d'entrée</option>
+          <option value="score_desc">Trier par polyvalence ↓</option>
+          <option value="score_asc">Trier par polyvalence ↑</option>
+          <option value="name">Trier par nom</option>
+        </select>
+      </div>
+    </div>
+    <div class="matrix-wrap">
+      <table class="matrix-table" id="matrixTable"></table>
+    </div>
+  </div>
+
+</section>
+
+</main>
+
+<footer>Tableau de polyvalence Chamnord · généré pour les formateurs · cliquez une ligne pour voir le détail des dates</footer>
+
+</div><!-- /#appRoot -->
+
+<script>
+function initApp(appData){
+  const raw = appData.employees;
+  const POSTES = appData.postes;
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  document.getElementById('todayLabel').textContent = today.toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
+
+  const TRAININGS = [
+    {key:'secu',    label:'Prévention & Sécurité',      faitKey:'secuFait',    butoirKey:'secuButoir',    period:'6 mois',        oneTime:false},
+    {key:'hygiene', label:'Hygiène & Sécurité alim.',    faitKey:'hygieneFait', butoirKey:'hygieneButoir', period:'6 mois',        oneTime:false},
+    {key:'mtsri',   label:'MTSRI',                       faitKey:'mtsriFait',   butoirKey:'mtsriButoir',   period:'tous les ans',  oneTime:false},
+    {key:'culture', label:'Culture Service',             faitKey:'cultureFait', butoirKey:'cultureButoir', period:'1er mois',      oneTime:true},
+    {key:'suivi4s', label:'Suivi à 4 semaines',          faitKey:'suivi4sFait', butoirKey:'suivi4sButoir', period:'ponctuel',      oneTime:true}
+  ];
+
+  function parseDate(s){
+    if(!s) return null;
+    const d = new Date(s + 'T00:00:00');
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  function daysBetween(a,b){
+    return Math.round((a - b) / (1000*60*60*24));
+  }
+
+  function frDate(d){
+    if(!d) return '—';
+    return d.toLocaleDateString('fr-FR', {day:'2-digit', month:'2-digit', year:'numeric'});
+  }
+
+  // Recurring trainings (6 mois / an) : l'urgence se calcule toujours sur la date butoir,
+  // puisqu'il faut les repasser à échéance régulière.
+  function statusRecurring(butoirStr){
+    const butoir = parseDate(butoirStr);
+    if(!butoir) return {level:'gray', days:null, butoir:null, fait:null};
+    const d = daysBetween(butoir, today);
+    if(d < 0) return {level:'red', days:d, butoir, fait:null};
+    if(d <= 30) return {level:'orange', days:d, butoir, fait:null};
+    return {level:'green', days:d, butoir, fait:null};
+  }
+
+  // Formations ponctuelles (Culture Service, Suivi à 4 semaines) : une date "fait" renseignée
+  // signifie que c'est réglé définitivement, quelle que soit la date butoir d'origine.
+  // Si aucune date "fait" n'est renseignée, on affiche l'urgence à partir de la date butoir.
+  function statusOneTime(faitStr, butoirStr){
+    const fait = parseDate(faitStr);
+    const butoir = parseDate(butoirStr);
+    if(fait) return {level:'done', days:null, butoir, fait};
+    if(!butoir) return {level:'gray', days:null, butoir:null, fait:null};
+    const d = daysBetween(butoir, today);
+    if(d < 0) return {level:'red', days:d, butoir, fait:null};
+    if(d <= 30) return {level:'orange', days:d, butoir, fait:null};
+    return {level:'green', days:d, butoir, fait:null};
+  }
+
+  function statusForTraining(t, e){
+    return t.oneTime ? statusOneTime(e[t.faitKey], e[t.butoirKey]) : statusRecurring(e[t.butoirKey]);
+  }
+
+  // Precompute per-employee: worst status across all trainings + all statuses for rendering.
+  const employees = raw.map(e => {
+    const statuses = {};
+    TRAININGS.forEach(t => { statuses[t.key] = statusForTraining(t, e); });
+    const rank = {red:0, orange:1, gray:2, done:3, green:3};
+    let worst = 'green';
+    let worstDays = Infinity;
+    TRAININGS.forEach(t => {
+      const s = statuses[t.key];
+      if(s.level === 'gray' || s.level === 'done') return;
+      if(rank[s.level] < rank[worst] || (rank[s.level] === rank[worst] && s.days < worstDays)){
+        worst = s.level;
+        worstDays = s.days;
+      }
+    });
+    return {...e, statuses, worst, worstDays: worstDays === Infinity ? 9999 : worstDays};
+  });
+
+  // Renvoie le statut "pertinent" d'un équipier compte tenu du focus formation en cours :
+  // si une formation précise est sélectionnée, on utilise son statut ; sinon le pire statut global.
+  let trainingFocus = null; // null = toutes les formations confondues
+  function relevantStatus(e){
+    if(trainingFocus){
+      const s = e.statuses[trainingFocus];
+      const bucket = (s.level === 'done') ? 'green' : s.level;
+      return {level: bucket, days: (s.days == null ? 9999 : s.days)};
+    }
+    return {level: e.worst, days: e.worstDays};
+  }
+
+  function computeCounts(){
+    let red=0, orange=0, green=0;
+    employees.forEach(e => {
+      const s = relevantStatus(e);
+      if(s.level === 'red') red++;
+      else if(s.level === 'orange') orange++;
+      else if(s.level === 'green') green++;
+    });
+    return {red, orange, green};
+  }
+
+  // ---------- Stats cards (dynamiques selon le focus formation) ----------
+  const statsRow = document.getElementById('statsRow');
+  let activeFilter = 'all';
+
+  function renderStats(){
+    const c = computeCounts();
+    const suffix = trainingFocus ? ` · ${TRAININGS.find(t=>t.key===trainingFocus).label}` : '';
+    const statDefs = [
+      {key:'all', cls:'all', num: employees.length, label:'Équipiers suivis'},
+      {key:'red', cls:'red', num: c.red, label:'En retard' + suffix},
+      {key:'orange', cls:'orange', num: c.orange, label:'Échéance sous 30 j' + suffix},
+      {key:'green', cls:'green', num: c.green, label:'À jour' + suffix}
+    ];
+    statsRow.innerHTML = '';
+    statDefs.forEach(s => {
+      const div = document.createElement('div');
+      div.className = 'stat-card ' + s.cls + (s.key === activeFilter ? ' active' : '');
+      div.dataset.filter = s.key;
+      div.innerHTML = `<div class="stat-num">${s.num}</div><div class="stat-label">${s.label}</div>`;
+      div.addEventListener('click', () => {
+        activeFilter = (activeFilter === s.key) ? 'all' : s.key;
+        renderStats();
+        render();
+      });
+      statsRow.appendChild(div);
+    });
+  }
+  renderStats();
+
+  // ---------- Filtre par formation (chips) ----------
+  const chipsWrap = document.getElementById('trainingChips');
+  function renderChips(){
+    const items = [{key:null, label:'Toutes les formations'}, ...TRAININGS.map(t => ({key:t.key, label:t.label}))];
+    chipsWrap.innerHTML = items.map(it => `
+      <button class="chip ${trainingFocus === it.key ? 'active' : ''}" data-key="${it.key === null ? '' : it.key}">${it.label}</button>
+    `).join('');
+    chipsWrap.querySelectorAll('.chip').forEach(btn => {
+      btn.addEventListener('click', () => {
+        trainingFocus = btn.dataset.key || null;
+        renderChips();
+        renderStats();
+        render();
+      });
+    });
+  }
+  renderChips();
+
+  // ---------- pill renderer ----------
+  function pillHtml(t, s){
+    if(s.level === 'gray'){
+      return `<span class="pill gray"><span class="pill-days">N/A</span><span class="pill-date">non renseigné</span></span>`;
+    }
+    if(s.level === 'done'){
+      return `<span class="pill green"><span class="pill-days">✓ Fait</span><span class="pill-date">le ${frDate(s.fait)}</span></span>`;
+    }
+    let daysLabel;
+    if(s.days < 0) daysLabel = `Retard ${Math.abs(s.days)} j`;
+    else if(s.days === 0) daysLabel = `Échéance aujourd'hui`;
+    else daysLabel = t.oneTime ? `À faire (${s.days} j)` : `Dans ${s.days} j`;
+    return `<span class="pill ${s.level}"><span class="pill-days">${daysLabel}</span><span class="pill-date">butoir ${frDate(s.butoir)}</span></span>`;
+  }
+
+  function detailCardHtml(e){
+    return TRAININGS.map(t => {
+      const fait = parseDate(e[t.faitKey]);
+      const butoir = parseDate(e[t.butoirKey]);
+      const s = e.statuses[t.key];
+      const statusLine = t.oneTime
+        ? (s.level === 'done' ? `<div class="detail-row"><span>Statut</span><span style="color:var(--green);">✓ Réalisé</span></div>`
+                               : `<div class="detail-row"><span>Statut</span><span style="color:var(--red);">À réaliser</span></div>`)
+        : '';
+      return `<div class="detail-card">
+        <h4>${t.label} <span style="text-transform:none;font-weight:400;">(${t.period})</span></h4>
+        <div class="detail-row"><span>Fait le</span><span>${frDate(fait)}</span></div>
+        <div class="detail-row"><span>Date butoir</span><span>${frDate(butoir)}</span></div>
+        ${statusLine}
+      </div>`;
+    }).join('');
+  }
+
+  // ---------- render ----------
+  const tbody = document.getElementById('tableBody');
+  const cardsWrap = document.getElementById('cardsWrap');
+  const emptyState = document.getElementById('emptyState');
+  const searchInput = document.getElementById('searchInput');
+  const sortSelect = document.getElementById('sortSelect');
+
+  function getFiltered(){
+    const q = searchInput.value.trim().toLowerCase();
+    let list = employees.filter(e => e.nom.toLowerCase().includes(q));
+    if(activeFilter !== 'all'){
+      list = list.filter(e => relevantStatus(e).level === activeFilter);
+    }
+    const sortMode = sortSelect.value;
+    list = list.slice().sort((a,b) => {
+      if(sortMode === 'name') return a.nom.localeCompare(b.nom, 'fr');
+      if(sortMode === 'anciennete') return (b.ancienneteMois||0) - (a.ancienneteMois||0);
+      // urgency: red first (most overdue), then orange (soonest), then green, gray last
+      const rank = {red:0, orange:1, green:2, gray:3};
+      const sa = relevantStatus(a), sb = relevantStatus(b);
+      if(rank[sa.level] !== rank[sb.level]) return rank[sa.level] - rank[sb.level];
+      return sa.days - sb.days;
+    });
+    return list;
+  }
+
+  function render(){
+    const list = getFiltered();
+    emptyState.style.display = list.length ? 'none' : 'block';
+
+    // Table (desktop)
+    tbody.innerHTML = '';
+    list.forEach((e, idx) => {
+      const rowId = 'row-' + idx;
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>
+          <div class="name-cell">${e.nom}</div>
+          <div class="name-sub">${e.ancienneteMois != null ? e.ancienneteMois + ' mois d\'ancienneté' : ''}</div>
+        </td>
+        <td>${pillHtml(TRAININGS[0], e.statuses.secu)}</td>
+        <td>${pillHtml(TRAININGS[1], e.statuses.hygiene)}</td>
+        <td>${pillHtml(TRAININGS[2], e.statuses.mtsri)}</td>
+        <td>${pillHtml(TRAININGS[3], e.statuses.culture)}</td>
+        <td>${pillHtml(TRAININGS[4], e.statuses.suivi4s)}</td>
+      `;
+      tr.addEventListener('click', () => {
+        const existing = document.getElementById(rowId);
+        if(existing){ existing.remove(); return; }
+        document.querySelectorAll('.expand-row').forEach(r => r.remove());
+        const exp = document.createElement('tr');
+        exp.className = 'expand-row';
+        exp.id = rowId;
+        exp.innerHTML = `<td colspan="6"><div class="expand-inner">${detailCardHtml(e)}</div></td>`;
+        tr.after(exp);
+      });
+      tbody.appendChild(tr);
+    });
+
+    // Cards (mobile)
+    cardsWrap.innerHTML = '';
+    list.forEach(e => {
+      const card = document.createElement('div');
+      card.className = 'emp-card';
+      card.innerHTML = `
+        <div class="emp-card-head">
+          <div class="name">${e.nom}</div>
+          <div class="anc">${e.ancienneteMois != null ? e.ancienneteMois + ' mois' : ''}</div>
+        </div>
+        <div class="emp-card-grid">
+          <div><div class="label">Prévention &amp; Sécurité</div>${pillHtml(TRAININGS[0], e.statuses.secu)}</div>
+          <div><div class="label">Hygiène &amp; Sécurité alim.</div>${pillHtml(TRAININGS[1], e.statuses.hygiene)}</div>
+          <div><div class="label">MTSRI</div>${pillHtml(TRAININGS[2], e.statuses.mtsri)}</div>
+          <div><div class="label">Culture Service</div>${pillHtml(TRAININGS[3], e.statuses.culture)}</div>
+          <div><div class="label">Suivi à 4 semaines</div>${pillHtml(TRAININGS[4], e.statuses.suivi4s)}</div>
+        </div>
+      `;
+      cardsWrap.appendChild(card);
+    });
+  }
+
+  searchInput.addEventListener('input', render);
+  sortSelect.addEventListener('change', render);
+  sortSelect.value = 'urgency';
+  render();
+
+  // ================= TAB NAVIGATION =================
+  const tabBtns = document.querySelectorAll('.tab-btn');
+  const tabFormations = document.getElementById('tab-formations');
+  const tabPolyvalence = document.getElementById('tab-polyvalence');
+  const statsWrap = document.getElementById('statsWrap');
+
+  tabBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      tabBtns.forEach(b => b.classList.toggle('active', b === btn));
+      const isForm = btn.dataset.tab === 'formations';
+      tabFormations.style.display = isForm ? '' : 'none';
+      tabPolyvalence.style.display = isForm ? 'none' : '';
+      statsWrap.style.display = isForm ? '' : 'none';
+    });
+  });
+
+  // ================= POLYVALENCE TAB =================
+  const GROUP_LABELS = {production:'Production', service:'Service', autres:'Autres'};
+  const GROUP_ORDER = ['production','service','autres'];
+
+  // Per-poste stats
+  const posteStats = POSTES.map((p, idx) => {
+    const trained = employees.filter(e => e.skills[idx]).length;
+    return {...p, idx, trained, total: employees.length, pct: employees.length ? trained/employees.length : 0};
+  });
+
+  const groupStats = GROUP_ORDER.map(g => {
+    const items = posteStats.filter(p => p.group === g);
+    const avg = items.reduce((s,p) => s + p.pct, 0) / items.length;
+    return {group:g, label:GROUP_LABELS[g], pct:avg};
+  });
+  const globalPct = posteStats.reduce((s,p) => s + p.pct, 0) / posteStats.length;
+
+  // Per-employee polyvalence score
+  employees.forEach(e => {
+    const total = e.skills.filter(Boolean).length;
+    e.polyScore = total;
+    e.polyPct = total / POSTES.length;
+  });
+
+  function pct1(x){ return (x*100).toFixed(0) + '%'; }
+
+  // ---- KPI cards ----
+  function renderKpis(){
+    const wrap = document.getElementById('polyKpis');
+    const cards = [
+      {cls:'global', label:'Taux de polyvalence global', pct:globalPct, sub: POSTES.length + ' postes suivis · ' + employees.length + ' équipiers'},
+      {cls:'production', label:'Production', pct:groupStats[0].pct, sub:'8 postes cuisine'},
+      {cls:'service', label:'Service', pct:groupStats[1].pct, sub:'3 postes comptoir/salle'},
+      {cls:'autres', label:'Autres', pct:groupStats[2].pct, sub:'5 postes support (ouverture, plonge…)'}
+    ];
+    wrap.innerHTML = cards.map(c => `
+      <div class="kpi-card ${c.cls}">
+        <div class="kpi-label">${c.label}</div>
+        <div class="kpi-ring-row">
+          <div>
+            <div class="kpi-pct">${pct1(c.pct)}</div>
+            <div class="kpi-sub">${c.sub}</div>
+          </div>
+        </div>
+        <div class="kpi-track"><div class="kpi-fill" style="width:${(c.pct*100).toFixed(1)}%;"></div></div>
+      </div>
+    `).join('');
+  }
+
+  // ---- Bar chart per poste ----
+  function renderBars(){
+    const wrap = document.getElementById('posteBars');
+    const sorted = posteStats.slice().sort((a,b) => a.pct - b.pct);
+    wrap.innerHTML = sorted.map(p => `
+      <div class="bar-row">
+        <div>
+          <div class="bname">${p.short}</div>
+          <span class="btag ${p.group}">${GROUP_LABELS[p.group]}</span>
+        </div>
+        <div class="btrack"><div class="bfill ${p.group}" style="width:${(p.pct*100).toFixed(1)}%;"></div></div>
+        <div class="bval">${p.trained}/${p.total} · ${pct1(p.pct)}</div>
+      </div>
+    `).join('');
+  }
+
+  // ---- Matrix ----
+  const polySearchInput = document.getElementById('polySearchInput');
+  const polySortSelect = document.getElementById('polySortSelect');
+  let matrixSortKey = null; // poste idx or null (uses select value)
+
+  function renderMatrix(){
+    const table = document.getElementById('matrixTable');
+    const q = polySearchInput.value.trim().toLowerCase();
+    let list = employees.filter(e => e.nom.toLowerCase().includes(q));
+
+    if(matrixSortKey !== null){
+      list = list.slice().sort((a,b) => (b.skills[matrixSortKey] - a.skills[matrixSortKey]) || a.nom.localeCompare(b.nom, 'fr'));
+    } else {
+      const mode = polySortSelect.value;
+      list = list.slice().sort((a,b) => {
+        if(mode === 'name') return a.nom.localeCompare(b.nom, 'fr');
+        if(mode === 'score_asc') return a.polyScore - b.polyScore;
+        if(mode === 'score_desc') return b.polyScore - a.polyScore;
+        // date_entree (par défaut) : du plus ancien au plus récent
+        return (a.dateEntree || '9999-99-99').localeCompare(b.dateEntree || '9999-99-99');
+      });
+    }
+
+    const thead = `<thead><tr>
+      <th class="name-col">Équipier</th>
+      ${POSTES.map((p, idx) => `<th title="${p.label}" data-idx="${idx}">${p.short}</th>`).join('')}
+      <th class="score-col">Score</th>
+    </tr></thead>`;
+
+    const tbody = '<tbody>' + list.map(e => `
+      <tr>
+        <td class="name-col">${e.nom}<div class="matrix-name-sub">${e.dateEntree ? frDate(parseDate(e.dateEntree)) : ''}</div></td>
+        ${POSTES.map((p, idx) => `<td class="cell-td"><span class="matrix-dot ${e.skills[idx] ? 'on '+p.group : ''}" title="${p.label}"></span></td>`).join('')}
+        <td>
+          <div class="score-cell">${e.polyScore}/${POSTES.length}</div>
+          <div class="score-bar-mini"><i style="width:${(e.polyPct*100).toFixed(0)}%;"></i></div>
+        </td>
+      </tr>
+    `).join('') + '</tbody>';
+
+    table.innerHTML = thead + tbody;
+
+    table.querySelectorAll('thead th[data-idx]').forEach(th => {
+      th.addEventListener('click', () => {
+        const idx = parseInt(th.dataset.idx, 10);
+        matrixSortKey = (matrixSortKey === idx) ? null : idx;
+        renderMatrix();
+      });
+    });
+  }
+
+  polySearchInput.addEventListener('input', renderMatrix);
+  polySortSelect.addEventListener('change', () => { matrixSortKey = null; renderMatrix(); });
+
+  renderKpis();
+  renderBars();
+  renderMatrix();
+}
+
+// ============================================================
+// CHARGEMENT DES DONNÉES + ÉCRAN DE MOT DE PASSE
+// ============================================================
+//
+// Le tableau ne contient plus les données "en dur" : il va chercher un
+// fichier formation_data.json à côté de cette page à chaque ouverture.
+// Pour mettre le site à jour : relance export_formation_data.py sur le
+// tableur Excel, puis pousse le nouveau formation_data.json au même
+// endroit que ce fichier HTML (même repo GitHub Pages).
+//
+// DATA_URL : chemin ou URL du JSON. Par défaut, un fichier dans le même
+// dossier que la page. Tu peux aussi pointer vers une URL complète
+// (ex: raw.githubusercontent.com/.../formation_data.json).
+const DATA_URL = 'formation_data.json';
+
+// Mot de passe par défaut : "chamnord2026"
+// Pour le changer : génère le hash SHA-256 du nouveau mot de passe, par ex. dans un terminal :
+//   python3 -c "import hashlib; print(hashlib.sha256('TON_NOUVEAU_MDP'.encode()).hexdigest())"
+// puis colle le résultat ci-dessous.
+const PASSWORD_HASH = '4c5c225b9c96342278e976b0ca4bfdcb80b7a8eef6df1e14d3d977075c41bec9';
+
+(function(){
+  const authGate = document.getElementById('authGate');
+  const authForm = document.getElementById('authForm');
+  const authInput = document.getElementById('authInput');
+  const authError = document.getElementById('authError');
+  const loadingState = document.getElementById('loadingState');
+  const appRoot = document.getElementById('appRoot');
+
+  async function sha256Hex(str){
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+  }
+
+  async function loadData(){
+    loadingState.style.display = 'flex';
+    try{
+      const res = await fetch(DATA_URL, {cache:'no-store'});
+      if(!res.ok) throw new Error('HTTP ' + res.status);
+      const appData = await res.json();
+      loadingState.style.display = 'none';
+      appRoot.style.display = '';
+      initApp(appData);
+    } catch(err){
+      loadingState.innerHTML = `<div class="load-error">
+        Impossible de charger les données depuis <b>${DATA_URL}</b> (${err.message}).<br><br>
+        Vérifie que <code>formation_data.json</code> est bien déposé au même endroit que cette page,
+        ou ajuste la constante <code>DATA_URL</code> en haut de app.js.
+      </div>`;
+    }
+  }
+
+  authForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const hash = await sha256Hex(authInput.value);
+    if(hash === PASSWORD_HASH){
+      authGate.style.display = 'none';
+      loadData();
+    } else {
+      authError.style.display = 'block';
+      authInput.value = '';
+      authInput.focus();
+    }
+  });
+})();
+
+</script>
+
+</body>
+</html>
