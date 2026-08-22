@@ -677,6 +677,11 @@
   .score-cell{font-weight:800; font-size:12px;}
   .score-bar-mini{width:52px; height:6px; border-radius:99px; background:#ece8dc; margin:3px auto 0; overflow:hidden;}
   .score-bar-mini i{display:block; height:100%; background:var(--ink); border-radius:99px;}
+  .poste-upload-trigger{
+    appearance:none; border:none; background:transparent; cursor:pointer;
+    font-size:13px; margin-top:4px; opacity:0.6; padding:2px;
+  }
+  .poste-upload-trigger:hover{opacity:1;}
 
   @media (max-width: 880px){
     .poly-kpis{grid-template-columns:repeat(2,1fr);}
@@ -914,6 +919,19 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="posteUploadModal" style="display:none;">
+  <div class="modal-card modal-card-wide">
+    <div class="modal-head-row">
+      <div>
+        <h3 id="posteUploadNom">Fiches signées — postes</h3>
+        <p class="modal-sub">Envoie une photo ou un PDF de la fiche signée pour chaque poste validé.</p>
+      </div>
+      <button type="button" id="closePosteUploadModal" class="modal-close-btn">✕</button>
+    </div>
+    <div id="posteUploadList" class="poste-upload-list"></div>
+  </div>
+</div>
+
 </div><!-- /#appRoot -->
 
 <script>
@@ -1038,6 +1056,39 @@ function initApp(appData){
   const employees = appData.employees.map(e => computeDerived({...e}));
   const managers = (appData.managers || []).map(e => computeDerived({...e}));
 
+  // Bouton "Voir les fiches déjà envoyées" — commun à tous les onglets (formations,
+  // gestion, postes). Va chercher le dossier Drive à la demande via Apps Script.
+  function wireFolderButtonsGlobal(container){
+    container.querySelectorAll('.verif-folder-btn').forEach(btn => {
+      btn.addEventListener('click', async (ev) => {
+        ev.stopPropagation();
+        const scope = btn.dataset.scope;
+        const key = btn.dataset.key;
+        const statusSpan = btn.nextElementSibling;
+        btn.disabled = true;
+        statusSpan.textContent = 'Ouverture…';
+        statusSpan.className = 'verif-folder-status pending';
+        try{
+          const res = await fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            headers: {'Content-Type': 'text/plain;charset=utf-8'},
+            body: JSON.stringify({ sheet: 'get_verif_folder', scope, key })
+          });
+          const data = await res.json();
+          if(!data.ok) throw new Error(data.error || 'Dossier introuvable');
+          window.open(data.folderUrl, '_blank', 'noopener');
+          statusSpan.textContent = '';
+          statusSpan.className = 'verif-folder-status';
+        } catch(err){
+          statusSpan.textContent = 'Erreur : ' + err.message;
+          statusSpan.className = 'verif-folder-status error';
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    });
+  }
+
   // ============================================================
   // ONGLET "type Formations" réutilisable (équipiers + équipe de gestion)
   // ============================================================
@@ -1128,6 +1179,21 @@ function initApp(appData){
       return `<span class="pill ${s.level}"><span class="pill-days">${daysLabel}</span><span class="pill-date">butoir ${frDate(s.butoir)}</span></span>`;
     }
 
+    function verifUploadHtml(nom, key){
+      if(!VERIF_AVAILABLE.has(key)) return '';
+      const safeNom = nom.replace(/"/g,'&quot;');
+      return `<div class="verif-upload">
+        <label>Fiche signée (photo ou PDF)</label>
+        <div class="verif-upload-row">
+          <input type="file" accept="application/pdf,image/*" capture="environment" class="verif-file-input" data-nom="${safeNom}" data-key="${key}">
+          <button type="button" class="verif-upload-btn" data-nom="${safeNom}" data-key="${key}">📤 Envoyer</button>
+        </div>
+        <span class="verif-upload-status"></span>
+        <button type="button" class="verif-folder-btn" data-nom="${safeNom}" data-scope="formation" data-key="${key}">📁 Voir les fiches déjà envoyées</button>
+        <span class="verif-folder-status"></span>
+      </div>`;
+    }
+
     function detailCardHtml(e){
       return trainings.map(t => {
         const fait = e[t.faitKey] || '';
@@ -1148,6 +1214,7 @@ function initApp(appData){
             <button class="save-btn" data-nom="${e.nom.replace(/"/g,'&quot;')}" data-field="${t.faitKey}">Enregistrer</button>
             <span class="save-status"></span>
           </div>
+          ${verifUploadHtml(e.nom, t.key)}
         </div>`;
       }).join('');
     }
@@ -1225,6 +1292,71 @@ function initApp(appData){
       });
     }
 
+    const MAX_UPLOAD_MB = 10;
+    function fileToBase64(file){
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result.split(',')[1]); // retire le préfixe "data:...;base64,"
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function wireVerifUpload(container){
+      container.querySelectorAll('.verif-upload-btn').forEach(btn => {
+        btn.addEventListener('click', async (ev) => {
+          ev.stopPropagation();
+          const nom = btn.dataset.nom;
+          const key = btn.dataset.key;
+          const wrap = btn.closest('.verif-upload');
+          const fileInput = wrap.querySelector('.verif-file-input');
+          const statusSpan = wrap.querySelector('.verif-upload-status');
+          const file = fileInput.files[0];
+
+          if(!file){
+            statusSpan.textContent = "Choisis une photo ou un PDF d'abord.";
+            statusSpan.className = 'verif-upload-status error';
+            return;
+          }
+          if(file.size > MAX_UPLOAD_MB * 1024 * 1024){
+            statusSpan.textContent = `Fichier trop lourd (max ${MAX_UPLOAD_MB} Mo).`;
+            statusSpan.className = 'verif-upload-status error';
+            return;
+          }
+
+          btn.disabled = true;
+          statusSpan.textContent = 'Envoi en cours…';
+          statusSpan.className = 'verif-upload-status pending';
+          try{
+            const base64 = await fileToBase64(file);
+            const res = await fetch(APPS_SCRIPT_URL, {
+              method: 'POST',
+              headers: {'Content-Type': 'text/plain;charset=utf-8'},
+              body: JSON.stringify({
+                sheet: 'upload_verification',
+                scope: 'formation',
+                key, nom,
+                fileName: file.name,
+                mimeType: file.type,
+                data: base64
+              })
+            });
+            const data = await res.json();
+            if(!data.ok) throw new Error(data.error || "Échec de l'envoi");
+            statusSpan.textContent = '✓ Fiche envoyée';
+            statusSpan.className = 'verif-upload-status ok';
+            fileInput.value = '';
+          } catch(err){
+            statusSpan.textContent = 'Erreur : ' + err.message;
+            statusSpan.className = 'verif-upload-status error';
+          } finally {
+            btn.disabled = false;
+          }
+        });
+      });
+      wireFolderButtonsGlobal(container);
+    }
+
 
     const tbody = document.getElementById(cfg.ids.tableBody);
     const cardsWrap = document.getElementById(cfg.ids.cardsWrap);
@@ -1276,6 +1408,7 @@ function initApp(appData){
           exp.innerHTML = `<td colspan="${colCount}"><div class="expand-inner">${detailCardHtml(e)}</div>${deleteSectionHtml(e.nom)}</td>`;
           tr.after(exp);
           wireSaveButtons(exp);
+          wireVerifUpload(exp);
           wireDeleteButton(exp, e.nom, () => { exp.remove(); tr.remove(); });
         });
         tbody.appendChild(tr);
@@ -1305,6 +1438,7 @@ function initApp(appData){
           detailWrap.style.display = 'block';
           editBtn.textContent = 'Masquer';
           wireSaveButtons(detailWrap);
+          wireVerifUpload(detailWrap);
           wireDeleteButton(detailWrap, e.nom, () => { card.remove(); });
         });
         cardsWrap.appendChild(card);
@@ -1555,11 +1689,21 @@ function initApp(appData){
         <td>
           <div class="score-cell">${e.polyScore}/${POSTES.length}</div>
           <div class="score-bar-mini"><i style="width:${(e.polyPct*100).toFixed(0)}%;"></i></div>
+          <button type="button" class="poste-upload-trigger" data-nom="${e.nom.replace(/"/g,'&quot;')}" title="Envoyer des fiches signées pour ${e.nom}">📤</button>
         </td>
       </tr>
     `).join('') + '</tbody>';
 
     table.innerHTML = thead + tbody;
+
+    table.querySelectorAll('.poste-upload-trigger').forEach(btn => {
+      btn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        const nom = btn.dataset.nom;
+        const emp = employees.find(e => e.nom === nom);
+        if(emp) openPosteUploadModal(emp);
+      });
+    });
 
     table.querySelectorAll('.matrix-dot.clickable').forEach(dot => {
       dot.addEventListener('click', async () => {
@@ -1596,6 +1740,109 @@ function initApp(appData){
 
   polySearchInput.addEventListener('input', renderMatrix);
   polySortSelect.addEventListener('change', () => { matrixSortKey = null; renderMatrix(); });
+
+  // ---------------- Fiches signées par poste (modal par équipier) ----------------
+  const posteUploadModal = document.getElementById('posteUploadModal');
+  const posteUploadNomEl = document.getElementById('posteUploadNom');
+  const posteUploadList = document.getElementById('posteUploadList');
+  const closePosteUploadModal = document.getElementById('closePosteUploadModal');
+
+  function posteItemHtml(emp, p, idx){
+    const safeNom = emp.nom.replace(/"/g,'&quot;');
+    const isOn = emp.skills[idx];
+    return `<div class="poste-upload-item">
+      <div class="poste-upload-item-head">
+        <span class="poste-name">${p.label}</span>
+        <span class="poste-status-chip ${isOn ? 'on' : 'off'}">${isOn ? '✓ Maîtrisé' : 'Non validé'}</span>
+      </div>
+      <a class="poste-upload-open-link" href="${VERIF_DIR}${p.key}.pdf" target="_blank" rel="noopener">📄 Voir la fiche vierge</a>
+      <div class="verif-upload" style="border-top:none; padding-top:8px; margin-top:8px;">
+        <div class="verif-upload-row">
+          <input type="file" accept="application/pdf,image/*" capture="environment" class="poste-file-input" data-nom="${safeNom}" data-key="${p.key}">
+          <button type="button" class="poste-upload-btn" data-nom="${safeNom}" data-key="${p.key}">📤 Envoyer</button>
+        </div>
+        <span class="verif-upload-status"></span>
+        <button type="button" class="verif-folder-btn" data-nom="${safeNom}" data-scope="poste" data-key="${p.key}">📁 Voir les fiches déjà envoyées</button>
+        <span class="verif-folder-status"></span>
+      </div>
+    </div>`;
+  }
+
+  function openPosteUploadModal(emp){
+    posteUploadNomEl.textContent = 'Fiches signées — ' + emp.nom;
+    posteUploadList.innerHTML = POSTES
+      .map((p, idx) => VERIF_AVAILABLE.has(p.key) ? posteItemHtml(emp, p, idx) : '')
+      .join('');
+    wirePosteUploadButtons(posteUploadList);
+    wireFolderButtonsGlobal(posteUploadList);
+    posteUploadModal.style.display = 'flex';
+  }
+  function closePosteModal(){ posteUploadModal.style.display = 'none'; }
+  closePosteUploadModal.addEventListener('click', closePosteModal);
+  posteUploadModal.addEventListener('click', (e) => { if(e.target === posteUploadModal) closePosteModal(); });
+
+  function wirePosteUploadButtons(container){
+    container.querySelectorAll('.poste-upload-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const nom = btn.dataset.nom;
+        const key = btn.dataset.key;
+        const item = btn.closest('.verif-upload');
+        const fileInput = item.querySelector('.poste-file-input');
+        const statusSpan = item.querySelector('.verif-upload-status');
+        const file = fileInput.files[0];
+
+        if(!file){
+          statusSpan.textContent = "Choisis une photo ou un PDF d'abord.";
+          statusSpan.className = 'verif-upload-status error';
+          return;
+        }
+        if(file.size > MAX_UPLOAD_MB_POLY * 1024 * 1024){
+          statusSpan.textContent = `Fichier trop lourd (max ${MAX_UPLOAD_MB_POLY} Mo).`;
+          statusSpan.className = 'verif-upload-status error';
+          return;
+        }
+
+        btn.disabled = true;
+        statusSpan.textContent = 'Envoi en cours…';
+        statusSpan.className = 'verif-upload-status pending';
+        try{
+          const base64 = await fileToBase64Poly(file);
+          const res = await fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            headers: {'Content-Type': 'text/plain;charset=utf-8'},
+            body: JSON.stringify({
+              sheet: 'upload_verification',
+              scope: 'poste',
+              key, nom,
+              fileName: file.name,
+              mimeType: file.type,
+              data: base64
+            })
+          });
+          const data = await res.json();
+          if(!data.ok) throw new Error(data.error || "Échec de l'envoi");
+          statusSpan.textContent = '✓ Fiche envoyée';
+          statusSpan.className = 'verif-upload-status ok';
+          fileInput.value = '';
+        } catch(err){
+          statusSpan.textContent = 'Erreur : ' + err.message;
+          statusSpan.className = 'verif-upload-status error';
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    });
+  }
+
+  const MAX_UPLOAD_MB_POLY = 10;
+  function fileToBase64Poly(file){
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result.split(',')[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
 
   renderKpis();
   renderBars();
