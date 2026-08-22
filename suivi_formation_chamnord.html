@@ -724,6 +724,12 @@
   .score-cell{font-weight:800; font-size:12px;}
   .score-bar-mini{width:52px; height:6px; border-radius:99px; background:#ece8dc; margin:3px auto 0; overflow:hidden;}
   .score-bar-mini i{display:block; height:100%; background:var(--ink); border-radius:99px;}
+
+  .comparaison-bad{color:var(--red); font-weight:800;}
+  .comparaison-warn{color:var(--orange); font-weight:800;}
+  .comparaison-ok{color:var(--green); font-weight:700;}
+  #comparaisonTable thead th{cursor:pointer;}
+  #comparaisonTable thead th:hover{color:var(--ink);}
   .poste-upload-trigger{
     appearance:none; border:none; background:transparent; cursor:pointer;
     font-size:13px; margin-top:4px; opacity:0.6; padding:2px;
@@ -803,6 +809,7 @@
     <button class="tab-btn active" data-tab="formations">Formations obligatoires</button>
     <button class="tab-btn" data-tab="polyvalence">Postes &amp; Polyvalence</button>
     <button class="tab-btn" data-tab="gestion">Équipe de gestion</button>
+    <button class="tab-btn" id="tabComparaisonBtn" data-tab="comparaison" style="display:none;">📊 Comparaison</button>
   </nav>
 </header>
 
@@ -947,6 +954,18 @@
     </div>
   </div>
 
+</section>
+
+<section id="tab-comparaison" style="display:none;">
+  <div class="panel-block">
+    <div class="panel-head">
+      <h3>Comparaison entre restaurants</h3>
+      <p>Effectifs, formations obligatoires et polyvalence, restaurant par restaurant. Clique un en-tête de colonne pour trier.</p>
+    </div>
+    <div class="matrix-wrap">
+      <table class="matrix-table" id="comparaisonTable"></table>
+    </div>
+  </div>
 </section>
 
 </main>
@@ -1859,22 +1878,99 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword){
   const tabFormations = document.getElementById('tab-formations');
   const tabGestion = document.getElementById('tab-gestion');
   const tabPolyvalence = document.getElementById('tab-polyvalence');
+  const tabComparaison = document.getElementById('tab-comparaison');
+  const tabComparaisonBtn = document.getElementById('tabComparaisonBtn');
   const statsWrap = document.getElementById('statsWrap');
   const statsRowEl = document.getElementById('statsRow');
   const statsRowGestionEl = document.getElementById('statsRowGestion');
 
+  if(isGerant){
+    tabComparaisonBtn.style.display = '';
+  }
+
   tabBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       tabBtns.forEach(b => b.classList.toggle('active', b === btn));
-      const tab = btn.dataset.tab; // 'formations' | 'gestion' | 'polyvalence'
+      const tab = btn.dataset.tab; // 'formations' | 'gestion' | 'polyvalence' | 'comparaison'
       tabFormations.style.display = tab === 'formations' ? '' : 'none';
       tabGestion.style.display = tab === 'gestion' ? '' : 'none';
       tabPolyvalence.style.display = tab === 'polyvalence' ? '' : 'none';
-      statsWrap.style.display = tab === 'polyvalence' ? 'none' : '';
+      tabComparaison.style.display = tab === 'comparaison' ? '' : 'none';
+      statsWrap.style.display = (tab === 'polyvalence' || tab === 'comparaison') ? 'none' : '';
       statsRowEl.style.display = tab === 'formations' ? '' : 'none';
       statsRowGestionEl.style.display = tab === 'gestion' ? '' : 'none';
+      if(tab === 'comparaison') renderComparaison();
     });
   });
+
+  // ================= COMPARAISON ENTRE RESTAURANTS (gérant uniquement) =================
+  let comparaisonSortKey = 'restaurant';
+  let comparaisonSortDir = 1;
+
+  function computeRestaurantStats(r){
+    const empR = employees.filter(e => e.restaurant === r);
+    const mgrR = managers.filter(e => e.restaurant === r);
+    const all = empR.concat(mgrR);
+    let red = 0, orange = 0, green = 0;
+    all.forEach(e => {
+      if(e.worst === 'red') red++;
+      else if(e.worst === 'orange') orange++;
+      else green++; // 'green' ou 'gray' (rien de préoccupant) compté comme à jour
+    });
+    const polyAvg = empR.length ? empR.reduce((s,e) => s + e.polyPct, 0) / empR.length : 0;
+    return { restaurant: r, totalEmployees: empR.length, totalManagers: mgrR.length, total: all.length, red, orange, green, polyAvg };
+  }
+
+  function renderComparaison(){
+    const table = document.getElementById('comparaisonTable');
+    if(!table) return;
+    let rows = restaurants.map(r => computeRestaurantStats(r));
+
+    rows.sort((a,b) => {
+      const av = a[comparaisonSortKey], bv = b[comparaisonSortKey];
+      if(typeof av === 'string') return av.localeCompare(bv, 'fr') * comparaisonSortDir;
+      return (av - bv) * comparaisonSortDir;
+    });
+
+    const cols = [
+      {key:'restaurant', label:'Restaurant'},
+      {key:'total', label:'Effectif total'},
+      {key:'totalEmployees', label:'Équipiers'},
+      {key:'totalManagers', label:'Gestion'},
+      {key:'red', label:'Formations en retard'},
+      {key:'orange', label:'Échéance < 30 j'},
+      {key:'green', label:'À jour'},
+      {key:'polyAvg', label:'Taux de polyvalence'}
+    ];
+
+    const thead = `<thead><tr>${cols.map(c =>
+      `<th data-key="${c.key}">${c.label}${comparaisonSortKey === c.key ? (comparaisonSortDir === 1 ? ' ▲' : ' ▼') : ''}</th>`
+    ).join('')}</tr></thead>`;
+
+    const tbody = '<tbody>' + rows.map(r => `
+      <tr>
+        <td class="name-col">${r.restaurant}</td>
+        <td>${r.total}</td>
+        <td>${r.totalEmployees}</td>
+        <td>${r.totalManagers}</td>
+        <td class="${r.red > 0 ? 'comparaison-bad' : ''}">${r.red}</td>
+        <td class="${r.orange > 0 ? 'comparaison-warn' : ''}">${r.orange}</td>
+        <td class="comparaison-ok">${r.green}</td>
+        <td><b>${(r.polyAvg * 100).toFixed(0)}%</b></td>
+      </tr>
+    `).join('') + '</tbody>';
+
+    table.innerHTML = thead + tbody;
+
+    table.querySelectorAll('thead th').forEach(th => {
+      th.addEventListener('click', () => {
+        const key = th.dataset.key;
+        if(comparaisonSortKey === key) comparaisonSortDir *= -1;
+        else { comparaisonSortKey = key; comparaisonSortDir = 1; }
+        renderComparaison();
+      });
+    });
+  }
 
   // ================= POLYVALENCE TAB (équipiers uniquement) =================
   const GROUP_LABELS = {production:'Production', service:'Service', autres:'Autres'};
