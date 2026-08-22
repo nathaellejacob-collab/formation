@@ -133,6 +133,29 @@
     border-color:var(--paper);
   }
 
+  /* ---------- RESTAURANT BAR ---------- */
+  .restaurant-bar{
+    max-width:1200px;
+    margin:16px auto 0;
+    padding:0 28px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  .restaurant-bar-label{
+    font-size:12.5px; font-weight:700; color:var(--ink-soft);
+  }
+  #restaurantSelect{
+    padding:7px 14px;
+    border-radius:999px;
+    border:1px solid var(--line);
+    background:var(--panel);
+    font-size:13px;
+    font-weight:700;
+    color:var(--navy-2);
+    cursor:pointer;
+  }
+
   /* ---------- STATS ---------- */
   .stats-wrap{
     max-width:1200px;
@@ -742,6 +765,11 @@
   </nav>
 </header>
 
+<div class="restaurant-bar">
+  <span class="restaurant-bar-label">🏠 Restaurant</span>
+  <select id="restaurantSelect"></select>
+</div>
+
 <div class="stats-wrap" id="statsWrap">
   <div class="stats" id="statsRow"></div>
   <div class="stats" id="statsRowGestion" style="display:none;"></div>
@@ -890,6 +918,8 @@
     <form id="addEmployeeForm">
       <label for="newEmpNom">Nom complet</label>
       <input type="text" id="newEmpNom" required placeholder="NOM Prénom" autocomplete="off">
+      <label for="newEmpRestaurant">Restaurant</label>
+      <input type="text" id="newEmpRestaurant" list="restaurantOptions" required placeholder="Ex : Chamnord" autocomplete="off">
       <label for="newEmpDate">Date d'entrée</label>
       <input type="date" id="newEmpDate" required>
       <div class="modal-error" id="addEmployeeError" style="display:none;"></div>
@@ -908,6 +938,8 @@
     <form id="addManagerForm">
       <label for="newMgrNom">Nom complet</label>
       <input type="text" id="newMgrNom" required placeholder="NOM Prénom" autocomplete="off">
+      <label for="newMgrRestaurant">Restaurant</label>
+      <input type="text" id="newMgrRestaurant" list="restaurantOptions" required placeholder="Ex : Chamnord" autocomplete="off">
       <label for="newMgrDate">Date d'entrée</label>
       <input type="date" id="newMgrDate" required>
       <div class="modal-error" id="addManagerError" style="display:none;"></div>
@@ -931,6 +963,8 @@
     <div id="posteUploadList" class="poste-upload-list"></div>
   </div>
 </div>
+
+<datalist id="restaurantOptions"></datalist>
 
 </div><!-- /#appRoot -->
 
@@ -1042,11 +1076,13 @@ function initApp(appData){
   }
 
   // ---------------- Sauvegarde vers Google Sheets (Apps Script) ----------------
-  async function postUpdate(sheetName, nom, field, value){
+  async function postUpdate(sheetName, nom, field, value, extra){
+    const body = {sheet: sheetName, nom, field, value};
+    if(extra) Object.assign(body, extra);
     const res = await fetch(APPS_SCRIPT_URL, {
       method: 'POST',
       headers: {'Content-Type': 'text/plain;charset=utf-8'}, // évite le preflight CORS avec Apps Script
-      body: JSON.stringify({sheet: sheetName, nom, field, value})
+      body: JSON.stringify(body)
     });
     const data = await res.json();
     if(!data.ok) throw new Error(data.error || 'Échec de la sauvegarde');
@@ -1055,6 +1091,45 @@ function initApp(appData){
 
   const employees = appData.employees.map(e => computeDerived({...e}));
   const managers = (appData.managers || []).map(e => computeDerived({...e}));
+
+  // ---------------- Filtre par restaurant ----------------
+  const RESTAURANT_STORAGE_KEY = 'crewAcademyRestaurant';
+  function collectRestaurants(){
+    const set = new Set();
+    employees.concat(managers).forEach(p => { if(p.restaurant) set.add(p.restaurant); });
+    return Array.from(set).sort((a,b) => a.localeCompare(b, 'fr'));
+  }
+  let restaurants = collectRestaurants();
+  let currentRestaurant = localStorage.getItem(RESTAURANT_STORAGE_KEY) || restaurants[0] || '';
+  if(restaurants.length && !restaurants.includes(currentRestaurant)) currentRestaurant = restaurants[0];
+
+  const restaurantSelect = document.getElementById('restaurantSelect');
+  const restaurantOptionsDatalist = document.getElementById('restaurantOptions');
+
+  function renderRestaurantOptions(){
+    restaurantSelect.innerHTML = restaurants.map(r =>
+      `<option value="${r}" ${r === currentRestaurant ? 'selected' : ''}>${r}</option>`
+    ).join('');
+    restaurantOptionsDatalist.innerHTML = restaurants.map(r => `<option value="${r}">`).join('');
+  }
+  renderRestaurantOptions();
+
+  const refreshFns = [];
+  function refreshAllTabs(){
+    refreshFns.forEach(fn => fn());
+  }
+  function registerNewRestaurant(name){
+    if(!name || restaurants.includes(name)) return;
+    restaurants.push(name);
+    restaurants.sort((a,b) => a.localeCompare(b, 'fr'));
+    renderRestaurantOptions();
+  }
+
+  restaurantSelect.addEventListener('change', () => {
+    currentRestaurant = restaurantSelect.value;
+    localStorage.setItem(RESTAURANT_STORAGE_KEY, currentRestaurant);
+    refreshAllTabs();
+  });
 
   // Bouton "Voir les fiches déjà envoyées" — commun à tous les onglets (formations,
   // gestion, postes). Va chercher le dossier Drive à la demande via Apps Script.
@@ -1113,7 +1188,7 @@ function initApp(appData){
 
     function computeCounts(){
       let red=0, orange=0, green=0;
-      list.forEach(e => {
+      list.filter(e => !currentRestaurant || e.restaurant === currentRestaurant).forEach(e => {
         const s = relevantStatus(e);
         if(s.level === 'red') red++;
         else if(s.level === 'orange') orange++;
@@ -1129,7 +1204,7 @@ function initApp(appData){
       const c = computeCounts();
       const suffix = trainingFocus ? ` · ${trainings.find(t=>t.key===trainingFocus).label}` : '';
       const statDefs = [
-        {key:'all', cls:'all', num: list.length, label: cfg.personLabelPlural + ' suivis'},
+        {key:'all', cls:'all', num: list.filter(e => !currentRestaurant || e.restaurant === currentRestaurant).length, label: cfg.personLabelPlural + ' suivis'},
         {key:'red', cls:'red', num: c.red, label:'En retard' + suffix},
         {key:'orange', cls:'orange', num: c.orange, label:'Échéance sous 30 j' + suffix},
         {key:'green', cls:'green', num: c.green, label:'À jour' + suffix}
@@ -1366,7 +1441,10 @@ function initApp(appData){
 
     function getFiltered(){
       const q = searchInput.value.trim().toLowerCase();
-      let filtered = list.filter(e => e.nom.toLowerCase().includes(q));
+      let filtered = list.filter(e =>
+        (!currentRestaurant || e.restaurant === currentRestaurant) &&
+        e.nom.toLowerCase().includes(q)
+      );
       if(activeFilter !== 'all'){
         filtered = filtered.filter(e => relevantStatus(e).level === activeFilter);
       }
@@ -1454,6 +1532,7 @@ function initApp(appData){
     const modal = document.getElementById(cfg.ids.modal);
     const form = document.getElementById(cfg.ids.form);
     const nomInput = document.getElementById(cfg.ids.nomInput);
+    const restaurantInput = document.getElementById(cfg.ids.restaurantInput);
     const dateInput = document.getElementById(cfg.ids.dateInput);
     const errorEl = document.getElementById(cfg.ids.error);
     const submitBtn = document.getElementById(cfg.ids.submitBtn);
@@ -1463,6 +1542,7 @@ function initApp(appData){
       form.reset();
       errorEl.style.display = 'none';
       modal.style.display = 'flex';
+      restaurantInput.value = currentRestaurant || '';
       nomInput.focus();
     }
     function closeModal(){
@@ -1476,8 +1556,9 @@ function initApp(appData){
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const nom = nomInput.value.trim();
+      const restaurant = restaurantInput.value.trim();
       const dateEntree = dateInput.value;
-      if(!nom || !dateEntree) return;
+      if(!nom || !dateEntree || !restaurant) return;
 
       if(findPerson(nom)){
         errorEl.textContent = 'Une personne avec ce nom existe déjà.';
@@ -1488,14 +1569,14 @@ function initApp(appData){
       submitBtn.disabled = true;
       errorEl.style.display = 'none';
       try{
-        await postUpdate(cfg.addSheetKey, nom, 'dateEntree', dateEntree);
+        await postUpdate(cfg.addSheetKey, nom, 'dateEntree', dateEntree, {restaurant});
 
         const suivi4sButoir = addMonthsJS(dateEntree, 1);
         const entreeDt = new Date(dateEntree + 'T00:00:00');
         const ancienneteMois = Math.max(0, Math.round((today - entreeDt) / (1000*60*60*24*30.44)));
 
         const base = {
-          nom, dateEntree, ancienneteMois,
+          nom, restaurant, dateEntree, ancienneteMois,
           secuFait: null, secuButoir: null,
           hygieneFait: null, hygieneButoir: null,
           mtsriFait: null, mtsriButoir: null,
@@ -1509,6 +1590,7 @@ function initApp(appData){
 
         const newPerson = computeDerived(base);
         list.push(newPerson);
+        registerNewRestaurant(restaurant);
 
         renderStats();
         render();
@@ -1527,6 +1609,8 @@ function initApp(appData){
     renderChips();
     render();
 
+    refreshFns.push(() => { renderStats(); render(); });
+
     return { findPerson, list };
   }
 
@@ -1544,7 +1628,7 @@ function initApp(appData){
     ids: {
       search:'searchInput', sort:'sortSelect', addBtn:'addEmployeeBtn', chips:'trainingChips',
       statsRow:'statsRow', tableBody:'tableBody', cardsWrap:'cardsWrap', emptyState:'emptyState',
-      modal:'addEmployeeModal', form:'addEmployeeForm', nomInput:'newEmpNom', dateInput:'newEmpDate',
+      modal:'addEmployeeModal', form:'addEmployeeForm', nomInput:'newEmpNom', restaurantInput:'newEmpRestaurant', dateInput:'newEmpDate',
       error:'addEmployeeError', submitBtn:'submitAddEmployee', cancelBtn:'cancelAddEmployee'
     },
     afterChange: function(){
@@ -1569,7 +1653,7 @@ function initApp(appData){
     ids: {
       search:'searchInputGestion', sort:'sortSelectGestion', addBtn:'addManagerBtn', chips:'trainingChipsGestion',
       statsRow:'statsRowGestion', tableBody:'tableBodyGestion', cardsWrap:'cardsWrapGestion', emptyState:'emptyStateGestion',
-      modal:'addManagerModal', form:'addManagerForm', nomInput:'newMgrNom', dateInput:'newMgrDate',
+      modal:'addManagerModal', form:'addManagerForm', nomInput:'newMgrNom', restaurantInput:'newMgrRestaurant', dateInput:'newMgrDate',
       error:'addManagerError', submitBtn:'submitAddManager', cancelBtn:'cancelAddManager'
     },
     afterChange: function(){}
@@ -1602,10 +1686,15 @@ function initApp(appData){
   const GROUP_ORDER = ['production','service','autres'];
 
   let posteStats, groupStats, globalPct;
+  function restaurantEmployees(){
+    return employees.filter(e => !currentRestaurant || e.restaurant === currentRestaurant);
+  }
+
   function computePolyStats(){
+    const emps = restaurantEmployees();
     posteStats = POSTES.map((p, idx) => {
-      const trained = employees.filter(e => e.skills[idx]).length;
-      return {...p, idx, trained, total: employees.length, pct: employees.length ? trained/employees.length : 0};
+      const trained = emps.filter(e => e.skills[idx]).length;
+      return {...p, idx, trained, total: emps.length, pct: emps.length ? trained/emps.length : 0};
     });
     groupStats = GROUP_ORDER.map(g => {
       const items = posteStats.filter(p => p.group === g);
@@ -1621,7 +1710,7 @@ function initApp(appData){
   function renderKpis(){
     const wrap = document.getElementById('polyKpis');
     const cards = [
-      {cls:'global', label:'Taux de polyvalence global', pct:globalPct, sub: POSTES.length + ' postes suivis · ' + employees.length + ' équipiers'},
+      {cls:'global', label:'Taux de polyvalence global', pct:globalPct, sub: POSTES.length + ' postes suivis · ' + restaurantEmployees().length + ' équipiers'},
       {cls:'production', label:'Production', pct:groupStats[0].pct, sub:'8 postes cuisine'},
       {cls:'service', label:'Service', pct:groupStats[1].pct, sub:'3 postes comptoir/salle'},
       {cls:'autres', label:'Autres', pct:groupStats[2].pct, sub:'5 postes support (ouverture, plonge…)'}
@@ -1662,7 +1751,7 @@ function initApp(appData){
   function renderMatrix(){
     const table = document.getElementById('matrixTable');
     const q = polySearchInput.value.trim().toLowerCase();
-    let list = employees.filter(e => e.nom.toLowerCase().includes(q));
+    let list = restaurantEmployees().filter(e => e.nom.toLowerCase().includes(q));
 
     if(matrixSortKey !== null){
       list = list.slice().sort((a,b) => (b.skills[matrixSortKey] - a.skills[matrixSortKey]) || a.nom.localeCompare(b.nom, 'fr'));
@@ -1847,6 +1936,13 @@ function initApp(appData){
   renderKpis();
   renderBars();
   renderMatrix();
+
+  refreshFns.push(() => {
+    computePolyStats();
+    renderKpis();
+    renderBars();
+    renderMatrix();
+  });
 }
 
 // ============================================================
@@ -1856,7 +1952,7 @@ function initApp(appData){
 // Le site lit et écrit en direct dans un Google Sheet, via une petite
 // passerelle Google Apps Script (voir Code.gs). Colle ici l'URL de ton
 // déploiement Apps Script (se termine par /exec) :
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw_-YZQkI5t-sX0My0lXf-0QaJq0E18ZnejJjsAQZFzS4MM6bgetrGJyZAepzctcvxEMQ/exec';
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz0Dg-wg4Y4XFo7g11AH7CljEQX4XHtNu4rV8O2mvvMawOXw7-tDVV6p_EhVhmRAfdnqA/exec';
 
 // Mot de passe par défaut : "chamnord2026"
 // Pour le changer, remplace directement la valeur ci-dessous.
