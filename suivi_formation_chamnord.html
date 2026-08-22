@@ -1124,6 +1124,20 @@ function initApp(appData){
     restaurants.sort((a,b) => a.localeCompare(b, 'fr'));
     renderRestaurantOptions();
   }
+  // Recalcule la liste des restaurants à partir des données actuelles — fait
+  // disparaître automatiquement un restaurant dès que sa dernière personne est
+  // supprimée, sans avoir besoin de recharger la page.
+  function pruneEmptyRestaurants(){
+    restaurants = collectRestaurants();
+    if(currentRestaurant && !restaurants.includes(currentRestaurant)){
+      currentRestaurant = restaurants[0] || '';
+      localStorage.setItem(RESTAURANT_STORAGE_KEY, currentRestaurant);
+      renderRestaurantOptions();
+      refreshAllTabs();
+    } else {
+      renderRestaurantOptions();
+    }
+  }
 
   restaurantSelect.addEventListener('change', () => {
     currentRestaurant = restaurantSelect.value;
@@ -1316,6 +1330,7 @@ function initApp(appData){
           await postUpdate(cfg.deleteSheetKey, nom, 'delete', null);
           const idx = list.findIndex(e => e.nom === nom);
           if(idx !== -1) list.splice(idx, 1);
+          pruneEmptyRestaurants();
           renderStats();
           render();
           afterChange();
