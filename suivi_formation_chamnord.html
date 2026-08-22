@@ -249,13 +249,17 @@
   }
   .modal-card h3{margin:0 0 6px; font-size:18px; font-weight:800; color:var(--ink);}
   .modal-sub{margin:0 0 16px; font-size:12px; color:var(--ink-soft); line-height:1.4;}
-  #addEmployeeForm{display:flex; flex-direction:column; gap:6px;}
-  #addEmployeeForm label{font-size:11.5px; font-weight:700; color:var(--ink-soft); margin-top:8px;}
-  #addEmployeeForm input{
+  #addEmployeeForm, #addManagerForm, #addRestaurantForm{display:flex; flex-direction:column; gap:6px;}
+  #addEmployeeForm label, #addManagerForm label, #addRestaurantForm label{font-size:11.5px; font-weight:700; color:var(--ink-soft); margin-top:8px;}
+  #addEmployeeForm input, #addEmployeeForm select,
+  #addManagerForm input, #addManagerForm select,
+  #addRestaurantForm input{
     padding:10px 12px; border-radius:8px; border:1px solid var(--line);
-    font-size:13.5px; outline:none;
+    font-size:13.5px; outline:none; width:100%; background:#fff;
   }
-  #addEmployeeForm input:focus{border-color:var(--amber-dark); box-shadow:0 0 0 3px rgba(232,163,61,0.18);}
+  #addEmployeeForm input:focus, #addEmployeeForm select:focus,
+  #addManagerForm input:focus, #addManagerForm select:focus,
+  #addRestaurantForm input:focus{border-color:var(--amber-dark); box-shadow:0 0 0 3px rgba(232,163,61,0.18);}
   .modal-actions{display:flex; justify-content:flex-end; gap:10px; margin-top:18px;}
   .modal-actions button{
     appearance:none; border-radius:8px; font-size:13px; font-weight:700; padding:10px 16px; cursor:pointer;
@@ -264,6 +268,8 @@
   #submitAddEmployee{background:var(--navy); border:none; color:#fff;}
   #submitAddEmployee:hover{background:var(--navy-2);}
   #submitAddEmployee:disabled{opacity:0.6; cursor:default;}
+  #addRestaurantForm button[type="submit"]{background:var(--navy); border:none; color:#fff;}
+  #addRestaurantForm button[type="submit"]:hover{background:var(--navy-2);}
   .modal-error{color:var(--red); font-size:12px; margin-top:8px;}
 
   .modal-card-wide{max-width:520px; max-height:85vh; display:flex; flex-direction:column;}
@@ -340,18 +346,30 @@
   }
   .auth-card h2{margin:0 0 8px; font-size:20px; font-weight:800; color:var(--ink);}
   .auth-card p{margin:0 0 18px; font-size:13px; color:var(--ink-soft); line-height:1.4;}
-  #authForm{display:flex; flex-direction:column; gap:10px;}
-  #authInput{
-    padding:11px 14px; border-radius:8px; border:1px solid var(--line);
-    font-size:14px; outline:none;
+
+  .auth-mode-tabs{display:flex; gap:6px; margin-bottom:16px;}
+  .auth-mode-btn{
+    flex:1; appearance:none; border:1px solid var(--line); border-radius:999px;
+    background:#faf8f2; color:var(--ink-soft); font-size:12.5px; font-weight:700;
+    padding:8px 10px; cursor:pointer;
   }
-  #authInput:focus{border-color:var(--amber-dark); box-shadow:0 0 0 3px rgba(232,163,61,0.18);}
-  #authForm button{
+  .auth-mode-btn.active{background:var(--navy); border-color:var(--navy); color:#fff;}
+
+  #authFormRestaurant, #authFormGerant{display:flex; flex-direction:column; gap:10px;}
+  #authFormRestaurant label, #authFormGerant label{font-size:11.5px; font-weight:700; color:var(--ink-soft);}
+  #authFormRestaurant select, #authFormRestaurant input, #authFormGerant input{
+    padding:11px 14px; border-radius:8px; border:1px solid var(--line);
+    font-size:14px; outline:none; width:100%;
+  }
+  #authFormRestaurant select:focus, #authFormRestaurant input:focus, #authFormGerant input:focus{
+    border-color:var(--amber-dark); box-shadow:0 0 0 3px rgba(232,163,61,0.18);
+  }
+  #authFormRestaurant button, #authFormGerant button{
     appearance:none; border:none; border-radius:8px;
     background:var(--navy); color:#fff; font-weight:700; font-size:13.5px;
     padding:11px 14px; cursor:pointer;
   }
-  #authForm button:hover{background:var(--navy-2);}
+  #authFormRestaurant button:hover, #authFormGerant button:hover{background:var(--navy-2);}
   .auth-error{color:var(--red); font-size:12.5px; margin-top:10px;}
 
   /* ---------- LOADING / ERROR STATE ---------- */
@@ -552,6 +570,12 @@
   .delete-status{font-size:11px; color:var(--ink-soft);}
   .delete-status.pending{color:var(--amber-dark);}
   .delete-status.error{color:var(--red); font-weight:700;}
+  .delete-restaurant-btn{
+    appearance:none; border:1px solid var(--red-line); border-radius:7px;
+    background:var(--red-bg); color:var(--red); font-size:11px; font-weight:700;
+    padding:6px 10px; cursor:pointer;
+  }
+  .delete-restaurant-btn:hover{background:var(--red); color:#fff;}
 
   /* ---------- CARDS (mobile) ---------- */
   .cards{display:none;}
@@ -731,14 +755,31 @@
 
 <div class="auth-gate" id="authGate">
   <div class="auth-card">
-    <div class="auth-eyebrow">Crew Academy · Chamnord</div>
-    <h2>Accès protégé</h2>
-    <p>Ce tableau contient des données personnelles des équipiers (noms, dates). Merci de saisir le mot de passe pour continuer.</p>
-    <form id="authForm">
-      <input type="password" id="authInput" placeholder="Mot de passe" autocomplete="current-password" required>
-      <button type="submit">Accéder au tableau</button>
+    <div class="auth-eyebrow">Crew Academy</div>
+    <h2>Connexion</h2>
+    <p>Ce tableau contient des données personnelles des équipiers. Choisis ton mode d'accès.</p>
+
+    <div class="auth-mode-tabs">
+      <button type="button" class="auth-mode-btn active" data-mode="restaurant">Mon restaurant</button>
+      <button type="button" class="auth-mode-btn" data-mode="gerant">Accès gérant</button>
+    </div>
+
+    <form id="authFormRestaurant">
+      <label for="authRestaurantSelect">Restaurant</label>
+      <select id="authRestaurantSelect" required>
+        <option value="">Chargement…</option>
+      </select>
+      <input type="password" id="authRestaurantPassword" placeholder="Mot de passe du restaurant" autocomplete="current-password" required>
+      <button type="submit">Accéder</button>
     </form>
-    <div class="auth-error" id="authError" style="display:none;">Mot de passe incorrect, réessaie.</div>
+
+    <form id="authFormGerant" style="display:none;">
+      <label for="authGerantPassword">Mot de passe gérant</label>
+      <input type="password" id="authGerantPassword" placeholder="Mot de passe gérant" autocomplete="current-password" required>
+      <button type="submit">Accéder à tous les restaurants</button>
+    </form>
+
+    <div class="auth-error" id="authError" style="display:none;"></div>
   </div>
 </div>
 
@@ -765,9 +806,10 @@
   </nav>
 </header>
 
-<div class="restaurant-bar">
+<div class="restaurant-bar" id="restaurantBar">
   <span class="restaurant-bar-label">🏠 Restaurant</span>
   <select id="restaurantSelect"></select>
+  <button type="button" id="manageRestaurantsBtn" style="display:none;">⚙️ Gérer les restaurants</button>
 </div>
 
 <div class="stats-wrap" id="statsWrap">
@@ -919,7 +961,7 @@
       <label for="newEmpNom">Nom complet</label>
       <input type="text" id="newEmpNom" required placeholder="NOM Prénom" autocomplete="off">
       <label for="newEmpRestaurant">Restaurant</label>
-      <input type="text" id="newEmpRestaurant" list="restaurantOptions" required placeholder="Ex : Chamnord" autocomplete="off">
+      <select id="newEmpRestaurant" required></select>
       <label for="newEmpDate">Date d'entrée</label>
       <input type="date" id="newEmpDate" required>
       <div class="modal-error" id="addEmployeeError" style="display:none;"></div>
@@ -939,7 +981,7 @@
       <label for="newMgrNom">Nom complet</label>
       <input type="text" id="newMgrNom" required placeholder="NOM Prénom" autocomplete="off">
       <label for="newMgrRestaurant">Restaurant</label>
-      <input type="text" id="newMgrRestaurant" list="restaurantOptions" required placeholder="Ex : Chamnord" autocomplete="off">
+      <select id="newMgrRestaurant" required></select>
       <label for="newMgrDate">Date d'entrée</label>
       <input type="date" id="newMgrDate" required>
       <div class="modal-error" id="addManagerError" style="display:none;"></div>
@@ -964,12 +1006,33 @@
   </div>
 </div>
 
-<datalist id="restaurantOptions"></datalist>
+<div class="modal-overlay" id="manageRestaurantsModal" style="display:none;">
+  <div class="modal-card modal-card-wide">
+    <div class="modal-head-row">
+      <div>
+        <h3>Gérer les restaurants</h3>
+        <p class="modal-sub">Ajoute ou retire un restaurant. Chacun a son propre mot de passe.</p>
+      </div>
+      <button type="button" id="closeManageRestaurants" class="modal-close-btn">✕</button>
+    </div>
+    <div id="restaurantManageList" class="poste-upload-list"></div>
+    <form id="addRestaurantForm" style="margin-top:16px; border-top:1px dashed var(--line); padding-top:16px; display:flex; flex-direction:column; gap:6px;">
+      <label for="newRestaurantNom">Nom du nouveau restaurant</label>
+      <input type="text" id="newRestaurantNom" required placeholder="Ex : Aix-les-Bains" autocomplete="off">
+      <label for="newRestaurantPassword">Mot de passe</label>
+      <input type="text" id="newRestaurantPassword" required placeholder="Choisis un mot de passe" autocomplete="off">
+      <div class="modal-error" id="addRestaurantError" style="display:none;"></div>
+      <div class="modal-actions">
+        <button type="submit">Ajouter le restaurant</button>
+      </div>
+    </form>
+  </div>
+</div>
 
 </div><!-- /#appRoot -->
 
 <script>
-function initApp(appData){
+function initApp(appData, isGerant, fixedRestaurant, sessionPassword){
   const today = new Date();
   today.setHours(0,0,0,0);
   document.getElementById('todayLabel').textContent = today.toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
@@ -1076,8 +1139,17 @@ function initApp(appData){
   }
 
   // ---------------- Sauvegarde vers Google Sheets (Apps Script) ----------------
+  // Fusionne les identifiants de session (restaurant+mot de passe, ou gérant)
+  // dans le corps d'une requête POST vers Apps Script.
+  function authBody(obj){
+    const auth = isGerant
+      ? { asGerant: true, password: sessionPassword }
+      : { restaurant: fixedRestaurant, password: sessionPassword };
+    return Object.assign(auth, obj);
+  }
+
   async function postUpdate(sheetName, nom, field, value, extra){
-    const body = {sheet: sheetName, nom, field, value};
+    const body = authBody({sheet: sheetName, nom, field, value});
     if(extra) Object.assign(body, extra);
     const res = await fetch(APPS_SCRIPT_URL, {
       method: 'POST',
@@ -1094,23 +1166,44 @@ function initApp(appData){
 
   // ---------------- Filtre par restaurant ----------------
   const RESTAURANT_STORAGE_KEY = 'crewAcademyRestaurant';
+
   function collectRestaurants(){
     const set = new Set();
     employees.concat(managers).forEach(p => { if(p.restaurant) set.add(p.restaurant); });
     return Array.from(set).sort((a,b) => a.localeCompare(b, 'fr'));
   }
-  let restaurants = collectRestaurants();
-  let currentRestaurant = localStorage.getItem(RESTAURANT_STORAGE_KEY) || restaurants[0] || '';
-  if(restaurants.length && !restaurants.includes(currentRestaurant)) currentRestaurant = restaurants[0];
 
+  // En mode gérant : liste complète transmise par le serveur (même les
+  // restaurants sans personne dedans). En mode restaurant : un seul, fixe.
+  let restaurants = isGerant ? (appData.restaurants || collectRestaurants()) : [fixedRestaurant];
+  let currentRestaurant = isGerant
+    ? (localStorage.getItem(RESTAURANT_STORAGE_KEY) || restaurants[0] || '')
+    : fixedRestaurant;
+  if(isGerant && restaurants.length && !restaurants.includes(currentRestaurant)) currentRestaurant = restaurants[0];
+
+  const restaurantBar = document.getElementById('restaurantBar');
   const restaurantSelect = document.getElementById('restaurantSelect');
-  const restaurantOptionsDatalist = document.getElementById('restaurantOptions');
+  const manageRestaurantsBtn = document.getElementById('manageRestaurantsBtn');
 
   function renderRestaurantOptions(){
     restaurantSelect.innerHTML = restaurants.map(r =>
       `<option value="${r}" ${r === currentRestaurant ? 'selected' : ''}>${r}</option>`
     ).join('');
-    restaurantOptionsDatalist.innerHTML = restaurants.map(r => `<option value="${r}">`).join('');
+    // Champs "Restaurant" des formulaires d'ajout équipier/gestion.
+    ['newEmpRestaurant','newMgrRestaurant'].forEach(id => {
+      const sel = document.getElementById(id);
+      if(!sel) return;
+      sel.innerHTML = restaurants.map(r => `<option value="${r}">${r}</option>`).join('');
+      sel.value = currentRestaurant || restaurants[0] || '';
+    });
+  }
+
+  if(isGerant){
+    manageRestaurantsBtn.style.display = 'inline-block';
+  } else {
+    // Un seul restaurant possible : pas de menu à afficher, juste le nom.
+    restaurantSelect.disabled = true;
+    restaurantSelect.style.opacity = '0.7';
   }
   renderRestaurantOptions();
 
@@ -1119,16 +1212,15 @@ function initApp(appData){
     refreshFns.forEach(fn => fn());
   }
   function registerNewRestaurant(name){
-    if(!name || restaurants.includes(name)) return;
+    if(!isGerant || !name || restaurants.includes(name)) return;
     restaurants.push(name);
     restaurants.sort((a,b) => a.localeCompare(b, 'fr'));
     renderRestaurantOptions();
   }
-  // Recalcule la liste des restaurants à partir des données actuelles — fait
-  // disparaître automatiquement un restaurant dès que sa dernière personne est
-  // supprimée, sans avoir besoin de recharger la page.
+  // Recalcule la liste des restaurants à partir des données actuelles (mode
+  // gérant uniquement — en mode restaurant, la liste est fixe).
   function pruneEmptyRestaurants(){
-    restaurants = collectRestaurants();
+    if(!isGerant) return;
     if(currentRestaurant && !restaurants.includes(currentRestaurant)){
       currentRestaurant = restaurants[0] || '';
       localStorage.setItem(RESTAURANT_STORAGE_KEY, currentRestaurant);
@@ -1140,10 +1232,98 @@ function initApp(appData){
   }
 
   restaurantSelect.addEventListener('change', () => {
+    if(!isGerant) return;
     currentRestaurant = restaurantSelect.value;
     localStorage.setItem(RESTAURANT_STORAGE_KEY, currentRestaurant);
+    renderRestaurantOptions();
     refreshAllTabs();
   });
+
+  // ---------------- Gérer les restaurants (gérant uniquement) ----------------
+  if(isGerant){
+    const manageModal = document.getElementById('manageRestaurantsModal');
+    const closeManageBtn = document.getElementById('closeManageRestaurants');
+    const manageList = document.getElementById('restaurantManageList');
+    const addRestaurantForm = document.getElementById('addRestaurantForm');
+    const addRestaurantError = document.getElementById('addRestaurantError');
+
+    function renderManageList(){
+      manageList.innerHTML = restaurants.map(r => {
+        const count = employees.concat(managers).filter(e => e.restaurant === r).length;
+        return `<div class="poste-upload-item">
+          <div class="poste-upload-item-head">
+            <span class="poste-name">${r} <span style="font-weight:400; color:var(--ink-soft);">(${count} personne${count>1?'s':''})</span></span>
+            <button type="button" class="delete-restaurant-btn" data-nom="${r.replace(/"/g,'&quot;')}">Supprimer</button>
+          </div>
+        </div>`;
+      }).join('');
+      manageList.querySelectorAll('.delete-restaurant-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const nom = btn.dataset.nom;
+          const count = employees.concat(managers).filter(e => e.restaurant === nom).length;
+          const msg = count > 0
+            ? `${nom} a encore ${count} personne(s) rattachée(s), qui resteront orphelines. Supprimer quand même le restaurant ?`
+            : `Supprimer le restaurant ${nom} ?`;
+          if(!window.confirm(msg)) return;
+          btn.disabled = true;
+          try{
+            const res = await fetch(APPS_SCRIPT_URL, {
+              method: 'POST',
+              headers: {'Content-Type': 'text/plain;charset=utf-8'},
+              body: JSON.stringify({sheet:'delete_restaurant', password: sessionPassword, nom})
+            });
+            const data = await res.json();
+            if(!data.ok) throw new Error(data.error || 'Échec de la suppression');
+            restaurants = data.restaurants;
+            if(currentRestaurant === nom){
+              currentRestaurant = restaurants[0] || '';
+              localStorage.setItem(RESTAURANT_STORAGE_KEY, currentRestaurant);
+              refreshAllTabs();
+            }
+            renderRestaurantOptions();
+            renderManageList();
+          } catch(err){
+            alert('Erreur : ' + err.message);
+          } finally {
+            btn.disabled = false;
+          }
+        });
+      });
+    }
+
+    manageRestaurantsBtn.addEventListener('click', () => {
+      renderManageList();
+      addRestaurantError.style.display = 'none';
+      addRestaurantForm.reset();
+      manageModal.style.display = 'flex';
+    });
+    closeManageBtn.addEventListener('click', () => { manageModal.style.display = 'none'; });
+    manageModal.addEventListener('click', (e) => { if(e.target === manageModal) manageModal.style.display = 'none'; });
+
+    addRestaurantForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const nom = document.getElementById('newRestaurantNom').value.trim();
+      const motDePasse = document.getElementById('newRestaurantPassword').value.trim();
+      if(!nom || !motDePasse) return;
+      addRestaurantError.style.display = 'none';
+      try{
+        const res = await fetch(APPS_SCRIPT_URL, {
+          method: 'POST',
+          headers: {'Content-Type': 'text/plain;charset=utf-8'},
+          body: JSON.stringify({sheet:'add_restaurant', password: sessionPassword, nom, motDePasse})
+        });
+        const data = await res.json();
+        if(!data.ok) throw new Error(data.error || "Échec de l'ajout");
+        restaurants = data.restaurants;
+        renderRestaurantOptions();
+        renderManageList();
+        addRestaurantForm.reset();
+      } catch(err){
+        addRestaurantError.textContent = 'Erreur : ' + err.message;
+        addRestaurantError.style.display = 'block';
+      }
+    });
+  }
 
   // Bouton "Voir les fiches déjà envoyées" — commun à tous les onglets (formations,
   // gestion, postes). Va chercher le dossier Drive à la demande via Apps Script.
@@ -1161,7 +1341,7 @@ function initApp(appData){
           const res = await fetch(APPS_SCRIPT_URL, {
             method: 'POST',
             headers: {'Content-Type': 'text/plain;charset=utf-8'},
-            body: JSON.stringify({ sheet: 'get_verif_folder', scope, key })
+            body: JSON.stringify(authBody({ sheet: 'get_verif_folder', scope, key }))
           });
           const data = await res.json();
           if(!data.ok) throw new Error(data.error || 'Dossier introuvable');
@@ -1422,14 +1602,14 @@ function initApp(appData){
             const res = await fetch(APPS_SCRIPT_URL, {
               method: 'POST',
               headers: {'Content-Type': 'text/plain;charset=utf-8'},
-              body: JSON.stringify({
+              body: JSON.stringify(authBody({
                 sheet: 'upload_verification',
                 scope: 'formation',
                 key, nom,
                 fileName: file.name,
                 mimeType: file.type,
                 data: base64
-              })
+              }))
             });
             const data = await res.json();
             if(!data.ok) throw new Error(data.error || "Échec de l'envoi");
@@ -1584,7 +1764,7 @@ function initApp(appData){
       submitBtn.disabled = true;
       errorEl.style.display = 'none';
       try{
-        await postUpdate(cfg.addSheetKey, nom, 'dateEntree', dateEntree, {restaurant});
+        await postUpdate(cfg.addSheetKey, nom, 'dateEntree', dateEntree, {targetRestaurant: restaurant});
 
         const suivi4sButoir = addMonthsJS(dateEntree, 1);
         const entreeDt = new Date(dateEntree + 'T00:00:00');
@@ -1914,14 +2094,14 @@ function initApp(appData){
           const res = await fetch(APPS_SCRIPT_URL, {
             method: 'POST',
             headers: {'Content-Type': 'text/plain;charset=utf-8'},
-            body: JSON.stringify({
+            body: JSON.stringify(authBody({
               sheet: 'upload_verification',
               scope: 'poste',
               key, nom,
               fileName: file.name,
               mimeType: file.type,
               data: base64
-            })
+            }))
           });
           const data = await res.json();
           if(!data.ok) throw new Error(data.error || "Échec de l'envoi");
@@ -1961,7 +2141,7 @@ function initApp(appData){
 }
 
 // ============================================================
-// CHARGEMENT DES DONNÉES + ÉCRAN DE MOT DE PASSE
+// CHARGEMENT DES DONNÉES + ÉCRAN DE CONNEXION (par restaurant OU gérant)
 // ============================================================
 //
 // Le site lit et écrit en direct dans un Google Sheet, via une petite
@@ -1969,47 +2149,103 @@ function initApp(appData){
 // déploiement Apps Script (se termine par /exec) :
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz0Dg-wg4Y4XFo7g11AH7CljEQX4XHtNu4rV8O2mvvMawOXw7-tDVV6p_EhVhmRAfdnqA/exec';
 
-// Mot de passe par défaut : "chamnord2026"
-// Pour le changer, remplace directement la valeur ci-dessous.
-// (Rappel : ce n'est pas une vraie sécurité, juste un frein d'accès côté client — voir note plus haut.)
-const PASSWORD = 'chamnord2026';
-
 (function(){
   const authGate = document.getElementById('authGate');
-  const authForm = document.getElementById('authForm');
-  const authInput = document.getElementById('authInput');
+  const modeBtns = document.querySelectorAll('.auth-mode-btn');
+  const formRestaurant = document.getElementById('authFormRestaurant');
+  const formGerant = document.getElementById('authFormGerant');
+  const restaurantSelectAuth = document.getElementById('authRestaurantSelect');
+  const restaurantPasswordInput = document.getElementById('authRestaurantPassword');
+  const gerantPasswordInput = document.getElementById('authGerantPassword');
   const authError = document.getElementById('authError');
   const loadingState = document.getElementById('loadingState');
   const appRoot = document.getElementById('appRoot');
 
-  async function loadData(){
-    loadingState.style.display = 'flex';
+  modeBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      modeBtns.forEach(b => b.classList.toggle('active', b === btn));
+      const mode = btn.dataset.mode;
+      formRestaurant.style.display = mode === 'restaurant' ? 'flex' : 'none';
+      formGerant.style.display = mode === 'gerant' ? 'flex' : 'none';
+      authError.style.display = 'none';
+    });
+  });
+
+  // Charge la liste des restaurants (publique, sans mot de passe) pour remplir
+  // le menu déroulant de l'écran de connexion.
+  async function loadRestaurantNames(){
     try{
       const res = await fetch(APPS_SCRIPT_URL, {cache:'no-store'});
-      if(!res.ok) throw new Error('HTTP ' + res.status);
-      const appData = await res.json();
-      loadingState.style.display = 'none';
-      appRoot.style.display = '';
-      initApp(appData);
+      const data = await res.json();
+      const names = data.restaurants || [];
+      restaurantSelectAuth.innerHTML = names.length
+        ? names.map(n => `<option value="${n}">${n}</option>`).join('')
+        : `<option value="">Aucun restaurant configuré</option>`;
     } catch(err){
-      loadingState.innerHTML = `<div class="load-error">
-        Impossible de charger les données depuis Google Sheets (${err.message}).<br><br>
-        Vérifie que <code>APPS_SCRIPT_URL</code> en haut de app.js pointe bien vers ton
-        déploiement Apps Script (URL en <code>/exec</code>), et qu'il est accessible
-        "à tout le monde".
-      </div>`;
+      restaurantSelectAuth.innerHTML = `<option value="">Erreur de chargement</option>`;
     }
   }
+  loadRestaurantNames();
 
-  authForm.addEventListener('submit', (e) => {
+  async function afterLogin(appData, isGerant, fixedRestaurant, sessionPassword){
+    loadingState.style.display = 'none';
+    appRoot.style.display = '';
+    initApp(appData, isGerant, fixedRestaurant, sessionPassword);
+  }
+
+  formRestaurant.addEventListener('submit', async (e) => {
     e.preventDefault();
-    if(authInput.value === PASSWORD){
-      authGate.style.display = 'none';
-      loadData();
-    } else {
+    const submitBtn = formRestaurant.querySelector('button[type="submit"]');
+    const restaurant = restaurantSelectAuth.value;
+    const password = restaurantPasswordInput.value;
+    if(!restaurant){
+      authError.textContent = 'Choisis un restaurant.';
       authError.style.display = 'block';
-      authInput.value = '';
-      authInput.focus();
+      return;
+    }
+    submitBtn.disabled = true;
+    authError.style.display = 'none';
+    try{
+      const res = await fetch(APPS_SCRIPT_URL, {
+        method: 'POST',
+        headers: {'Content-Type': 'text/plain;charset=utf-8'},
+        body: JSON.stringify({sheet: 'login_restaurant', restaurant, password})
+      });
+      const data = await res.json();
+      if(!data.ok) throw new Error(data.error || 'Connexion refusée');
+      authGate.style.display = 'none';
+      loadingState.style.display = 'flex';
+      await afterLogin(data, false, restaurant, password);
+    } catch(err){
+      authError.textContent = err.message;
+      authError.style.display = 'block';
+    } finally {
+      submitBtn.disabled = false;
+    }
+  });
+
+  formGerant.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const submitBtn = formGerant.querySelector('button[type="submit"]');
+    const password = gerantPasswordInput.value;
+    submitBtn.disabled = true;
+    authError.style.display = 'none';
+    try{
+      const res = await fetch(APPS_SCRIPT_URL, {
+        method: 'POST',
+        headers: {'Content-Type': 'text/plain;charset=utf-8'},
+        body: JSON.stringify({sheet: 'login_gerant', password})
+      });
+      const data = await res.json();
+      if(!data.ok) throw new Error(data.error || 'Connexion refusée');
+      authGate.style.display = 'none';
+      loadingState.style.display = 'flex';
+      await afterLogin(data, true, null, password);
+    } catch(err){
+      authError.textContent = err.message;
+      authError.style.display = 'block';
+    } finally {
+      submitBtn.disabled = false;
     }
   });
 })();
