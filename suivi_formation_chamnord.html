@@ -272,7 +272,7 @@
   #addRestaurantForm button[type="submit"]:hover{background:var(--navy-2);}
   .modal-error{color:var(--red); font-size:12px; margin-top:8px;}
 
-  .modal-card-wide{max-width:520px; max-height:85vh; display:flex; flex-direction:column;}
+  .modal-card-wide{max-width:520px; max-height:85vh; display:flex; flex-direction:column; overflow-y:auto;}
   .modal-head-row{display:flex; justify-content:space-between; align-items:flex-start; gap:12px;}
   .modal-close-btn{
     appearance:none; border:none; background:transparent; color:var(--ink-soft);
@@ -518,6 +518,18 @@
   .sig-open-btn:hover{background:var(--navy-2);}
 
   .sig-row-2col{display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:8px;}
+  .sig-checklist-area{
+    margin-top:14px; max-height:340px; overflow-y:auto;
+    border:1px solid var(--line); border-radius:10px; padding:14px 16px;
+    background:#faf9f4;
+  }
+  .sig-checklist-item{margin-bottom:14px;}
+  .sig-checklist-item:last-child{margin-bottom:0;}
+  .sig-checklist-main{display:flex; align-items:flex-start; gap:8px; font-size:13px; font-weight:700; color:var(--ink);}
+  .sig-checklist-main input{margin-top:3px; flex-shrink:0;}
+  .sig-checklist-subs{margin:6px 0 0 26px; display:flex; flex-direction:column; gap:5px;}
+  .sig-checklist-sub{display:flex; align-items:flex-start; gap:7px; font-size:12px; color:var(--ink-soft);}
+  .sig-checklist-sub input{margin-top:3px; flex-shrink:0;}
   #signatureForm label{font-size:11.5px; font-weight:700; color:var(--ink-soft); display:block; margin:10px 0 4px;}
   #signatureForm input[type="date"], #signatureForm input[type="text"], #signatureForm textarea{
     width:100%; padding:9px 12px; border-radius:8px; border:1px solid var(--line);
@@ -1083,6 +1095,8 @@
       <button type="button" id="closeSignatureModal" class="modal-close-btn">✕</button>
     </div>
 
+    <div id="sigChecklistArea" class="sig-checklist-area"></div>
+
     <form id="signatureForm">
       <div class="sig-row-2col">
         <div>
@@ -1174,6 +1188,159 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword){
     if(!VERIF_AVAILABLE.has(key)) return '';
     return `<a class="verif-link" href="${VERIF_DIR}${key}.pdf" target="_blank" rel="noopener" title="Ouvrir la fiche de vérification — ${label}" onclick="event.stopPropagation();">📄 Fiche de vérification</a>`;
   }
+
+  // Contenu réel des fiches de vérification (comportements à observer), pour
+  // pouvoir les cocher et les signer directement sur le site — sans passer par
+  // le PDF externe. Chaque "item" = un comportement attendu (en gras sur la
+  // fiche papier) + les comportements précis à corriger s'il n'est pas acquis.
+  // Non disponible pour : mtsri (format quiz, pas une checklist), huiles,
+  // livraison, ouverture, fermeture (texte source illisible) — ces fiches
+  // gardent le formulaire de signature simple, avec le lien vers le PDF.
+  const VERIF_CHECKLISTS = {
+    secu: { items: [
+      {text:"Est prêt à travailler (tenue et chaussures appropriées)", subs:["N'est pas prêt à travailler sur son poste (hygiène, tenue, etc.)."]},
+      {text:"Sait comment veiller à ce que le sol soit propre et dégagé pour éviter les glissades, obstacles et chutes, en respectant les procédures de balayage et de passage de la mop.", subs:["Procédures de balayage non connues","Procédures de passage de la mop non connues"]},
+      {text:"Montre comment travailler en toute sécurité dans les endroits en hauteur nécessitant une échelle ou un escabeau", subs:["Ne peut pas montrer comment travailler en toute sécurité dans les endroits en hauteur","Ne sait pas correctement utiliser l'échelle ou l'escabeau"]},
+      {text:"Est capable d'expliquer ce qu'il faut faire en cas d'incendie.", subs:["Ne sait pas ce qu'il faut faire en cas d'incendie.","Ne sait pas où se trouvent les sorties de secours ni le point de rassemblement.","Ne sait pas comment utiliser un extincteur"]},
+      {text:"Montre correctement comment manipuler/soulever des objets lourds.", subs:["Ne soulève ni correctement ni prudemment les charges lourdes."]},
+      {text:"Sait comment travailler à l'extérieur avec prudence, en portant son Equipement de Protection Individuel (EPI).", subs:["Ne connaît pas l'EPI approprié aux différentes tâches","Ne sait pas comment se déplacer prudemment autour des véhicules à l'extérieur."]},
+      {text:"Sait comment appliquer prudemment toutes les procédures d'ouverture/de fermeture.", subs:["Ne connaît pas les procédures d'ouverture/fermeture appropriées.","Ne sait pas comment appliquer les procédures d'ouverture/fermeture"]},
+      {text:"Toutes les procédures de sécurité en matière d'argent sont connues.", subs:["Procédures de sécurisation de l'argent non connues."]},
+      {text:"Est capable d'expliquer les mesures correctes en cas de rôdeurs, vols, braquages, etc.", subs:["Ne peut pas expliquer les procédures en cas de présence de rôdeurs.","N'arrive pas à expliquer les procédures en cas de vols ou de braquages"]},
+      {text:"Sait comment préserver un environnement de travail sûr.", subs:["Ne connaît pas les panneaux « sol glissant » pour les zones humides","Ne sait pas manipuler les produits chimiques en sécurité ni où trouver les fiches associées","Ne sait pas qui informer en cas de conditions de travail dangereuses"]},
+      {text:"Comprend l'importance de garder une attitude positive et amicale, de communiquer et se coordonner avec les autres pour la sécurité de tous.", subs:["N'arrive pas à expliquer l'importance de rester positif et amical pendant son quart.","N'arrive pas à expliquer l'importance de la communication et de la coordination"]}
+    ]},
+    hygiene: { items: [
+      {text:"Est totalement apte et prêt à travailler (tenue et tablier propres, mains lavées selon la procédure)", subs:["N'est pas prêt à travailler sur le poste"]},
+      {text:"Est capable d'expliquer pourquoi la sécurité alimentaire est importante pour McDonald's et ses clients, et ce qu'il peut faire pour s'en assurer.", subs:["N'est pas capable d'expliquer l'importance","N'est pas capable d'expliquer comment cela impacte l'expérience client"]},
+      {text:"S'assure que les produits utilisés sont stockés en toute sécurité et à bonne température selon la procédure adaptée.", subs:["Produits stockés à mauvaise température","Procédure de stockage non respectée"]},
+      {text:"Sert aux clients des produits sains. En cas de doute, respecte « Si quelque chose cloche, ne le sers pas ».", subs:["Sert aux clients des aliments qui ne sont pas sains","N'est pas attentif aux commandes spécifiques des clients"]},
+      {text:"Respecte toutes les DLC primaires, secondaires et/ou tertiaires", subs:["DLC primaire non respectée","DLC secondaire et/ou tertiaire non respectée(s)"]},
+      {text:"Respecte les bonnes pratiques en matière d'hygiène et de lavage des mains tout au long du quart.", subs:["Les bonnes pratiques en matière d'hygiène ne sont pas respectées","La procédure de lavage des mains n'est pas respectée"]},
+      {text:"Maintient la propreté et l'aseptisation des équipements pendant tout le quart.", subs:["La propreté des équipements n'est pas maintenue","L'aseptisation des équipements n'est pas réalisée selon les procédures"]},
+      {text:"Les aliments sont conservés en toute sécurité et protégés contre toute forme de contamination.", subs:["Risque de contamination : mauvais stockage des aliments","Risque de contamination : mauvaise manipulation des aliments","Risque de contamination : aliments non protégés"]},
+      {text:"Bonne utilisation des gants spécifiques pour les produits, conformément à la procédure du restaurant.", subs:["Gants inadaptés à la manipulation de produits","Gants non mis/retirés correctement","Gants non jetés le moment venu"]},
+      {text:"Bonne gestion des déchets/pertes", subs:["Mauvaise manipulation des déchets/pertes","Mauvaise gestion des déchets/pertes"]},
+      {text:"Suit les mesures appropriées pour éviter l'infestation de nuisibles", subs:["Mauvais stockage des déchets","La propreté de la zone n'est pas garantie","Portes/fenêtres non maintenues fermées"]}
+    ]},
+    culture: { items: [
+      {text:"Comprend la Promesse et est capable d'expliquer son importance et sa signification", subs:["N'est pas capable d'expliquer la Promesse","N'est pas capable de démontrer comment honorer la Promesse"]},
+      {text:"Est capable d'expliquer et de mettre en œuvre des manières d'« Être rigoureux »", subs:["N'est pas capable d'expliquer comment « Être rigoureux »","Ne montre pas comment « Être rigoureux »"]},
+      {text:"Est capable d'expliquer et de mettre en œuvre des manières d'« Être attentionné »", subs:["N'est pas capable d'expliquer comment « Être attentionné »","Ne montre pas comment « Être attentionné »"]},
+      {text:"Recherche des opportunités de créer des moments mémorables pour les clients (Être attentionné)", subs:["Ne recherche pas des opportunités de créer des moments mémorables","Se contente de suivre le processus","Ne recherche pas des manières de dépasser les attentes des clients"]},
+      {text:"Se comporte de manière chaleureuse et amicale afin de créer des liens avec les clients (Être attentionné)", subs:["Ne se comporte pas de manière chaleureuse (sourire, contact visuel, langage corporel)","Ne se comporte pas de manière amicale (salutations, conversation, aide)"]},
+      {text:"Fait preuve d'initiative pour s'assurer que l'environnement du restaurant est propre et prêt à accueillir des clients", subs:["Ne fait pas preuve d'initiative pour maintenir l'environnement du restaurant propre et prêt"]},
+      {text:"Se comporte de manière appropriée lors de la gestion des problèmes des clients", subs:["Ne conserve pas son calme ou ne fait pas preuve d'empathie à l'égard du client","N'essaie pas de résoudre le problème (Être rigoureux)","Ne remercie pas le client","N'est pas capable de laisser de côté la situation avant d'accueillir les prochains clients"]},
+      {text:"Adopte les bons comportements lors de l'accueil de personnes en situation de handicap", subs:["Ne sait pas comment se comporter avec les personnes en fauteuil roulant","Ne sait pas comment se comporter avec les personnes malvoyantes","Ne sait pas comment se comporter avec les personnes malentendantes ou utilisant la langue des signes","Ne sait pas comment se comporter face à une personne signalant un handicap invisible"]}
+    ]},
+    tempering: { items: [
+      {text:"Il est prêt à travailler (uniforme propre et en bon état, lavage des mains effectué...).", subs:["L'équipier n'est pas prêt à travailler sur le poste (hygiène, uniforme, etc.).","Le poste n'est pas prêt (stock, propreté, équipement, sécurité)."]},
+      {text:"Il s'assure que tous les produits sont encore bons à consommer et suit toujours la règle du premier entré, premier sorti (PEPS).", subs:["Les durées de conservation des produits n'ont pas été respectées.","La règle PEPS n'a pas été suivie."]},
+      {text:"Il est capable d'expliquer les attentes des clients", subs:["N'est pas capable d'expliquer les attentes des clients.","N'est pas capable d'expliquer ce qu'il peut faire pour influencer positivement l'expérience client."]},
+      {text:"Il respecte toutes les procédures en matière de sécurité, de sécurité alimentaire et de nettoyage.", subs:["Les procédures de sécurité alimentaire ne sont pas respectées.","Les procédures de sécurité ne sont pas respectées."]},
+      {text:"Les chartes sont suivies pour assurer la décongélation et le tempering des produits.", subs:["Les chartes n'ont pas été suivies.","Le tempering est mal effectué.","Le temps de décongélation n'est pas respecté."]},
+      {text:"Tous les produits ont des DLC secondaires et sont jetés lorsque la DLC est dépassée.", subs:["DLC secondaires non respectées ou non apposées.","Les produits ne sont pas jetés lorsque la DLC est dépassée."]},
+      {text:"Toutes les zones de stockage sont propres et organisées.", subs:["Zones de stockage ni propres ni organisées."]},
+      {text:"Le poste est propre et sécurisé pendant tout le quart.", subs:["La propreté n'est pas assurée.","La sécurité du poste n'est pas assurée."]},
+      {text:"Tous les petits équipements sont nettoyés et entretenus selon le processus du restaurant.", subs:["Les équipements ne sont pas nettoyés correctement.","Les équipements ne sont pas nettoyés régulièrement."]}
+    ]},
+    assemblage_init: { items: [
+      {text:"Suit les bonnes pratiques d'hygiène pour vérifier que lui-même, le poste et l'équipement sont prêts.", subs:["N'est pas prêt à travailler sur le poste (hygiène, uniforme, etc.).","Le poste de travail n'est pas prêt (stock, propreté, sécurité).","Ne s'assure pas que l'équipement soit allumé et en bon état."]},
+      {text:"Est capable d'expliquer les attentes des clients et comprend que son rôle a un impact sur leur expérience.", subs:["N'est pas capable d'expliquer les attentes des clients.","Ne suit pas les procédures."]},
+      {text:"Initie correctement les produits.", subs:["Ne traite pas rapidement les commandes affichées sur l'écran KVS.","Ne toaste pas ou ne steame pas correctement les pains.","Ne s'assure pas de la bonne qualité des pains avant de laisser le produit disponible."]},
+      {text:"Assemble les produits correctement et selon la qualité Golden standards.", subs:["N'assemble pas les produits correctement (mauvais assemblage ou erreur d'ingrédients).","N'assemble pas selon les normes de qualité Golden standards."]},
+      {text:"Suit les principes Made for You (MFY) sur la ligne d'assemblage.", subs:["Ne fait pas la première commande en premier, ne suit pas l'ordre d'affichage."]},
+      {text:"Initie ou assemble pas plus de deux produits à la fois.", subs:["N'utilise pas ses deux mains pour assembler les produits.","Ne demande pas d'aide lorsque c'est nécessaire."]},
+      {text:"Respecte tous les principes de gestion de l'UHC et les temps de retenue.", subs:["N'utilise pas les bonnes pinces ou pelles.","Ne respecte pas le principe PEPS.","Ne réagit pas au timer de l'UHC."]},
+      {text:"Respecte toutes les procédures de sécurité alimentaire, de nettoyage et de sécurité durant le quart.", subs:["Ne suit pas les procédures de sécurité alimentaire.","Ne garde pas son poste propre.","N'assure pas la sécurité au niveau du poste."]}
+    ]},
+    viandes: { items: [
+      {text:"Veille à être bien préparé et à ce que le poste et tout l'équipement soient bien prêts avant de commencer.", subs:["L'équipier n'était pas prêt à travailler sur le poste.","Le poste n'était pas prêt.","L'équipement n'est pas disponible"]},
+      {text:"Est capable d'expliquer les attentes des clients et la manière dont il peut influencer l'expérience client.", subs:["N'est pas capable d'expliquer les attentes des clients","N'est pas capable d'expliquer ce qu'il peut faire pour influencer l'expérience client."]},
+      {text:"Respecte les procédures de sécurité alimentaire et de qualité pour cuire les viandes 10:1.", subs:["Non-respect de la sécurité alimentaire","Non-respect de la qualité Golden Standard"]},
+      {text:"Respecte les procédures de sécurité alimentaire et de qualité pour cuire les viandes 4:1.", subs:["Non-respect de la sécurité alimentaire","Non-respect de la qualité Golden Standard"]},
+      {text:"Nettoie et entretient correctement les grils après chaque série.", subs:["Les grils ne sont pas correctement nettoyés après chaque série"]},
+      {text:"Utilise les écrans du Look and Cook et/ou de l'UHC pour gérer le type et le nombre de viandes grillées.", subs:["L'écran Look and Cook n'est pas correctement utilisé.","L'écran de l'UHC n'est pas correctement utilisé."]},
+      {text:"Respecte tous les principes de gestion de l'UHC et les temps de retenue.", subs:["Mauvaise gestion de l'UHC","Non-respect des temps de retenue"]},
+      {text:"Garde la zone propre et sécurisée tout au long du quart.", subs:["Ne maintient pas le poste propre","Poste non sécurisé"]},
+      {text:"Suit toutes les procédures de sécurité alimentaire tout au long du quart.", subs:["Les procédures de sécurité alimentaire ne sont pas respectées (lavage des mains, chiffons, gants)","Les procédures de sécurité alimentaire ne sont pas respectées (cuisson, temps de retenue)"]}
+    ]},
+    frites: { items: [
+      {text:"Peut décrire l'apparence et le goût que doit avoir une frite de qualité Golden Standard", subs:["N'est pas capable de différencier une frite de qualité et une frite de mauvaise qualité"]},
+      {text:"Fait preuve d'initiative pour respecter les règles d'hygiène. Prêt à travailler à son poste (mains lavées, tablier propre, cheveux attachés, filet)", subs:["Apparence inappropriée (tablier sale ou manquant, cheveux détachés, uniforme incomplet ou sale)","Ne respecte pas les procédures de lavage de mains"]},
+      {text:"Fait preuve d'initiative pour s'assurer que le poste à frites est propre et prêt pour son quart de travail", subs:["Ne vérifie pas que les niveaux de stock sont corrects","Ne s'assure pas de la disponibilité et de la propreté du matériel","Ne contrôle pas le réglage, l'allumage et le fonctionnement des équipements","Ne vérifie pas les friteuses"]},
+      {text:"Fait preuve d'initiative pour garder son poste propre", subs:["N'entretient pas la qualité de l'huile","Ne respecte pas la procédure « Nettoyer au fur et à mesure »"]},
+      {text:"Applique les procédures de cuisson des frites", subs:["Ne suit pas les indications de l'écran des frites","Ne place pas les panières dans les bonnes cuves, au bon rythme","Ne tient pas compte des minuteries et des alertes","N'égoutte pas correctement les panières","Ne manipule pas les panières prudemment"]},
+      {text:"Respecte toutes les procédures de salage et d'emballage", subs:["Ne respecte pas la procédure de salage des frites","Ne tient pas compte de l'écran des frites pour la quantité et les tailles d'emballages","Ne respecte pas les procédures d'ensachage","N'applique pas le principe « premier entré, premier sorti »"]}
+    ]},
+    frits: { items: [
+      {text:"Décris les critères Golden standards (apparence et goût) des produits frits.", subs:["N'est pas capable d'identifier les différences visuelles entre produits conformes et non conformes.","N'est pas capable d'identifier les différences gustatives."]},
+      {text:"Respecte les bonnes pratiques d'hygiène (lavage des mains, tablier propre, cheveux attachés et couverts).", subs:["Apparence inappropriée","Ne respecte pas les procédures de lavage des mains."]},
+      {text:"Fait preuve d'initiative pour s'assurer que le poste soit propre et prêt pour son quart.", subs:["Ne vérifie pas l'approvisionnement du poste.","Ne s'assure pas de la disponibilité et de l'état des équipements.","Ne vérifie pas la disponibilité de l'équipement.","Ne s'assure pas de la propreté du poste.","Ne vérifie pas que la cuve est propre et opérationnelle."]},
+      {text:"Maintient la propreté du poste au fur et à mesure.", subs:["Ne maintient pas la qualité de l'huile tout au long du quart.","Ne suit pas les processus de nettoyage au fur et à mesure."]},
+      {text:"Respecte et maintient les niveaux minimums tout au long du quart.", subs:["Ne suit pas l'écran/les graphiques de l'UHC pour déterminer produit et quantité.","Ne vérifie pas l'UHC pour la quantité correcte de tiroirs à conserver."]},
+      {text:"Respecte les procédures de cuisson.", subs:["N'utilise pas la bonne panière pour le bon produit.","Ne plonge pas les bonnes panières dans les cuves dédiées.","Ne réagit pas aux minuteries ou alertes de la friteuse.","N'égoutte pas correctement les panières.","Ne manipule pas délicatement les panières."]},
+      {text:"Respecte tous les principes de gestion de l'UHC et les temps de retenue des produits.", subs:["Ne place pas correctement les tiroirs de produits.","N'active pas la minuterie après avoir placé un tiroir."]}
+    ]},
+    oeufs: { items: [
+      {text:"Suit les bonnes pratiques d'hygiène pour vérifier que lui-même, le poste et l'équipement sont prêts.", subs:["N'est pas prêt à travailler sur le poste (hygiène, uniforme, etc.).","Le poste n'est pas prêt (stock, propreté, sécurité).","L'équipement n'est pas prêt."]},
+      {text:"Démontre des comportements positifs pour influencer l'expérience client lors de la préparation des produits du petit-déjeuner.", subs:["Sert des produits non conformes.","Ne manipule pas les produits avec soin.","Ne suit pas les procédures."]},
+      {text:"Nettoie et entretient correctement le poste et l'équipement selon les besoins.", subs:["Les grils et la zone de travail ne sont pas correctement nettoyés.","L'egg cooker et la zone de travail ne sont pas correctement nettoyés.","Le grille-pain et la zone de travail ne sont pas correctement nettoyés."]},
+      {text:"Respecte les procédures de sécurité alimentaire et de qualité pour cuire les œufs.", subs:["Ne respecte pas les procédures de sécurité alimentaire (gants, nettoyage, œufs non cuits correctement).","Ne respecte pas les normes de Qualité Golden standard."]},
+      {text:"Respecte les procédures de sécurité alimentaire et de qualité pour griller les pains McMuffin.", subs:["Ne respecte pas les procédures de sécurité alimentaire.","Ne respecte pas les normes de Qualité Golden standard."]}
+    ]},
+    petit_dej: { items: [
+      {text:"Suit les bonnes pratiques d'hygiène pour vérifier que lui-même, le poste et l'équipement sont prêts.", subs:["N'est pas prêt à travailler sur le poste (hygiène, uniforme, etc.).","Le poste n'est pas prêt (stock, propreté, sécurité).","L'équipement n'est pas prêt."]},
+      {text:"Démontre des comportements positifs pour influencer l'expérience client lors de la préparation des produits du petit-déjeuner.", subs:["Sert des produits non conformes.","Ne manipule pas les produits avec soin.","Ne suit pas les procédures."]},
+      {text:"Les procédures de l'assemblage du petit-déjeuner sont respectées afin de proposer une expérience exceptionnelle aux clients.", subs:["Ne réagit pas rapidement aux commandes affichées sur l'écran KVS.","N'assemble pas les produits dans l'ordre d'affichage.","N'utilise pas les deux mains pour assembler les produits.","Ne demande pas d'aide lorsqu'il y a plus de 3 commandes."]},
+      {text:"Suit les procédures d'assemblage des produits du petit-déjeuner conformes à la Qualité Golden standard.", subs:["Ne sélectionne pas l'emballage approprié pour chaque produit.","N'assemble ni correctement ni avec soin les produits.","Ne ferme pas l'emballage correctement."]},
+      {text:"Respecte tous les principes de gestion de l'UHC et les temps de retenue.", subs:["Ne respecte pas les procédures de gestion de l'UHC.","Ne respecte pas les temps de retenue.","Ne respecte pas le principe PEPS."]},
+      {text:"Zone de travail est propre et sécurisée pendant tout le quart de travail.", subs:["La propreté du poste n'est pas assurée.","La sécurité du poste n'est pas assurée."]}
+    ]},
+    boissons: { items: [
+      {text:"Il est prêt à travailler (uniforme propre et en bon état, lavage des mains effectué...), il a vérifié le poste, les équipements, les niveaux de stock avant de commencer.", subs:["L'équipier n'est pas prêt à travailler sur le poste.","Le poste n'est pas prêt.","L'équipement n'est pas prêt."]},
+      {text:"Il veille à influencer positivement l'expérience client lorsqu'il prépare des boissons et des desserts.", subs:["Il sert des produits non conformes.","Il ne manipule pas les produits avec soin.","Il ne suit pas les procédures."]},
+      {text:"Peut identifier l'aspect et le goût qu'une boisson doit avoir selon les Golden standards de qualité.", subs:["N'est pas capable d'identifier l'aspect qu'une boisson doit avoir.","N'est pas capable d'identifier le goût qu'une boisson doit avoir."]},
+      {text:"Peut identifier l'aspect et le goût qu'un dessert doit avoir selon les Golden standards de qualité.", subs:["N'est pas capable d'identifier l'aspect qu'un dessert doit avoir.","N'est pas capable d'identifier le goût qu'un dessert doit avoir."]},
+      {text:"Utilise l'écran Boissons et desserts pour lancer le type/la quantité de boissons et de desserts à préparer.", subs:["Ne lit pas correctement l'écran pour déterminer type et quantité appropriés."]},
+      {text:"Prépare les boissons froides en suivant toutes les procédures, conformément aux standards.", subs:["Ne remplit pas au bon niveau les gobelets.","N'identifie pas correctement la boisson froide."]},
+      {text:"Prépare les boissons chaudes en respectant toutes les procédures.", subs:["Ne remplit pas au bon niveau les gobelets.","N'identifie pas correctement la boisson chaude."]},
+      {text:"Prépare des desserts glacés en respectant toutes les procédures.", subs:["Ne remplit pas correctement les gobelets/cônes glacés.","N'identifie pas correctement le gobelet/cône."]},
+      {text:"Prépare un McFlurry en respectant toutes les procédures.", subs:["Ne remplit pas au bon niveau le gobelet et ne respecte pas les demandes de croquants.","Ne mélange pas le McFlurry pendant la durée prévue.","N'identifie pas correctement le gobelet."]},
+      {text:"Suit toutes les procédures pour retirer et placer la commande.", subs:["N'utilise pas le Bump Bar correctement.","Ne parvient pas à positionner correctement les produits sur la table dédiée."]},
+      {text:"Poste de travail propre et sécurisé pendant tout le quart", subs:["La propreté du poste n'est pas assurée.","La sécurité du poste n'est pas assurée."]}
+    ]},
+    commande: { items: [
+      {text:"Veille à être bien préparé et à ce que le poste et tout l'équipement soient bien prêts avant de commencer.", subs:["L'équipier n'était pas prêt à travailler sur le poste.","Le poste n'est pas prêt.","L'équipement n'était pas prêt."]},
+      {text:"Salue chaque client pour donner une bonne première impression.", subs:["Ne salue pas les clients rapidement.","Ne salue pas de manière authentique et amicale.","Ne demande pas aux clients s'ils utilisent l'application McDonald's."]},
+      {text:"Prend correctement les commandes.", subs:["Ne confirme pas la commande auprès du client.","Ne fait pas de vente suggestive, le cas échéant.","Ne demande pas aux clients où ils vont manger."]},
+      {text:"Permet aux clients de définir le rythme de la prise de commande sans les interrompre.", subs:["Ne s'adapte pas au rythme du client.","Interrompt les clients pendant qu'ils commandent."]},
+      {text:"Reste en contact avec chaque client tout au long du processus, en souriant et en cherchant à « en faire quelque chose d'unique ».", subs:["Ne communique pas avec les clients en souriant ou en établissant un contact visuel.","Ne cherche pas à « en faire quelque chose d'unique »."]},
+      {text:"Respecte les procédures d'encaissement et de sécurité.", subs:["Ne sait pas comment encaisser les paiements en espèces.","Ne sait pas comment encaisser les paiements par carte bleue.","Ne sait pas comment encaisser les paiements par mobile."]},
+      {text:"Oriente et guide le client vers la prochaine étape de son parcours.", subs:["Ne communique pas les étapes suivantes (comptoir).","Ne communique pas les étapes suivantes au McDrive."]},
+      {text:"Gère efficacement les commandes click & collect.", subs:["Ne sait pas comment rappeler les commandes click & collect.","Ne salue pas les clients par leur nom.","Ne sait pas aider à gagner/utiliser des points fidélité."]}
+    ]},
+    presentation: { items: [
+      {text:"S'assure que lui et son poste sont prêts.", subs:["N'est pas prêt à travailler sur le poste (hygiène, uniforme, etc.).","Le poste n'est pas prêt."]},
+      {text:"Lis l'écran OAT, identifie chaque type de commande et les assemble dans le bon ordre.", subs:["N'identifie pas correctement le bon canal de service.","N'identifie pas correctement l'ordre des commandes à assembler."]},
+      {text:"Assemble les commandes avec soin et efficacité, en suivant la bonne procédure d'assemblage.", subs:["N'assemble pas les commandes dans le bon ordre pour la bonne température.","Ne sélectionne pas le bon emballage requis pour le canal de service.","N'assemble pas correctement les produits.","Ne sort pas les commandes lors de l'assemblage."]},
+      {text:"Vérifie l'exactitude des commandes, y compris tous les condiments, avant de les présenter aux clients.", subs:["Ne vérifie pas que les commandes sont correctes.","Ne respecte pas la règle « Si ce n'est pas correct, ne le sers pas »."]},
+      {text:"Lors de la présentation des commandes aux clients, crée un moment agréable en souriant, en établissant un contact visuel et en adressant un salut amical.", subs:["Ne présente pas les commandes avec un sourire, un contact visuel et un salut amical.","Ne réussit pas à créer une expérience positive pour chaque client."]},
+      {text:"Bumpe les commandes au bon moment.", subs:["Ne bumpe pas les commandes au bon moment."]}
+    ]},
+    salle: { items: [
+      {text:"Respecte les bonnes pratiques d'hygiène (mains lavées, cheveux attachés et couverts si nécessaire)", subs:["Apparence inappropriée (cheveux détachés, uniforme incomplet)","Ne respecte pas les procédures de lavage des mains"]},
+      {text:"Fait preuve d'initiative pour s'assurer que la salle à manger et les bornes de prise de commandes sont propres et prêtes", subs:["Ne vérifie pas les niveaux de stock","Ne vérifie pas que le matériel et le mobilier adéquats sont disponibles","Ne vérifie pas que l'équipement est correctement paramétré (bornes)","Ne s'assure pas que les surfaces et le matériel sont propres et prêts"]},
+      {text:"Crée des expériences positives et personnalisées pour les clients", subs:["N'accueille pas ou ne salue pas les clients avec enthousiasme","N'anticipe pas les besoins des clients","Ne personnalise pas les expériences des clients","Ne fait pas en sorte que le restaurant soit propre et sûr"]},
+      {text:"Respecte les procédures de nettoyage adaptées pour les surfaces de la salle à manger", subs:["Ne débarrasse pas les tables des plateaux et des déchets","N'aseptise/ne désinfecte pas les surfaces après chaque utilisation","Ne nettoie pas correctement les plateaux","Ne nettoie pas régulièrement les murs, comptoirs, fenêtres, miroirs","Ne nettoie pas régulièrement les surfaces des bornes de commande"]},
+      {text:"Respecte les procédures de nettoyage adaptées pour l'extérieur du restaurant", subs:["Ne porte pas de vêtements à haute visibilité","Ne ramasse pas les déchets au sol","Ne nettoie pas les surfaces extérieures","Ne nettoie pas les portes et fenêtres"]},
+      {text:"Respecte les procédures de nettoyage des sols", subs:["Ne balaye pas régulièrement les déchets au sol","Ne place pas le panneau « Sol glissant »","Ne passe pas la mop en formant un 8","N'utilise pas une mop sèche pour absorber le liquide restant"]},
+      {text:"Respecte les procédures adaptées pour la gestion et l'entretien des poubelles", subs:["Les poubelles et bacs de recyclage ne sont pas régulièrement vérifiés","Ne trie pas les déchets dans les bons compartiments"]},
+      {text:"Aide les clients aux bornes de prise de commandes.", subs:["Ne cherche pas à aider les clients aux bornes","N'aide pas les clients à apprendre l'utilisation des bornes"]},
+      {text:"Priorise correctement les activités", subs:["Ne donne pas la priorité aux tâches qui impactent l'hygiène et la sécurité"]},
+      {text:"Adopte les bons comportements lors de l'accueil de personnes en situation de handicap", subs:["Ne sait pas comment se comporter avec les personnes en fauteuil roulant","Ne sait pas comment se comporter avec les personnes malvoyantes","Ne sait pas comment se comporter avec les personnes malentendantes","Ne sait pas comment se comporter face à un handicap invisible"]}
+    ]}
+  };
 
   function parseDate(s){
     if(!s) return null;
@@ -1558,17 +1725,58 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword){
     ctx.fillText(line, x, curY);
     return curY + lineHeight;
   }
+  function countWrappedLines_(ctx, text, maxWidth){
+    const words = String(text).split(' ');
+    let line = '';
+    let lines = 1;
+    words.forEach(word => {
+      const test = line + word + ' ';
+      if(ctx.measureText(test).width > maxWidth && line !== ''){
+        lines++;
+        line = word + ' ';
+      } else {
+        line = test;
+      }
+    });
+    return lines;
+  }
 
   async function buildSignedDocument_(opts){
+    const marginX = 40, contentWidth = 820;
+
+    // -- Passe de mesure : calcule la hauteur nécessaire avant de dessiner --
+    const measureCanvas = document.createElement('canvas');
+    const mctx = measureCanvas.getContext('2d');
+    let estHeight = 100;
+    estHeight += 14 + 22;
+    mctx.font = '14px sans-serif';
+    estHeight += countWrappedLines_(mctx, opts.commentaires || '(aucun)', contentWidth) * 20 + 16;
+
+    if(opts.checklistResults && opts.checklistResults.length){
+      estHeight += 24;
+      opts.checklistResults.forEach(r => {
+        mctx.font = 'bold 13px sans-serif';
+        estHeight += countWrappedLines_(mctx, r.text, contentWidth - 24) * 18 + 4;
+        mctx.font = '12px sans-serif';
+        r.flaggedSubs.forEach(s => {
+          estHeight += countWrappedLines_(mctx, '• ' + s, contentWidth - 44) * 16;
+        });
+        estHeight += 6;
+      });
+      estHeight += 14;
+    }
+
+    const sigBlockHeight = 12 + 150 + 40;
     const canvas = document.createElement('canvas');
-    canvas.width = 900; canvas.height = 620;
+    canvas.width = 900;
+    canvas.height = Math.max(620, estHeight + sigBlockHeight + 40);
     const ctx = canvas.getContext('2d');
     ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = '#e8a33d'; ctx.fillRect(0, 0, canvas.width, 8);
 
     ctx.fillStyle = '#1e2a38';
     ctx.font = 'bold 26px sans-serif';
-    ctx.fillText('Vérification — ' + opts.label, 40, 60);
+    ctx.fillText('Vérification — ' + opts.label, marginX, 60);
 
     ctx.font = '15px sans-serif';
     ctx.fillStyle = '#333';
@@ -1577,33 +1785,73 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword){
       'Équipier : ' + opts.nom,
       'Date : ' + opts.date,
       'Formateur : ' + opts.formateurNom
-    ].forEach(l => { ctx.fillText(l, 40, y); y += 26; });
+    ].forEach(l => { ctx.fillText(l, marginX, y); y += 26; });
 
     y += 14;
     ctx.font = 'bold 15px sans-serif';
     ctx.fillStyle = '#1e2a38';
-    ctx.fillText('Commentaires :', 40, y);
+    ctx.fillText('Commentaires :', marginX, y);
     y += 22;
     ctx.font = '14px sans-serif';
     ctx.fillStyle = '#333';
-    y = wrapText_(ctx, opts.commentaires || '(aucun)', 40, y, 820, 20);
+    y = wrapText_(ctx, opts.commentaires || '(aucun)', marginX, y, contentWidth, 20);
+    y += 12;
 
-    y = 380;
+    if(opts.checklistResults && opts.checklistResults.length){
+      ctx.font = 'bold 15px sans-serif';
+      ctx.fillStyle = '#1e2a38';
+      ctx.fillText('Points observés :', marginX, y);
+      y += 24;
+
+      opts.checklistResults.forEach(r => {
+        ctx.font = 'bold 13px sans-serif';
+        ctx.fillStyle = r.mainChecked ? '#3f7a52' : '#c2452f';
+        ctx.fillText(r.mainChecked ? '✓' : '✗', marginX, y);
+        ctx.fillStyle = '#333';
+        y = wrapText_(ctx, r.text, marginX + 20, y, contentWidth - 24, 18);
+        y += 2;
+        ctx.font = '12px sans-serif';
+        ctx.fillStyle = '#c2452f';
+        r.flaggedSubs.forEach(s => {
+          y = wrapText_(ctx, '• ' + s, marginX + 40, y, contentWidth - 44, 16);
+        });
+        y += 6;
+      });
+      y += 10;
+    }
+
     ctx.font = 'bold 15px sans-serif';
     ctx.fillStyle = '#1e2a38';
-    ctx.fillText('Signature Formateur', 40, y);
+    ctx.fillText('Signature Formateur', marginX, y);
     ctx.fillText('Signature Équipier', 470, y);
     y += 12;
 
     ctx.strokeStyle = '#d8d4c6';
-    ctx.strokeRect(40, y, 380, 150);
+    ctx.strokeRect(marginX, y, 380, 150);
     ctx.strokeRect(470, y, 380, 150);
 
     const [imgF, imgE] = await Promise.all([loadImage_(opts.sigFormateur), loadImage_(opts.sigEquipier)]);
-    ctx.drawImage(imgF, 40, y, 380, 150);
+    ctx.drawImage(imgF, marginX, y, 380, 150);
     ctx.drawImage(imgE, 470, y, 380, 150);
 
     return canvas.toDataURL('image/png').split(',')[1]; // base64 sans le préfixe
+  }
+
+  function checklistItemHtml(item, itemIdx){
+    return `<div class="sig-checklist-item">
+      <label class="sig-checklist-main">
+        <input type="checkbox" class="sig-check-main" data-item="${itemIdx}" checked>
+        <span>${item.text}</span>
+      </label>
+      <div class="sig-checklist-subs">
+        ${item.subs.map((s, subIdx) => `
+          <label class="sig-checklist-sub">
+            <input type="checkbox" class="sig-check-sub" data-item="${itemIdx}" data-sub="${subIdx}">
+            <span>${s}</span>
+          </label>
+        `).join('')}
+      </div>
+    </div>`;
   }
 
   function openSignatureModal(nom, scope, key, label, restaurant){
@@ -1615,6 +1863,18 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword){
     sigPadEquipier.clear();
     sigError.style.display = 'none';
     sigDateInput.value = new Date().toISOString().slice(0, 10);
+
+    const checklist = VERIF_CHECKLISTS[key];
+    const checklistArea = document.getElementById('sigChecklistArea');
+    if(checklist){
+      checklistArea.innerHTML = `<p style="font-size:11.5px;color:var(--ink-soft);margin:0 0 10px;">Coche uniquement les points à corriger — les comportements en gras sont cochés par défaut (acquis).</p>` +
+        checklist.items.map((item, i) => checklistItemHtml(item, i)).join('');
+      checklistArea.style.display = 'block';
+    } else {
+      checklistArea.innerHTML = '';
+      checklistArea.style.display = 'none';
+    }
+
     sigModal.style.display = 'flex';
   }
   function closeSignatureModal(){ sigModal.style.display = 'none'; sigContext = null; }
@@ -1633,12 +1893,26 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword){
     sigSubmitBtn.disabled = true;
     sigError.style.display = 'none';
     try{
+      const checklist = VERIF_CHECKLISTS[sigContext.key];
+      let checklistResults = null;
+      if(checklist){
+        checklistResults = checklist.items.map((item, i) => {
+          const mainChecked = document.querySelector(`.sig-check-main[data-item="${i}"]`).checked;
+          const flaggedSubs = [];
+          item.subs.forEach((s, si) => {
+            const cb = document.querySelector(`.sig-check-sub[data-item="${i}"][data-sub="${si}"]`);
+            if(cb && cb.checked) flaggedSubs.push(s);
+          });
+          return { text: item.text, mainChecked, flaggedSubs };
+        });
+      }
       const base64 = await buildSignedDocument_({
         nom: sigContext.nom,
         label: sigContext.label,
         date: sigDateInput.value,
         formateurNom: sigFormateurNomInput.value,
         commentaires: sigCommentairesInput.value,
+        checklistResults,
         sigFormateur: sigPadFormateur.dataUrl(),
         sigEquipier: sigPadEquipier.dataUrl()
       });
