@@ -509,6 +509,33 @@
   }
   .verif-link-mini:hover{opacity:1;}
 
+  .sig-open-btn{
+    display:block; width:100%; margin-top:10px;
+    appearance:none; border:none; border-radius:8px;
+    background:var(--navy); color:#fff; font-size:12.5px; font-weight:700;
+    padding:10px 12px; cursor:pointer;
+  }
+  .sig-open-btn:hover{background:var(--navy-2);}
+
+  .sig-row-2col{display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:8px;}
+  #signatureForm label{font-size:11.5px; font-weight:700; color:var(--ink-soft); display:block; margin:10px 0 4px;}
+  #signatureForm input[type="date"], #signatureForm input[type="text"], #signatureForm textarea{
+    width:100%; padding:9px 12px; border-radius:8px; border:1px solid var(--line);
+    font-size:13px; font-family:inherit; outline:none; resize:vertical;
+  }
+  #signatureForm input:focus, #signatureForm textarea:focus{border-color:var(--amber-dark); box-shadow:0 0 0 3px rgba(232,163,61,0.18);}
+  .sig-pad-block label{margin-top:0;}
+  .sig-canvas{
+    display:block; width:100%; height:150px; border:1.5px dashed var(--line); border-radius:10px;
+    background:#fdfcf8; touch-action:none; cursor:crosshair;
+  }
+  .sig-clear-btn{
+    margin-top:6px; appearance:none; border:1px solid var(--line); border-radius:6px;
+    background:#fff; color:var(--ink-soft); font-size:11px; font-weight:700;
+    padding:5px 10px; cursor:pointer;
+  }
+  .sig-clear-btn:hover{border-color:var(--red); color:var(--red);}
+
   .verif-upload{
     margin-top:10px; padding-top:10px; border-top:1px dashed var(--line);
   }
@@ -756,6 +783,8 @@
   @media (max-width: 880px){
     .poly-kpis{grid-template-columns:repeat(2,1fr);}
     .bar-row{grid-template-columns:110px 1fr 60px;}
+    .sig-row-2col{grid-template-columns:1fr;}
+    .modal-card-wide{max-width:94vw;}
   }
 
   footer{
@@ -1041,6 +1070,53 @@
       <button type="button" id="closePosteUploadModal" class="modal-close-btn">✕</button>
     </div>
     <div id="posteUploadList" class="poste-upload-list"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="signatureModal" style="display:none;">
+  <div class="modal-card modal-card-wide">
+    <div class="modal-head-row">
+      <div>
+        <h3 id="signatureModalTitle">Signature numérique</h3>
+        <p class="modal-sub" id="signatureModalSub"></p>
+      </div>
+      <button type="button" id="closeSignatureModal" class="modal-close-btn">✕</button>
+    </div>
+
+    <form id="signatureForm">
+      <div class="sig-row-2col">
+        <div>
+          <label for="sigDate">Date</label>
+          <input type="date" id="sigDate" required>
+        </div>
+        <div>
+          <label for="sigFormateurNom">Nom du formateur</label>
+          <input type="text" id="sigFormateurNom" required placeholder="NOM Prénom" autocomplete="off">
+        </div>
+      </div>
+
+      <label for="sigCommentaires">Commentaires (facultatif)</label>
+      <textarea id="sigCommentaires" rows="3" placeholder="Points à améliorer, remarques…"></textarea>
+
+      <div class="sig-row-2col">
+        <div class="sig-pad-block">
+          <label>Signature Formateur</label>
+          <canvas id="sigCanvasFormateur" class="sig-canvas" width="380" height="150"></canvas>
+          <button type="button" class="sig-clear-btn" data-target="sigCanvasFormateur">Effacer</button>
+        </div>
+        <div class="sig-pad-block">
+          <label>Signature Équipier</label>
+          <canvas id="sigCanvasEquipier" class="sig-canvas" width="380" height="150"></canvas>
+          <button type="button" class="sig-clear-btn" data-target="sigCanvasEquipier">Effacer</button>
+        </div>
+      </div>
+
+      <div class="modal-error" id="signatureError" style="display:none;"></div>
+      <div class="modal-actions">
+        <button type="button" id="cancelSignature">Annuler</button>
+        <button type="submit" id="submitSignature">✓ Valider et envoyer vers Drive</button>
+      </div>
+    </form>
   </div>
 </div>
 
@@ -1397,6 +1473,208 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword){
   }
 
   // ============================================================
+  // SIGNATURE NUMÉRIQUE (pavé de signature + génération du document + envoi Drive)
+  // ============================================================
+  const sigModal = document.getElementById('signatureModal');
+  const sigModalTitle = document.getElementById('signatureModalTitle');
+  const sigModalSub = document.getElementById('signatureModalSub');
+  const sigForm = document.getElementById('signatureForm');
+  const sigDateInput = document.getElementById('sigDate');
+  const sigFormateurNomInput = document.getElementById('sigFormateurNom');
+  const sigCommentairesInput = document.getElementById('sigCommentaires');
+  const sigError = document.getElementById('signatureError');
+  const sigSubmitBtn = document.getElementById('submitSignature');
+  const closeSigBtn = document.getElementById('closeSignatureModal');
+  const cancelSigBtn = document.getElementById('cancelSignature');
+
+  let sigContext = null; // {nom, scope, key, label}
+  let sigPadFormateur = null;
+  let sigPadEquipier = null;
+
+  function setupSignaturePad(canvas){
+    const ctx = canvas.getContext('2d');
+    ctx.strokeStyle = '#1b2430';
+    ctx.lineWidth = 2.2;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    let drawing = false;
+    let hasDrawn = false;
+
+    function pos(e){
+      const rect = canvas.getBoundingClientRect();
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      return { x: (clientX - rect.left) * (canvas.width / rect.width), y: (clientY - rect.top) * (canvas.height / rect.height) };
+    }
+    function start(e){ drawing = true; hasDrawn = true; const p = pos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); e.preventDefault(); }
+    function move(e){ if(!drawing) return; const p = pos(e); ctx.lineTo(p.x, p.y); ctx.stroke(); e.preventDefault(); }
+    function stop(){ drawing = false; }
+
+    canvas.addEventListener('mousedown', start);
+    canvas.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', stop);
+    canvas.addEventListener('touchstart', start, {passive:false});
+    canvas.addEventListener('touchmove', move, {passive:false});
+    canvas.addEventListener('touchend', stop);
+
+    return {
+      clear(){ ctx.clearRect(0, 0, canvas.width, canvas.height); hasDrawn = false; },
+      isEmpty(){ return !hasDrawn; },
+      dataUrl(){ return canvas.toDataURL('image/png'); }
+    };
+  }
+  sigPadFormateur = setupSignaturePad(document.getElementById('sigCanvasFormateur'));
+  sigPadEquipier = setupSignaturePad(document.getElementById('sigCanvasEquipier'));
+
+  document.querySelectorAll('.sig-clear-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      (btn.dataset.target === 'sigCanvasFormateur' ? sigPadFormateur : sigPadEquipier).clear();
+    });
+  });
+
+  function loadImage_(dataUrl){
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = dataUrl;
+    });
+  }
+  function wrapText_(ctx, text, x, y, maxWidth, lineHeight){
+    const words = String(text).split(' ');
+    let line = '';
+    let curY = y;
+    words.forEach(word => {
+      const test = line + word + ' ';
+      if(ctx.measureText(test).width > maxWidth && line !== ''){
+        ctx.fillText(line, x, curY);
+        line = word + ' ';
+        curY += lineHeight;
+      } else {
+        line = test;
+      }
+    });
+    ctx.fillText(line, x, curY);
+    return curY + lineHeight;
+  }
+
+  async function buildSignedDocument_(opts){
+    const canvas = document.createElement('canvas');
+    canvas.width = 900; canvas.height = 620;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#e8a33d'; ctx.fillRect(0, 0, canvas.width, 8);
+
+    ctx.fillStyle = '#1e2a38';
+    ctx.font = 'bold 26px sans-serif';
+    ctx.fillText('Vérification — ' + opts.label, 40, 60);
+
+    ctx.font = '15px sans-serif';
+    ctx.fillStyle = '#333';
+    let y = 100;
+    [
+      'Équipier : ' + opts.nom,
+      'Date : ' + opts.date,
+      'Formateur : ' + opts.formateurNom
+    ].forEach(l => { ctx.fillText(l, 40, y); y += 26; });
+
+    y += 14;
+    ctx.font = 'bold 15px sans-serif';
+    ctx.fillStyle = '#1e2a38';
+    ctx.fillText('Commentaires :', 40, y);
+    y += 22;
+    ctx.font = '14px sans-serif';
+    ctx.fillStyle = '#333';
+    y = wrapText_(ctx, opts.commentaires || '(aucun)', 40, y, 820, 20);
+
+    y = 380;
+    ctx.font = 'bold 15px sans-serif';
+    ctx.fillStyle = '#1e2a38';
+    ctx.fillText('Signature Formateur', 40, y);
+    ctx.fillText('Signature Équipier', 470, y);
+    y += 12;
+
+    ctx.strokeStyle = '#d8d4c6';
+    ctx.strokeRect(40, y, 380, 150);
+    ctx.strokeRect(470, y, 380, 150);
+
+    const [imgF, imgE] = await Promise.all([loadImage_(opts.sigFormateur), loadImage_(opts.sigEquipier)]);
+    ctx.drawImage(imgF, 40, y, 380, 150);
+    ctx.drawImage(imgE, 470, y, 380, 150);
+
+    return canvas.toDataURL('image/png').split(',')[1]; // base64 sans le préfixe
+  }
+
+  function openSignatureModal(nom, scope, key, label){
+    sigContext = { nom, scope, key, label };
+    sigModalTitle.textContent = 'Signature numérique — ' + label;
+    sigModalSub.textContent = nom;
+    sigForm.reset();
+    sigPadFormateur.clear();
+    sigPadEquipier.clear();
+    sigError.style.display = 'none';
+    sigDateInput.value = new Date().toISOString().slice(0, 10);
+    sigModal.style.display = 'flex';
+  }
+  function closeSignatureModal(){ sigModal.style.display = 'none'; sigContext = null; }
+  closeSigBtn.addEventListener('click', closeSignatureModal);
+  cancelSigBtn.addEventListener('click', closeSignatureModal);
+  sigModal.addEventListener('click', (e) => { if(e.target === sigModal) closeSignatureModal(); });
+
+  sigForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if(!sigContext) return;
+    if(sigPadFormateur.isEmpty() || sigPadEquipier.isEmpty()){
+      sigError.textContent = 'Les deux signatures sont obligatoires.';
+      sigError.style.display = 'block';
+      return;
+    }
+    sigSubmitBtn.disabled = true;
+    sigError.style.display = 'none';
+    try{
+      const base64 = await buildSignedDocument_({
+        nom: sigContext.nom,
+        label: sigContext.label,
+        date: sigDateInput.value,
+        formateurNom: sigFormateurNomInput.value,
+        commentaires: sigCommentairesInput.value,
+        sigFormateur: sigPadFormateur.dataUrl(),
+        sigEquipier: sigPadEquipier.dataUrl()
+      });
+      const res = await fetch(APPS_SCRIPT_URL, {
+        method: 'POST',
+        headers: {'Content-Type': 'text/plain;charset=utf-8'},
+        body: JSON.stringify(authBody({
+          sheet: 'upload_verification',
+          scope: sigContext.scope,
+          key: sigContext.key,
+          nom: sigContext.nom,
+          fileName: 'Signature_' + sigContext.nom + '_' + sigDateInput.value + '.png',
+          mimeType: 'image/png',
+          data: base64
+        }))
+      });
+      const data = await res.json();
+      if(!data.ok) throw new Error(data.error || "Échec de l'envoi");
+      closeSignatureModal();
+    } catch(err){
+      sigError.textContent = 'Erreur : ' + err.message;
+      sigError.style.display = 'block';
+    } finally {
+      sigSubmitBtn.disabled = false;
+    }
+  });
+
+  function wireSignatureButtons(container){
+    container.querySelectorAll('.sig-open-btn').forEach(btn => {
+      btn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        openSignatureModal(btn.dataset.nom, btn.dataset.scope, btn.dataset.key, btn.dataset.label);
+      });
+    });
+  }
+
+  // ============================================================
   // ONGLET "type Formations" réutilisable (équipiers + équipe de gestion)
   // ============================================================
   function createRosterTab(cfg){
@@ -1486,11 +1764,13 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword){
       return `<span class="pill ${s.level}"><span class="pill-days">${daysLabel}</span><span class="pill-date">butoir ${frDate(s.butoir)}</span></span>`;
     }
 
-    function verifUploadHtml(nom, key){
+    function verifUploadHtml(nom, key, label){
       if(!VERIF_AVAILABLE.has(key)) return '';
       const safeNom = nom.replace(/"/g,'&quot;');
+      const safeLabel = (label || key).replace(/"/g,'&quot;');
       return `<div class="verif-upload">
-        <label>Fiche signée (photo ou PDF)</label>
+        <button type="button" class="sig-open-btn" data-nom="${safeNom}" data-scope="formation" data-key="${key}" data-label="${safeLabel}">✍️ Signer numériquement</button>
+        <label style="margin-top:10px;">Ou envoyer une photo/PDF déjà signé</label>
         <div class="verif-upload-row">
           <input type="file" accept="application/pdf,image/*" capture="environment" class="verif-file-input" data-nom="${safeNom}" data-key="${key}">
           <button type="button" class="verif-upload-btn" data-nom="${safeNom}" data-key="${key}">📤 Envoyer</button>
@@ -1521,7 +1801,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword){
             <button class="save-btn" data-nom="${e.nom.replace(/"/g,'&quot;')}" data-field="${t.faitKey}">Enregistrer</button>
             <span class="save-status"></span>
           </div>
-          ${verifUploadHtml(e.nom, t.key)}
+          ${verifUploadHtml(e.nom, t.key, t.label)}
         </div>`;
       }).join('');
     }
@@ -1665,6 +1945,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword){
         });
       });
       wireFolderButtonsGlobal(container);
+      wireSignatureButtons(container);
     }
 
 
@@ -2208,7 +2489,9 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword){
         <span class="poste-status-chip ${isOn ? 'on' : 'off'}">${isOn ? '✓ Maîtrisé' : 'Non validé'}</span>
       </div>
       <a class="poste-upload-open-link" href="${VERIF_DIR}${p.key}.pdf" target="_blank" rel="noopener">📄 Voir la fiche vierge</a>
+      <button type="button" class="sig-open-btn" data-nom="${safeNom}" data-scope="poste" data-key="${p.key}" data-label="${p.label.replace(/"/g,'&quot;')}">✍️ Signer numériquement</button>
       <div class="verif-upload" style="border-top:none; padding-top:8px; margin-top:8px;">
+        <label>Ou envoyer une photo/PDF déjà signé</label>
         <div class="verif-upload-row">
           <input type="file" accept="application/pdf,image/*" capture="environment" class="poste-file-input" data-nom="${safeNom}" data-key="${p.key}">
           <button type="button" class="poste-upload-btn" data-nom="${safeNom}" data-key="${p.key}">📤 Envoyer</button>
@@ -2227,6 +2510,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword){
       .join('');
     wirePosteUploadButtons(posteUploadList);
     wireFolderButtonsGlobal(posteUploadList);
+    wireSignatureButtons(posteUploadList);
     posteUploadModal.style.display = 'flex';
   }
   function closePosteModal(){ posteUploadModal.style.display = 'none'; }
