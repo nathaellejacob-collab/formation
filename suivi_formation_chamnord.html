@@ -1372,6 +1372,8 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword){
         ev.stopPropagation();
         const scope = btn.dataset.scope;
         const key = btn.dataset.key;
+        const nom = btn.dataset.nom;
+        const category = btn.dataset.category;
         const targetRestaurant = btn.dataset.restaurant;
         const statusSpan = btn.nextElementSibling;
         btn.disabled = true;
@@ -1381,7 +1383,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword){
           const res = await fetch(APPS_SCRIPT_URL, {
             method: 'POST',
             headers: {'Content-Type': 'text/plain;charset=utf-8'},
-            body: JSON.stringify(authBody({ sheet: 'get_verif_folder', scope, key, targetRestaurant }))
+            body: JSON.stringify(authBody({ sheet: 'get_verif_folder', scope, key, nom, category, targetRestaurant }))
           });
           const data = await res.json();
           if(!data.ok) throw new Error(data.error || 'Dossier introuvable');
@@ -1490,14 +1492,15 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword){
       const safeNom = nom.replace(/"/g,'&quot;');
       const safeLabel = (label || key).replace(/"/g,'&quot;');
       const safeRest = (restaurant || '').replace(/"/g,'&quot;');
+      const category = cfg.sheetKey === 'gestion' ? 'gestion' : 'nouveaux';
       return `<div class="verif-upload">
         <label>Fiche signée (photo ou PDF)</label>
         <div class="verif-upload-row">
           <input type="file" accept="application/pdf,image/*" capture="environment" class="verif-file-input" data-nom="${safeNom}" data-key="${key}">
-          <button type="button" class="verif-upload-btn" data-nom="${safeNom}" data-restaurant="${safeRest}" data-key="${key}">📤 Envoyer</button>
+          <button type="button" class="verif-upload-btn" data-nom="${safeNom}" data-restaurant="${safeRest}" data-category="${category}" data-key="${key}">📤 Envoyer</button>
         </div>
         <span class="verif-upload-status"></span>
-        <button type="button" class="verif-folder-btn" data-nom="${safeNom}" data-restaurant="${safeRest}" data-scope="formation" data-key="${key}">📁 Voir les fiches déjà envoyées</button>
+        <button type="button" class="verif-folder-btn" data-nom="${safeNom}" data-restaurant="${safeRest}" data-category="${category}" data-scope="formation" data-key="${key}">📁 Voir les fiches déjà envoyées</button>
         <span class="verif-folder-status"></span>
       </div>`;
     }
@@ -1620,6 +1623,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword){
           const nom = btn.dataset.nom;
           const key = btn.dataset.key;
           const targetRestaurant = btn.dataset.restaurant;
+          const category = btn.dataset.category;
           const wrap = btn.closest('.verif-upload');
           const fileInput = wrap.querySelector('.verif-file-input');
           const statusSpan = wrap.querySelector('.verif-upload-status');
@@ -1647,7 +1651,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword){
               body: JSON.stringify(authBody({
                 sheet: 'upload_verification',
                 scope: 'formation',
-                key, nom, targetRestaurant,
+                key, nom, targetRestaurant, category,
                 fileName: file.name,
                 mimeType: file.type,
                 data: base64
@@ -2215,10 +2219,10 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword){
         <label>Envoyer une photo/PDF signé</label>
         <div class="verif-upload-row">
           <input type="file" accept="application/pdf,image/*" capture="environment" class="poste-file-input" data-nom="${safeNom}" data-key="${p.key}">
-          <button type="button" class="poste-upload-btn" data-nom="${safeNom}" data-restaurant="${safeRest}" data-key="${p.key}">📤 Envoyer</button>
+          <button type="button" class="poste-upload-btn" data-nom="${safeNom}" data-restaurant="${safeRest}" data-category="nouveaux" data-key="${p.key}">📤 Envoyer</button>
         </div>
         <span class="verif-upload-status"></span>
-        <button type="button" class="verif-folder-btn" data-nom="${safeNom}" data-restaurant="${safeRest}" data-scope="poste" data-key="${p.key}">📁 Voir les fiches déjà envoyées</button>
+        <button type="button" class="verif-folder-btn" data-nom="${safeNom}" data-restaurant="${safeRest}" data-category="nouveaux" data-scope="poste" data-key="${p.key}">📁 Voir les fiches déjà envoyées</button>
         <span class="verif-folder-status"></span>
       </div>
     </div>`;
@@ -2243,6 +2247,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword){
         const nom = btn.dataset.nom;
         const key = btn.dataset.key;
         const targetRestaurant = btn.dataset.restaurant;
+        const category = btn.dataset.category;
         const item = btn.closest('.verif-upload');
         const fileInput = item.querySelector('.poste-file-input');
         const statusSpan = item.querySelector('.verif-upload-status');
@@ -2270,7 +2275,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword){
             body: JSON.stringify(authBody({
               sheet: 'upload_verification',
               scope: 'poste',
-              key, nom, targetRestaurant,
+              key, nom, targetRestaurant, category,
               fileName: file.name,
               mimeType: file.type,
               data: base64
