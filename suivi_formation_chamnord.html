@@ -730,6 +730,23 @@
   .comparaison-ok{color:var(--green); font-weight:700;}
   #comparaisonTable thead th{cursor:pointer;}
   #comparaisonTable thead th:hover{color:var(--ink);}
+
+  .comparaison-stack-row{
+    display:grid; grid-template-columns:150px 1fr; align-items:center; gap:12px;
+    padding:8px 0;
+  }
+  .comparaison-stack-label{font-size:12.5px; font-weight:700; color:var(--ink);}
+  .comparaison-stack-track{
+    height:22px; border-radius:8px; overflow:hidden; display:flex;
+    background:#ece8dc;
+  }
+  .comparaison-stack-seg{height:100%; transition:width .2s ease;}
+  .comparaison-stack-seg.red{background:var(--red);}
+  .comparaison-stack-seg.orange{background:var(--orange);}
+  .comparaison-stack-seg.green{background:var(--green);}
+  .comparaison-legend{
+    display:flex; gap:16px; font-size:12px; color:var(--ink-soft); margin-top:14px;
+  }
   .poste-upload-trigger{
     appearance:none; border:none; background:transparent; cursor:pointer;
     font-size:13px; margin-top:4px; opacity:0.6; padding:2px;
@@ -957,6 +974,8 @@
 </section>
 
 <section id="tab-comparaison" style="display:none;">
+  <div id="comparaisonCharts"></div>
+
   <div class="panel-block">
     <div class="panel-head">
       <h3>Comparaison entre restaurants</h3>
@@ -1901,7 +1920,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword){
       statsWrap.style.display = (tab === 'polyvalence' || tab === 'comparaison') ? 'none' : '';
       statsRowEl.style.display = tab === 'formations' ? '' : 'none';
       statsRowGestionEl.style.display = tab === 'gestion' ? '' : 'none';
-      if(tab === 'comparaison') renderComparaison();
+      if(tab === 'comparaison'){ renderComparaisonCharts(); renderComparaison(); }
     });
   });
 
@@ -1921,6 +1940,57 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword){
     });
     const polyAvg = empR.length ? empR.reduce((s,e) => s + e.polyPct, 0) / empR.length : 0;
     return { restaurant: r, totalEmployees: empR.length, totalManagers: mgrR.length, total: all.length, red, orange, green, polyAvg };
+  }
+
+  function renderComparaisonCharts(){
+    const wrap = document.getElementById('comparaisonCharts');
+    if(!wrap) return;
+    const rows = restaurants.map(r => computeRestaurantStats(r));
+
+    const polyBars = rows.slice().sort((a,b) => b.polyAvg - a.polyAvg).map(r => `
+      <div class="bar-row">
+        <div><div class="bname">${r.restaurant}</div></div>
+        <div class="btrack"><div class="bfill service" style="width:${(r.polyAvg*100).toFixed(1)}%;"></div></div>
+        <div class="bval">${(r.polyAvg*100).toFixed(0)}%</div>
+      </div>
+    `).join('');
+
+    const statusRows = rows.map(r => {
+      const total = r.red + r.orange + r.green || 1;
+      const redPct = r.red/total*100, orangePct = r.orange/total*100, greenPct = r.green/total*100;
+      return `
+        <div class="comparaison-stack-row">
+          <div class="comparaison-stack-label">${r.restaurant}</div>
+          <div class="comparaison-stack-track">
+            <div class="comparaison-stack-seg red" style="width:${redPct}%;" title="${r.red} en retard"></div>
+            <div class="comparaison-stack-seg orange" style="width:${orangePct}%;" title="${r.orange} à échéance"></div>
+            <div class="comparaison-stack-seg green" style="width:${greenPct}%;" title="${r.green} à jour"></div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    wrap.innerHTML = `
+      <div class="panel-block">
+        <div class="panel-head">
+          <h3>Taux de polyvalence par restaurant</h3>
+          <p>Moyenne des équipiers de chaque restaurant, du plus fort au plus faible.</p>
+        </div>
+        <div class="bar-chart">${polyBars || '<p style="color:var(--ink-soft);font-size:13px;">Aucune donnée.</p>'}</div>
+      </div>
+      <div class="panel-block">
+        <div class="panel-head">
+          <h3>Répartition des formations par restaurant</h3>
+          <p>Part des équipiers/gestion en retard, à échéance proche, ou à jour sur leurs formations obligatoires.</p>
+        </div>
+        ${statusRows || '<p style="color:var(--ink-soft);font-size:13px;">Aucune donnée.</p>'}
+        <div class="comparaison-legend">
+          <span><i class="dot red"></i> En retard</span>
+          <span><i class="dot orange"></i> Échéance sous 30 j</span>
+          <span><i class="dot green"></i> À jour</span>
+        </div>
+      </div>
+    `;
   }
 
   function renderComparaison(){
