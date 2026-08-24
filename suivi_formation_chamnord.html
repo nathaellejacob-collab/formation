@@ -1887,7 +1887,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         tr.innerHTML = `
           <td>
             <div class="name-cell">${e.nom}</div>
-            <div class="name-sub">${e.ancienneteMois != null ? e.ancienneteMois + ' mois d\'ancienneté' : ''}</div>
+            <div class="name-sub">${e.dateEntree ? frDate(parseDate(e.dateEntree)) : ''}${e.ancienneteMois != null ? ' · ' + e.ancienneteMois + ' mois d\'ancienneté' : ''}</div>
           </td>
           ${trainings.map(t => `<td>${pillHtml(t, e.statuses[t.key])}</td>`).join('')}
         `;
@@ -1914,7 +1914,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         card.innerHTML = `
           <div class="emp-card-head">
             <div class="name">${e.nom}</div>
-            <div class="anc">${e.ancienneteMois != null ? e.ancienneteMois + ' mois' : ''}</div>
+            <div class="anc">${e.dateEntree ? frDate(parseDate(e.dateEntree)) : ''}${e.ancienneteMois != null ? ' · ' + e.ancienneteMois + ' mois' : ''}</div>
           </div>
           <div class="emp-card-grid">
             ${trainings.map(t => `<div><div class="label">${t.label}</div>${pillHtml(t, e.statuses[t.key])}</div>`).join('')}
