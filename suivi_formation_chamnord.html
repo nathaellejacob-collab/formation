@@ -1520,6 +1520,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
               <span class="poste-name">${f.nom} ${f.actif ? '' : '<span style="font-weight:400;color:var(--ink-soft);">(inactif)</span>'}</span>
               <button type="button" class="toggle-formateur-btn" data-nom="${f.nom.replace(/"/g,'&quot;')}" data-actif="${f.actif}">${f.actif ? 'Désactiver' : 'Réactiver'}</button>
             </div>
+            <button type="button" class="verif-folder-btn delete-formateur-btn" data-nom="${f.nom.replace(/"/g,'&quot;')}" style="margin-top:6px; color:var(--red); border-color:var(--red);">🗑️ Supprimer définitivement</button>
           </div>`).join('')
         : '<p style="color:var(--ink-soft);font-size:13px;">Aucun formateur enregistré pour ce restaurant pour l\'instant.</p>';
 
@@ -1537,6 +1538,29 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
             });
             const data = await res.json();
             if(!data.ok) throw new Error(data.error || 'Échec');
+            renderFormateurList(data.formateurs || []);
+          } catch(err){
+            alert('Erreur : ' + err.message);
+          } finally {
+            btn.disabled = false;
+          }
+        });
+      });
+      formateurManageList.querySelectorAll('.delete-formateur-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const nom = btn.dataset.nom;
+          const confirmed = window.confirm(`Supprimer définitivement ${nom} ? Contrairement à "Désactiver", cette action est irréversible et retire ce nom de la liste sans garder de trace ici (à réserver aux formateurs ajoutés par erreur — pour un vrai départ, préfère "Désactiver").`);
+          if(!confirmed) return;
+          btn.disabled = true;
+          try{
+            const restaurant = targetRestaurantForFormateurs();
+            const res = await fetch(APPS_SCRIPT_URL, {
+              method: 'POST',
+              headers: {'Content-Type': 'text/plain;charset=utf-8'},
+              body: JSON.stringify(authBody({ sheet: 'delete_formateur', targetRestaurant: restaurant, nom }))
+            });
+            const data = await res.json();
+            if(!data.ok) throw new Error(data.error || 'Échec de la suppression');
             renderFormateurList(data.formateurs || []);
           } catch(err){
             alert('Erreur : ' + err.message);
