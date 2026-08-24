@@ -1060,6 +1060,8 @@
       <input type="text" id="newRestaurantNom" required placeholder="Ex : Aix-les-Bains" autocomplete="off">
       <label for="newRestaurantPassword">Mot de passe</label>
       <input type="text" id="newRestaurantPassword" required placeholder="Choisis un mot de passe" autocomplete="off">
+      <label for="newRestaurantEmail">Email de contact (alertes formations)</label>
+      <input type="email" id="newRestaurantEmail" placeholder="ex : responsable.aix@exemple.com (facultatif)" autocomplete="off">
       <div class="modal-error" id="addRestaurantError" style="display:none;"></div>
       <div class="modal-actions">
         <button type="submit">Ajouter le restaurant</button>
@@ -1294,8 +1296,32 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword){
             <span class="poste-name">${r} <span style="font-weight:400; color:var(--ink-soft);">(${count} personne${count>1?'s':''})</span></span>
             <button type="button" class="delete-restaurant-btn" data-nom="${r.replace(/"/g,'&quot;')}">Supprimer</button>
           </div>
+          <button type="button" class="verif-folder-btn edit-restaurant-email-btn" data-nom="${r.replace(/"/g,'&quot;')}">✉️ Modifier l'email de contact</button>
         </div>`;
       }).join('');
+      manageList.querySelectorAll('.edit-restaurant-email-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const nom = btn.dataset.nom;
+          const email = window.prompt(`Adresse email de contact pour ${nom} (recevra l'alerte hebdomadaire des formations à échéance) :`, '');
+          if(email === null) return; // annulé
+          btn.disabled = true;
+          try{
+            const res = await fetch(APPS_SCRIPT_URL, {
+              method: 'POST',
+              headers: {'Content-Type': 'text/plain;charset=utf-8'},
+              body: JSON.stringify({sheet:'update_restaurant_email', password: sessionPassword, nom, email: email.trim()})
+            });
+            const data = await res.json();
+            if(!data.ok) throw new Error(data.error || "Échec de la mise à jour");
+            btn.textContent = '✓ Email mis à jour';
+            setTimeout(() => { btn.textContent = "✉️ Modifier l'email de contact"; }, 2000);
+          } catch(err){
+            alert('Erreur : ' + err.message);
+          } finally {
+            btn.disabled = false;
+          }
+        });
+      });
       manageList.querySelectorAll('.delete-restaurant-btn').forEach(btn => {
         btn.addEventListener('click', async () => {
           const nom = btn.dataset.nom;
@@ -1343,13 +1369,14 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword){
       e.preventDefault();
       const nom = document.getElementById('newRestaurantNom').value.trim();
       const motDePasse = document.getElementById('newRestaurantPassword').value.trim();
+      const email = document.getElementById('newRestaurantEmail').value.trim();
       if(!nom || !motDePasse) return;
       addRestaurantError.style.display = 'none';
       try{
         const res = await fetch(APPS_SCRIPT_URL, {
           method: 'POST',
           headers: {'Content-Type': 'text/plain;charset=utf-8'},
-          body: JSON.stringify({sheet:'add_restaurant', password: sessionPassword, nom, motDePasse})
+          body: JSON.stringify({sheet:'add_restaurant', password: sessionPassword, nom, motDePasse, email})
         });
         const data = await res.json();
         if(!data.ok) throw new Error(data.error || "Échec de l'ajout");
