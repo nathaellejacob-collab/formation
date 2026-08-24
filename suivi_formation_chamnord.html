@@ -1377,6 +1377,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
             <button type="button" class="delete-restaurant-btn" data-nom="${r.replace(/"/g,'&quot;')}">Supprimer</button>
           </div>
           <button type="button" class="verif-folder-btn edit-restaurant-email-btn" data-nom="${r.replace(/"/g,'&quot;')}">✉️ Modifier l'email de contact</button>
+          <button type="button" class="verif-folder-btn edit-restaurant-password-btn" data-nom="${r.replace(/"/g,'&quot;')}" style="margin-top:6px;">🔑 Réinitialiser le mot de passe</button>
         </div>`;
       }).join('');
       manageList.querySelectorAll('.edit-restaurant-email-btn').forEach(btn => {
@@ -1395,6 +1396,33 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
             if(!data.ok) throw new Error(data.error || "Échec de la mise à jour");
             btn.textContent = '✓ Email mis à jour';
             setTimeout(() => { btn.textContent = "✉️ Modifier l'email de contact"; }, 2000);
+          } catch(err){
+            alert('Erreur : ' + err.message);
+          } finally {
+            btn.disabled = false;
+          }
+        });
+      });
+      manageList.querySelectorAll('.edit-restaurant-password-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const nom = btn.dataset.nom;
+          const motDePasse = window.prompt(`Nouveau mot de passe pour ${nom} (l'ancien sera immédiatement remplacé) :`, '');
+          if(motDePasse === null) return; // annulé
+          if(!motDePasse.trim()){
+            alert('Le mot de passe ne peut pas être vide.');
+            return;
+          }
+          btn.disabled = true;
+          try{
+            const res = await fetch(APPS_SCRIPT_URL, {
+              method: 'POST',
+              headers: {'Content-Type': 'text/plain;charset=utf-8'},
+              body: JSON.stringify({sheet:'update_restaurant_password', password: sessionPassword, nom, motDePasse: motDePasse.trim()})
+            });
+            const data = await res.json();
+            if(!data.ok) throw new Error(data.error || "Échec de la mise à jour");
+            btn.textContent = '✓ Mot de passe changé';
+            setTimeout(() => { btn.textContent = '🔑 Réinitialiser le mot de passe'; }, 2000);
           } catch(err){
             alert('Erreur : ' + err.message);
           } finally {
