@@ -370,6 +370,24 @@
     padding:11px 14px; cursor:pointer;
   }
   #authFormRestaurant button:hover, #authFormGerant button:hover{background:var(--navy-2);}
+
+  .auth-formateur-list{display:flex; flex-direction:column; gap:8px; margin-top:14px;}
+  .auth-formateur-btn{
+    appearance:none; border:1px solid var(--line); border-radius:10px;
+    background:#fff; color:var(--ink); font-size:14px; font-weight:700;
+    padding:12px 16px; cursor:pointer; text-align:left;
+  }
+  .auth-formateur-btn:hover{border-color:var(--amber-dark); background:#fdf1de;}
+  #whoAreYouOtherForm label{font-size:11.5px; font-weight:700; color:var(--ink-soft);}
+  #whoAreYouOtherForm input{
+    padding:11px 14px; border-radius:10px; border:1px solid var(--line); font-size:14px; outline:none;
+  }
+  #whoAreYouOtherForm input:focus{border-color:var(--amber-dark); box-shadow:0 0 0 3px rgba(232,163,61,0.18);}
+  #whoAreYouOtherForm button{
+    appearance:none; border:none; border-radius:10px; background:var(--ink); color:#fff;
+    font-size:13px; font-weight:700; padding:11px; cursor:pointer;
+  }
+  #whoAreYouOtherForm button:hover{background:var(--navy-2);}
   .auth-error{color:var(--red); font-size:12.5px; margin-top:10px;}
 
   /* ---------- LOADING / ERROR STATE ---------- */
@@ -807,6 +825,22 @@
   </div>
 </div>
 
+<div class="auth-gate" id="whoAreYouGate" style="display:none;">
+  <div class="auth-card">
+    <div class="auth-eyebrow">Crew Academy</div>
+    <h2>Qui es-tu ?</h2>
+    <p>Choisis ton nom dans la liste, pour que tes actions soient identifiées dans le journal d'activité.</p>
+
+    <div id="formateurList" class="auth-formateur-list"></div>
+
+    <form id="whoAreYouOtherForm" style="margin-top:14px; display:flex; flex-direction:column; gap:10px;">
+      <label for="whoAreYouOtherInput">Ton nom n'est pas dans la liste ?</label>
+      <input type="text" id="whoAreYouOtherInput" placeholder="Prénom NOM" autocomplete="off">
+      <button type="submit">Valider ce nom</button>
+    </form>
+  </div>
+</div>
+
 <div class="loading-state" id="loadingState" style="display:none;">
   <div class="loading-spinner"></div>
   <p>Chargement des données…</p>
@@ -828,6 +862,7 @@
     <button class="tab-btn" data-tab="polyvalence">Postes &amp; Polyvalence</button>
     <button class="tab-btn" data-tab="gestion">Équipe de gestion</button>
     <button class="tab-btn" id="tabComparaisonBtn" data-tab="comparaison" style="display:none;">📊 Comparaison</button>
+    <button class="tab-btn" data-tab="activite">📋 Activité</button>
   </nav>
 </header>
 
@@ -988,6 +1023,18 @@
   </div>
 </section>
 
+<section id="tab-activite" style="display:none;">
+  <div class="panel-block">
+    <div class="panel-head">
+      <h3>Journal d'activité</h3>
+      <p id="activiteSub">Les 150 dernières actions enregistrées.</p>
+    </div>
+    <div class="matrix-wrap">
+      <table class="matrix-table" id="activiteTable"></table>
+    </div>
+  </div>
+</section>
+
 </main>
 
 <footer>Tableau de polyvalence Chamnord · généré pour les formateurs · cliquez une ligne pour voir le détail des dates</footer>
@@ -1073,7 +1120,7 @@
 </div><!-- /#appRoot -->
 
 <script>
-function initApp(appData, isGerant, fixedRestaurant, sessionPassword){
+function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFormateur){
   const today = new Date();
   today.setHours(0,0,0,0);
   document.getElementById('todayLabel').textContent = today.toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
@@ -1184,8 +1231,8 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword){
   // dans le corps d'une requête POST vers Apps Script.
   function authBody(obj){
     const auth = isGerant
-      ? { asGerant: true, password: sessionPassword }
-      : { restaurant: fixedRestaurant, password: sessionPassword };
+      ? { asGerant: true, password: sessionPassword, formateur: sessionFormateur || 'Gérant' }
+      : { restaurant: fixedRestaurant, password: sessionPassword, formateur: sessionFormateur || '(non renseigné)' };
     return Object.assign(auth, obj);
   }
 
@@ -1934,6 +1981,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword){
   const tabPolyvalence = document.getElementById('tab-polyvalence');
   const tabComparaison = document.getElementById('tab-comparaison');
   const tabComparaisonBtn = document.getElementById('tabComparaisonBtn');
+  const tabActivite = document.getElementById('tab-activite');
   const statsWrap = document.getElementById('statsWrap');
   const statsRowEl = document.getElementById('statsRow');
   const statsRowGestionEl = document.getElementById('statsRowGestion');
@@ -1945,17 +1993,50 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword){
   tabBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       tabBtns.forEach(b => b.classList.toggle('active', b === btn));
-      const tab = btn.dataset.tab; // 'formations' | 'gestion' | 'polyvalence' | 'comparaison'
+      const tab = btn.dataset.tab; // 'formations' | 'gestion' | 'polyvalence' | 'comparaison' | 'activite'
       tabFormations.style.display = tab === 'formations' ? '' : 'none';
       tabGestion.style.display = tab === 'gestion' ? '' : 'none';
       tabPolyvalence.style.display = tab === 'polyvalence' ? '' : 'none';
       tabComparaison.style.display = tab === 'comparaison' ? '' : 'none';
-      statsWrap.style.display = (tab === 'polyvalence' || tab === 'comparaison') ? 'none' : '';
+      tabActivite.style.display = tab === 'activite' ? '' : 'none';
+      statsWrap.style.display = (tab === 'polyvalence' || tab === 'comparaison' || tab === 'activite') ? 'none' : '';
       statsRowEl.style.display = tab === 'formations' ? '' : 'none';
       statsRowGestionEl.style.display = tab === 'gestion' ? '' : 'none';
       if(tab === 'comparaison'){ renderComparaisonCharts(); renderComparaison(); }
+      if(tab === 'activite'){ renderActivite(); }
     });
   });
+
+  // ================= JOURNAL D'ACTIVITÉ =================
+  async function renderActivite(){
+    const table = document.getElementById('activiteTable');
+    const sub = document.getElementById('activiteSub');
+    table.innerHTML = '<tbody><tr><td style="padding:16px; color:var(--ink-soft);">Chargement…</td></tr></tbody>';
+    try{
+      const res = await fetch(APPS_SCRIPT_URL, {
+        method: 'POST',
+        headers: {'Content-Type': 'text/plain;charset=utf-8'},
+        body: JSON.stringify(authBody({ sheet: 'get_journal' }))
+      });
+      const data = await res.json();
+      if(!data.ok) throw new Error(data.error || 'Erreur de chargement');
+      const entries = data.entries || [];
+      sub.textContent = entries.length + ' action' + (entries.length > 1 ? 's' : '') + ' enregistrée' + (entries.length > 1 ? 's' : '') + (isGerant ? ' (tous restaurants)' : '');
+
+      const cols = isGerant
+        ? [['date','Date'],['restaurant','Restaurant'],['formateur','Formateur'],['action','Action'],['cible','Concerné'],['detail','Détail']]
+        : [['date','Date'],['formateur','Formateur'],['action','Action'],['cible','Concerné'],['detail','Détail']];
+
+      const thead = '<thead><tr>' + cols.map(c => `<th>${c[1]}</th>`).join('') + '</tr></thead>';
+      const tbody = '<tbody>' + (entries.length
+        ? entries.map(e => '<tr>' + cols.map(c => `<td>${(e[c[0]] || '').toString().replace(/</g,'&lt;')}</td>`).join('') + '</tr>').join('')
+        : '<tr><td colspan="' + cols.length + '" style="padding:16px; color:var(--ink-soft); text-align:center;">Aucune action enregistrée pour l\'instant.</td></tr>'
+      ) + '</tbody>';
+      table.innerHTML = thead + tbody;
+    } catch(err){
+      table.innerHTML = '<tbody><tr><td style="padding:16px; color:var(--red);">Erreur : ' + err.message + '</td></tr></tbody>';
+    }
+  }
 
   // ================= COMPARAISON ENTRE RESTAURANTS (gérant uniquement) =================
   let comparaisonSortKey = 'restaurant';
@@ -2366,6 +2447,11 @@ const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz0Dg-wg4Y4XFo7
   const loadingState = document.getElementById('loadingState');
   const appRoot = document.getElementById('appRoot');
 
+  const whoAreYouGate = document.getElementById('whoAreYouGate');
+  const formateurListEl = document.getElementById('formateurList');
+  const whoAreYouOtherForm = document.getElementById('whoAreYouOtherForm');
+  const whoAreYouOtherInput = document.getElementById('whoAreYouOtherInput');
+
   modeBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       modeBtns.forEach(b => b.classList.toggle('active', b === btn));
@@ -2392,11 +2478,61 @@ const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz0Dg-wg4Y4XFo7
   }
   loadRestaurantNames();
 
-  async function afterLogin(appData, isGerant, fixedRestaurant, sessionPassword){
+  async function afterLogin(appData, isGerant, fixedRestaurant, sessionPassword, sessionFormateur){
     loadingState.style.display = 'none';
     appRoot.style.display = '';
-    initApp(appData, isGerant, fixedRestaurant, sessionPassword);
+    initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFormateur);
   }
+
+  // ---------------- "Qui es-tu ?" (connexion restaurant uniquement) ----------------
+  let pendingLoginData = null; // {appData, restaurant, password}, en attente du choix du formateur
+
+  async function showWhoAreYou(restaurant){
+    authGate.style.display = 'none';
+    whoAreYouGate.style.display = 'flex';
+    formateurListEl.innerHTML = '<p style="color:var(--ink-soft);font-size:13px;">Chargement…</p>';
+    whoAreYouOtherInput.value = '';
+    try{
+      const res = await fetch(APPS_SCRIPT_URL, {
+        method: 'POST',
+        headers: {'Content-Type': 'text/plain;charset=utf-8'},
+        body: JSON.stringify({sheet: 'get_formateurs', restaurant})
+      });
+      const data = await res.json();
+      const noms = (data.formateurs || []);
+      formateurListEl.innerHTML = noms.length
+        ? noms.map(n => `<button type="button" class="auth-formateur-btn" data-nom="${n.replace(/"/g,'&quot;')}">${n}</button>`).join('')
+        : '<p style="color:var(--ink-soft);font-size:13px;">Aucun formateur enregistré pour l\'instant — indique ton nom ci-dessous.</p>';
+      formateurListEl.querySelectorAll('.auth-formateur-btn').forEach(btn => {
+        btn.addEventListener('click', () => chooseFormateur(btn.dataset.nom));
+      });
+    } catch(err){
+      formateurListEl.innerHTML = '<p style="color:var(--red);font-size:13px;">Erreur de chargement de la liste.</p>';
+    }
+  }
+
+  async function chooseFormateur(nom){
+    nom = String(nom || '').trim();
+    if(!nom) return;
+    // Enregistre ce nom pour la prochaine fois (silencieux, sans bloquer si ça échoue).
+    try{
+      await fetch(APPS_SCRIPT_URL, {
+        method: 'POST',
+        headers: {'Content-Type': 'text/plain;charset=utf-8'},
+        body: JSON.stringify({sheet: 'register_formateur', restaurant: pendingLoginData.restaurant, nom})
+      });
+    } catch(err){ /* pas bloquant */ }
+
+    whoAreYouGate.style.display = 'none';
+    loadingState.style.display = 'flex';
+    await afterLogin(pendingLoginData.appData, false, pendingLoginData.restaurant, pendingLoginData.password, nom);
+    pendingLoginData = null;
+  }
+
+  whoAreYouOtherForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    chooseFormateur(whoAreYouOtherInput.value);
+  });
 
   formRestaurant.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -2418,9 +2554,8 @@ const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz0Dg-wg4Y4XFo7
       });
       const data = await res.json();
       if(!data.ok) throw new Error(data.error || 'Connexion refusée');
-      authGate.style.display = 'none';
-      loadingState.style.display = 'flex';
-      await afterLogin(data, false, restaurant, password);
+      pendingLoginData = { appData: data, restaurant, password };
+      await showWhoAreYou(restaurant);
     } catch(err){
       authError.textContent = err.message;
       authError.style.display = 'block';
@@ -2445,7 +2580,7 @@ const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz0Dg-wg4Y4XFo7
       if(!data.ok) throw new Error(data.error || 'Connexion refusée');
       authGate.style.display = 'none';
       loadingState.style.display = 'flex';
-      await afterLogin(data, true, null, password);
+      await afterLogin(data, true, null, password, 'Gérant');
     } catch(err){
       authError.textContent = err.message;
       authError.style.display = 'block';
