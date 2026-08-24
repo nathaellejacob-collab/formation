@@ -155,6 +155,17 @@
     color:var(--navy-2);
     cursor:pointer;
   }
+  #manageRestaurantsBtn, #manageFormateursBtn{
+    padding:7px 14px;
+    border-radius:999px;
+    border:1px solid var(--line);
+    background:#fff;
+    font-size:12.5px;
+    font-weight:700;
+    color:var(--navy-2);
+    cursor:pointer;
+  }
+  #manageRestaurantsBtn:hover, #manageFormateursBtn:hover{border-color:var(--amber-dark); color:var(--amber-dark);}
 
   /* ---------- STATS ---------- */
   .stats-wrap{
@@ -870,6 +881,7 @@
   <span class="restaurant-bar-label">🏠 Restaurant</span>
   <select id="restaurantSelect"></select>
   <button type="button" id="manageRestaurantsBtn" style="display:none;">⚙️ Gérer les restaurants</button>
+  <button type="button" id="manageFormateursBtn">👥 Gérer les formateurs</button>
 </div>
 
 <div class="stats-wrap" id="statsWrap">
@@ -1112,6 +1124,27 @@
       <div class="modal-error" id="addRestaurantError" style="display:none;"></div>
       <div class="modal-actions">
         <button type="submit">Ajouter le restaurant</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-overlay" id="manageFormateursModal" style="display:none;">
+  <div class="modal-card modal-card-wide">
+    <div class="modal-head-row">
+      <div>
+        <h3>Gérer les formateurs</h3>
+        <p class="modal-sub" id="manageFormateursSub"></p>
+      </div>
+      <button type="button" id="closeManageFormateurs" class="modal-close-btn">✕</button>
+    </div>
+    <div id="formateurManageList" class="poste-upload-list"></div>
+    <form id="addFormateurForm" style="margin-top:16px; border-top:1px dashed var(--line); padding-top:16px; display:flex; flex-direction:column; gap:6px;">
+      <label for="newFormateurNom">Ajouter un formateur</label>
+      <input type="text" id="newFormateurNom" required placeholder="Prénom NOM" autocomplete="off">
+      <div class="modal-error" id="addFormateurError" style="display:none;"></div>
+      <div class="modal-actions">
+        <button type="submit">Ajouter</button>
       </div>
     </form>
   </div>
@@ -1434,6 +1467,104 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       } catch(err){
         addRestaurantError.textContent = 'Erreur : ' + err.message;
         addRestaurantError.style.display = 'block';
+      }
+    });
+  }
+
+  // ---------------- Gérer les formateurs (restaurant lui-même OU gérant) ----------------
+  {
+    const formateursModal = document.getElementById('manageFormateursModal');
+    const closeFormateursBtn = document.getElementById('closeManageFormateurs');
+    const formateurManageList = document.getElementById('formateurManageList');
+    const formateursSub = document.getElementById('manageFormateursSub');
+    const addFormateurForm = document.getElementById('addFormateurForm');
+    const addFormateurError = document.getElementById('addFormateurError');
+    const manageFormateursBtn = document.getElementById('manageFormateursBtn');
+
+    function targetRestaurantForFormateurs(){
+      return isGerant ? currentRestaurant : fixedRestaurant;
+    }
+
+    function renderFormateurList(list){
+      formateurManageList.innerHTML = list.length
+        ? list.map(f => `<div class="poste-upload-item">
+            <div class="poste-upload-item-head">
+              <span class="poste-name">${f.nom} ${f.actif ? '' : '<span style="font-weight:400;color:var(--ink-soft);">(inactif)</span>'}</span>
+              <button type="button" class="toggle-formateur-btn" data-nom="${f.nom.replace(/"/g,'&quot;')}" data-actif="${f.actif}">${f.actif ? 'Désactiver' : 'Réactiver'}</button>
+            </div>
+          </div>`).join('')
+        : '<p style="color:var(--ink-soft);font-size:13px;">Aucun formateur enregistré pour ce restaurant pour l\'instant.</p>';
+
+      formateurManageList.querySelectorAll('.toggle-formateur-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const nom = btn.dataset.nom;
+          const actif = btn.dataset.actif === 'true';
+          btn.disabled = true;
+          try{
+            const restaurant = targetRestaurantForFormateurs();
+            const res = await fetch(APPS_SCRIPT_URL, {
+              method: 'POST',
+              headers: {'Content-Type': 'text/plain;charset=utf-8'},
+              body: JSON.stringify(authBody({ sheet: 'toggle_formateur', targetRestaurant: restaurant, nom, actif: !actif }))
+            });
+            const data = await res.json();
+            if(!data.ok) throw new Error(data.error || 'Échec');
+            renderFormateurList(data.formateurs || []);
+          } catch(err){
+            alert('Erreur : ' + err.message);
+          } finally {
+            btn.disabled = false;
+          }
+        });
+      });
+    }
+
+    async function loadAndRenderFormateurs(){
+      const restaurant = targetRestaurantForFormateurs();
+      formateursSub.textContent = 'Formateurs de ' + restaurant + ' — désactive ceux qui sont partis.';
+      formateurManageList.innerHTML = '<p style="color:var(--ink-soft);font-size:13px;">Chargement…</p>';
+      try{
+        const res = await fetch(APPS_SCRIPT_URL, {
+          method: 'POST',
+          headers: {'Content-Type': 'text/plain;charset=utf-8'},
+          body: JSON.stringify(authBody({ sheet: 'get_all_formateurs', targetRestaurant: restaurant }))
+        });
+        const data = await res.json();
+        if(!data.ok) throw new Error(data.error || 'Erreur de chargement');
+        renderFormateurList(data.formateurs || []);
+      } catch(err){
+        formateurManageList.innerHTML = '<p style="color:var(--red);font-size:13px;">Erreur : ' + err.message + '</p>';
+      }
+    }
+
+    manageFormateursBtn.addEventListener('click', () => {
+      addFormateurError.style.display = 'none';
+      addFormateurForm.reset();
+      loadAndRenderFormateurs();
+      formateursModal.style.display = 'flex';
+    });
+    closeFormateursBtn.addEventListener('click', () => { formateursModal.style.display = 'none'; });
+    formateursModal.addEventListener('click', (e) => { if(e.target === formateursModal) formateursModal.style.display = 'none'; });
+
+    addFormateurForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const nom = document.getElementById('newFormateurNom').value.trim();
+      if(!nom) return;
+      addFormateurError.style.display = 'none';
+      try{
+        const restaurant = targetRestaurantForFormateurs();
+        const res = await fetch(APPS_SCRIPT_URL, {
+          method: 'POST',
+          headers: {'Content-Type': 'text/plain;charset=utf-8'},
+          body: JSON.stringify(authBody({ sheet: 'add_formateur', targetRestaurant: restaurant, nom }))
+        });
+        const data = await res.json();
+        if(!data.ok) throw new Error(data.error || "Échec de l'ajout");
+        renderFormateurList(data.formateurs || []);
+        addFormateurForm.reset();
+      } catch(err){
+        addFormateurError.textContent = 'Erreur : ' + err.message;
+        addFormateurError.style.display = 'block';
       }
     });
   }
