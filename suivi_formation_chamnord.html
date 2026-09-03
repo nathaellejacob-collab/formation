@@ -155,7 +155,7 @@
     color:var(--navy-2);
     cursor:pointer;
   }
-  #manageRestaurantsBtn, #manageFormateursBtn{
+  #manageRestaurantsBtn, #manageFormateursBtn, #managePostesBtn{
     padding:7px 14px;
     border-radius:999px;
     border:1px solid var(--line);
@@ -165,7 +165,7 @@
     color:var(--navy-2);
     cursor:pointer;
   }
-  #manageRestaurantsBtn:hover, #manageFormateursBtn:hover{border-color:var(--amber-dark); color:var(--amber-dark);}
+  #manageRestaurantsBtn:hover, #manageFormateursBtn:hover, #managePostesBtn:hover{border-color:var(--amber-dark); color:var(--amber-dark);}
 
   /* ---------- STATS ---------- */
   .stats-wrap{
@@ -389,16 +389,21 @@
     padding:12px 16px; cursor:pointer; text-align:left;
   }
   .auth-formateur-btn:hover{border-color:var(--amber-dark); background:#fdf1de;}
-  #whoAreYouOtherForm label{font-size:11.5px; font-weight:700; color:var(--ink-soft);}
-  #whoAreYouOtherForm input{
+  #formateurCodeForm label{font-size:11.5px; font-weight:700; color:var(--ink-soft);}
+  #formateurCodeForm input{
     padding:11px 14px; border-radius:10px; border:1px solid var(--line); font-size:14px; outline:none;
+    letter-spacing:2px;
   }
-  #whoAreYouOtherForm input:focus{border-color:var(--amber-dark); box-shadow:0 0 0 3px rgba(232,163,61,0.18);}
-  #whoAreYouOtherForm button{
+  #formateurCodeForm input:focus{border-color:var(--amber-dark); box-shadow:0 0 0 3px rgba(232,163,61,0.18);}
+  #formateurCodeForm button[type="submit"]{
     appearance:none; border:none; border-radius:10px; background:var(--ink); color:#fff;
     font-size:13px; font-weight:700; padding:11px; cursor:pointer;
   }
-  #whoAreYouOtherForm button:hover{background:var(--navy-2);}
+  #formateurCodeForm button[type="submit"]:hover{background:var(--navy-2);}
+  .auth-formateur-back{
+    appearance:none; border:none; background:none; color:var(--ink-soft);
+    font-size:12px; text-decoration:underline; cursor:pointer; padding:4px 0;
+  }
   .auth-error{color:var(--red); font-size:12.5px; margin-top:10px;}
 
   /* ---------- LOADING / ERROR STATE ---------- */
@@ -738,6 +743,7 @@
   .matrix-dot.on.service{background:var(--teal);}
   .matrix-dot.on.autres{background:var(--plum);}
   .score-cell{font-weight:800; font-size:12px;}
+  .score-pct{font-weight:600; color:var(--ink-soft); font-size:10.5px;}
   .score-bar-mini{width:52px; height:6px; border-radius:99px; background:#ece8dc; margin:3px auto 0; overflow:hidden;}
   .score-bar-mini i{display:block; height:100%; background:var(--ink); border-radius:99px;}
 
@@ -827,15 +833,18 @@
   <div class="auth-card">
     <div class="auth-eyebrow">Crew Academy</div>
     <h2>Qui es-tu ?</h2>
-    <p>Choisis ton nom dans la liste, pour que tes actions soient identifiées dans le journal d'activité.</p>
+    <p>Choisis ton nom, puis saisis ton code personnel.</p>
 
     <div id="formateurList" class="auth-formateur-list"></div>
 
-    <form id="whoAreYouOtherForm" style="margin-top:14px; display:flex; flex-direction:column; gap:10px;">
-      <label for="whoAreYouOtherInput">Ton nom n'est pas dans la liste ?</label>
-      <input type="text" id="whoAreYouOtherInput" placeholder="Prénom NOM" autocomplete="off">
-      <button type="submit">Valider ce nom</button>
+    <form id="formateurCodeForm" style="margin-top:14px; display:none; flex-direction:column; gap:10px;">
+      <label id="formateurCodeLabel" for="formateurCodeInput">Ton code</label>
+      <input type="password" inputmode="numeric" id="formateurCodeInput" placeholder="Code personnel" autocomplete="off">
+      <button type="submit">Valider</button>
+      <button type="button" id="formateurCodeBack" class="auth-formateur-back">← Choisir un autre nom</button>
     </form>
+
+    <div class="auth-error" id="whoAreYouError" style="display:none;"></div>
   </div>
 </div>
 
@@ -869,6 +878,7 @@
   <select id="restaurantSelect"></select>
   <button type="button" id="manageRestaurantsBtn" style="display:none;">⚙️ Gérer les restaurants</button>
   <button type="button" id="manageFormateursBtn">👥 Gérer les formateurs</button>
+  <button type="button" id="managePostesBtn">🍔 Gérer les postes</button>
 </div>
 
 <div class="stats-wrap" id="statsWrap">
@@ -884,10 +894,9 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
       <input type="text" id="searchInput" placeholder="Rechercher un équipier…">
     </div>
-    <select id="sortSelect">
+    <select id="sortSelect" style="display:none;">
       <option value="urgency">Trier par urgence</option>
       <option value="name">Trier par nom</option>
-      <option value="anciennete">Trier par ancienneté</option>
     </select>
     <button class="add-btn" id="addEmployeeBtn">+ Ajouter un équipier</button>
   </div>
@@ -930,10 +939,9 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
       <input type="text" id="searchInputGestion" placeholder="Rechercher un membre de l'équipe de gestion…">
     </div>
-    <select id="sortSelectGestion">
+    <select id="sortSelectGestion" style="display:none;">
       <option value="urgency">Trier par urgence</option>
       <option value="name">Trier par nom</option>
-      <option value="anciennete">Trier par ancienneté</option>
     </select>
     <button class="add-btn" id="addManagerBtn">+ Ajouter un membre</button>
   </div>
@@ -1129,7 +1137,41 @@
     <form id="addFormateurForm" style="margin-top:16px; border-top:1px dashed var(--line); padding-top:16px; display:flex; flex-direction:column; gap:6px;">
       <label for="newFormateurNom">Ajouter un formateur</label>
       <input type="text" id="newFormateurNom" required placeholder="Prénom NOM" autocomplete="off">
+      <label for="newFormateurCode">Code personnel</label>
+      <input type="text" id="newFormateurCode" required placeholder="Ex : 4 chiffres, choisis-en un" autocomplete="off">
+      <label for="newFormateurRole">Rôle</label>
+      <select id="newFormateurRole">
+        <option value="Formateur">Formateur</option>
+        <option value="Responsable">Responsable formation (peut gérer les autres accès)</option>
+      </select>
       <div class="modal-error" id="addFormateurError" style="display:none;"></div>
+      <div class="modal-actions">
+        <button type="submit">Ajouter</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-overlay" id="managePostesModal" style="display:none;">
+  <div class="modal-card modal-card-wide">
+    <div class="modal-head-row">
+      <div>
+        <h3>Gérer les postes</h3>
+        <p class="modal-sub">Liste partagée par tous les restaurants — un ajout ou un retrait s'applique partout.</p>
+      </div>
+      <button type="button" id="closeManagePostes" class="modal-close-btn">✕</button>
+    </div>
+    <div id="posteManageList" class="poste-upload-list"></div>
+    <form id="addPosteForm" style="margin-top:16px; border-top:1px dashed var(--line); padding-top:16px; display:flex; flex-direction:column; gap:6px;">
+      <label for="newPosteLabel">Ajouter un poste</label>
+      <input type="text" id="newPosteLabel" required placeholder="Nom du poste" autocomplete="off">
+      <label for="newPosteGroup">Famille</label>
+      <select id="newPosteGroup">
+        <option value="production">Production</option>
+        <option value="service">Service</option>
+        <option value="autres">Autres</option>
+      </select>
+      <div class="modal-error" id="addPosteError" style="display:none;"></div>
       <div class="modal-actions">
         <button type="submit">Ajouter</button>
       </div>
@@ -1140,7 +1182,7 @@
 </div><!-- /#appRoot -->
 
 <script>
-function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFormateur){
+function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFormateur, sessionRole){
   const today = new Date();
   today.setHours(0,0,0,0);
   document.getElementById('todayLabel').textContent = today.toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
@@ -1152,7 +1194,8 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     {key:'hygiene', label:'Hygiène & Sécurité alim.',    faitKey:'hygieneFait', butoirKey:'hygieneButoir', period:'6 mois',        oneTime:false},
     {key:'mtsri',   label:'MTSRI',                       faitKey:'mtsriFait',   butoirKey:'mtsriButoir',   period:'tous les ans',  oneTime:false},
     {key:'culture', label:'Culture Service',             faitKey:'cultureFait', butoirKey:'cultureButoir', period:'1er mois',      oneTime:true},
-    {key:'suivi4s', label:'Suivi à 4 semaines',          faitKey:'suivi4sFait', butoirKey:'suivi4sButoir', period:'ponctuel',      oneTime:true}
+    {key:'suivi4s', label:'Suivi à 4 semaines',          faitKey:'suivi4sFait', butoirKey:'suivi4sButoir', period:'ponctuel',      oneTime:true},
+    {key:'suivi60j',label:'Suivi à 60 jours',            faitKey:'suivi60jFait',butoirKey:'suivi60jButoir',period:'ponctuel',      oneTime:true}
   ];
 
   // Fiches de vérification PDF disponibles (formations obligatoires + postes),
@@ -1188,6 +1231,13 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     const [y,m,d] = dateStr.split('-').map(Number);
     const dt = new Date(y, m-1, d);
     dt.setMonth(dt.getMonth() + months);
+    return dt.toISOString().slice(0,10);
+  }
+
+  function addDaysJS(dateStr, days){
+    const [y,m,d] = dateStr.split('-').map(Number);
+    const dt = new Date(y, m-1, d);
+    dt.setDate(dt.getDate() + days);
     return dt.toISOString().slice(0,10);
   }
 
@@ -1496,6 +1546,12 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     const addFormateurError = document.getElementById('addFormateurError');
     const manageFormateursBtn = document.getElementById('manageFormateursBtn');
 
+    // Seul le gérant ou un "Responsable formation" actif peut gérer les
+    // formateurs — un simple "Formateur" ne voit même pas le bouton.
+    if(!isGerant && sessionRole !== 'Responsable'){
+      manageFormateursBtn.style.display = 'none';
+    }
+
     function targetRestaurantForFormateurs(){
       return isGerant ? currentRestaurant : fixedRestaurant;
     }
@@ -1504,7 +1560,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       formateurManageList.innerHTML = list.length
         ? list.map(f => `<div class="poste-upload-item">
             <div class="poste-upload-item-head">
-              <span class="poste-name">${f.nom} ${f.actif ? '' : '<span style="font-weight:400;color:var(--ink-soft);">(inactif)</span>'}</span>
+              <span class="poste-name">${f.nom} <span style="font-weight:400;color:var(--ink-soft);">— ${f.role}${f.actif ? '' : ' · inactif'}</span></span>
               <button type="button" class="toggle-formateur-btn" data-nom="${f.nom.replace(/"/g,'&quot;')}" data-actif="${f.actif}">${f.actif ? 'Désactiver' : 'Réactiver'}</button>
             </div>
             <button type="button" class="verif-folder-btn delete-formateur-btn" data-nom="${f.nom.replace(/"/g,'&quot;')}" style="margin-top:6px; color:var(--red); border-color:var(--red);">🗑️ Supprimer définitivement</button>
@@ -1588,14 +1644,16 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     addFormateurForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const nom = document.getElementById('newFormateurNom').value.trim();
-      if(!nom) return;
+      const code = document.getElementById('newFormateurCode').value.trim();
+      const role = document.getElementById('newFormateurRole').value;
+      if(!nom || !code) return;
       addFormateurError.style.display = 'none';
       try{
         const restaurant = targetRestaurantForFormateurs();
         const res = await fetch(APPS_SCRIPT_URL, {
           method: 'POST',
           headers: {'Content-Type': 'text/plain;charset=utf-8'},
-          body: JSON.stringify(authBody({ sheet: 'add_formateur', targetRestaurant: restaurant, nom }))
+          body: JSON.stringify(authBody({ sheet: 'add_formateur', targetRestaurant: restaurant, nom, code, role }))
         });
         const data = await res.json();
         if(!data.ok) throw new Error(data.error || "Échec de l'ajout");
@@ -1604,6 +1662,107 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       } catch(err){
         addFormateurError.textContent = 'Erreur : ' + err.message;
         addFormateurError.style.display = 'block';
+      }
+    });
+  }
+
+  // ---------------- Gérer les postes (liste globale, restaurant OU gérant) ----------------
+  {
+    const postesModal = document.getElementById('managePostesModal');
+    const closePostesBtn = document.getElementById('closeManagePostes');
+    const posteManageList = document.getElementById('posteManageList');
+    const addPosteForm = document.getElementById('addPosteForm');
+    const addPosteError = document.getElementById('addPosteError');
+    const managePostesBtn = document.getElementById('managePostesBtn');
+
+    const GROUP_LABELS = {production:'Production', service:'Service', autres:'Autres'};
+
+    function renderPosteList(list){
+      posteManageList.innerHTML = list.length
+        ? list.map(p => `<div class="poste-upload-item">
+            <div class="poste-upload-item-head">
+              <span class="poste-name">${p.label} <span style="font-weight:400;color:var(--ink-soft);">— ${GROUP_LABELS[p.group] || p.group}${p.actif ? '' : ' · inactif'}</span></span>
+              <button type="button" class="toggle-poste-btn" data-key="${p.key}" data-actif="${p.actif}">${p.actif ? 'Retirer' : 'Réactiver'}</button>
+            </div>
+          </div>`).join('')
+        : '<p style="color:var(--ink-soft);font-size:13px;">Aucun poste enregistré pour l\'instant.</p>';
+
+      posteManageList.querySelectorAll('.toggle-poste-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const key = btn.dataset.key;
+          const actif = btn.dataset.actif === 'true';
+          const label = btn.closest('.poste-upload-item').querySelector('.poste-name').textContent;
+          if(actif){
+            const confirmed = window.confirm(`Retirer « ${label.split(' — ')[0]} » de la liste des postes ?\n\nIl disparaîtra du site et des taux de polyvalence pour tous les restaurants, mais l'historique déjà enregistré est conservé. Tu pourras le réactiver plus tard si besoin.`);
+            if(!confirmed) return;
+          }
+          btn.disabled = true;
+          try{
+            const res = await fetch(APPS_SCRIPT_URL, {
+              method: 'POST',
+              headers: {'Content-Type': 'text/plain;charset=utf-8'},
+              body: JSON.stringify(authBody({ sheet: 'toggle_poste_actif', key, actif: !actif }))
+            });
+            const data = await res.json();
+            if(!data.ok) throw new Error(data.error || 'Échec');
+            renderPosteList(data.postes || []);
+          } catch(err){
+            alert('Erreur : ' + err.message);
+          } finally {
+            btn.disabled = false;
+          }
+        });
+      });
+    }
+
+    async function loadAndRenderPostes(){
+      posteManageList.innerHTML = '<p style="color:var(--ink-soft);font-size:13px;">Chargement…</p>';
+      try{
+        const res = await fetch(APPS_SCRIPT_URL, {
+          method: 'POST',
+          headers: {'Content-Type': 'text/plain;charset=utf-8'},
+          body: JSON.stringify(authBody({ sheet: 'get_all_postes' }))
+        });
+        const data = await res.json();
+        if(!data.ok) throw new Error(data.error || 'Erreur de chargement');
+        renderPosteList(data.postes || []);
+      } catch(err){
+        posteManageList.innerHTML = '<p style="color:var(--red);font-size:13px;">Erreur : ' + err.message + '</p>';
+      }
+    }
+
+    managePostesBtn.addEventListener('click', () => {
+      addPosteError.style.display = 'none';
+      addPosteForm.reset();
+      loadAndRenderPostes();
+      postesModal.style.display = 'flex';
+    });
+    closePostesBtn.addEventListener('click', () => { postesModal.style.display = 'none'; });
+    postesModal.addEventListener('click', (e) => { if(e.target === postesModal) postesModal.style.display = 'none'; });
+
+    addPosteForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const label = document.getElementById('newPosteLabel').value.trim();
+      const group = document.getElementById('newPosteGroup').value;
+      if(!label) return;
+      addPosteError.style.display = 'none';
+      try{
+        const res = await fetch(APPS_SCRIPT_URL, {
+          method: 'POST',
+          headers: {'Content-Type': 'text/plain;charset=utf-8'},
+          body: JSON.stringify(authBody({ sheet: 'add_poste', label, group }))
+        });
+        const data = await res.json();
+        if(!data.ok) throw new Error(data.error || "Échec de l'ajout");
+        renderPosteList(data.postes || []);
+        addPosteForm.reset();
+        addPosteError.textContent = 'Ajouté — recharge la page pour le voir apparaître dans la matrice de polyvalence.';
+        addPosteError.style.color = 'var(--green)';
+        addPosteError.style.display = 'block';
+      } catch(err){
+        addPosteError.style.color = '';
+        addPosteError.textContent = 'Erreur : ' + err.message;
+        addPosteError.style.display = 'block';
       }
     });
   }
@@ -1710,6 +1869,8 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       chipsWrap.querySelectorAll('.chip').forEach(btn => {
         btn.addEventListener('click', () => {
           trainingFocus = btn.dataset.key || null;
+          sortSelect.style.display = trainingFocus ? '' : 'none';
+          sortSelect.value = 'urgency';
           renderChips();
           renderStats();
           render();
@@ -1863,10 +2024,14 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       if(activeFilter !== 'all'){
         filtered = filtered.filter(e => relevantStatus(e).level === activeFilter);
       }
-      const sortMode = sortSelect.value;
+      if(trainingFocus){
+        // Une formation précise est ciblée : on masque celles déjà réalisées (vert),
+        // pour ne garder que ce qui reste à traiter.
+        filtered = filtered.filter(e => relevantStatus(e).level !== 'green');
+      }
+      const sortMode = trainingFocus ? sortSelect.value : 'name';
       filtered = filtered.slice().sort((a,b) => {
         if(sortMode === 'name') return a.nom.localeCompare(b.nom, 'fr');
-        if(sortMode === 'anciennete') return (b.ancienneteMois||0) - (a.ancienneteMois||0);
         const rank = {red:0, orange:1, green:2, gray:3};
         const sa = relevantStatus(a), sb = relevantStatus(b);
         if(rank[sa.level] !== rank[sb.level]) return rank[sa.level] - rank[sb.level];
@@ -1878,7 +2043,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     function render(){
       const filtered = getFiltered();
       emptyState.style.display = filtered.length ? 'none' : 'block';
-      const colCount = trainings.length + 1;
+      const colCount = (trainingFocus ? 1 : trainings.length) + 1;
 
       tbody.innerHTML = '';
       filtered.forEach((e, idx) => {
@@ -1889,7 +2054,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
             <div class="name-cell">${e.nom}</div>
             <div class="name-sub">${e.dateEntree ? frDate(parseDate(e.dateEntree)) : ''}${e.ancienneteMois != null ? ' · ' + e.ancienneteMois + ' mois d\'ancienneté' : ''}</div>
           </td>
-          ${trainings.map(t => `<td>${pillHtml(t, e.statuses[t.key])}</td>`).join('')}
+          ${(trainingFocus ? trainings.filter(t => t.key === trainingFocus) : trainings).map(t => `<td>${pillHtml(t, e.statuses[t.key])}</td>`).join('')}
         `;
         tr.addEventListener('click', () => {
           const existing = document.getElementById(rowId);
@@ -1917,7 +2082,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
             <div class="anc">${e.dateEntree ? frDate(parseDate(e.dateEntree)) : ''}${e.ancienneteMois != null ? ' · ' + e.ancienneteMois + ' mois' : ''}</div>
           </div>
           <div class="emp-card-grid">
-            ${trainings.map(t => `<div><div class="label">${t.label}</div>${pillHtml(t, e.statuses[t.key])}</div>`).join('')}
+            ${(trainingFocus ? trainings.filter(t => t.key === trainingFocus) : trainings).map(t => `<div><div class="label">${t.label}</div>${pillHtml(t, e.statuses[t.key])}</div>`).join('')}
           </div>
           <button class="edit-toggle-btn">Saisir une date de réalisation</button>
           <div class="card-detail" style="display:none;"></div>
@@ -1987,6 +2152,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         await postUpdate(cfg.addSheetKey, nom, 'dateEntree', dateEntree, {targetRestaurant: restaurant});
 
         const suivi4sButoir = addMonthsJS(dateEntree, 1);
+        const suivi60jButoir = addDaysJS(dateEntree, 60);
         const entreeDt = new Date(dateEntree + 'T00:00:00');
         const ancienneteMois = Math.max(0, Math.round((today - entreeDt) / (1000*60*60*24*30.44)));
 
@@ -2000,6 +2166,8 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         if(cfg.hasSuivi4s){
           base.suivi4sButoir = suivi4sButoir;
           base.suivi4sFait = null;
+          base.suivi60jButoir = suivi60jButoir;
+          base.suivi60jFait = null;
         }
         if(cfg.hasSkills) base.skills = POSTES.map(() => false);
 
@@ -2057,7 +2225,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
   // ---- Instanciation onglet Équipe de gestion ----
   createRosterTab({
     list: managers,
-    trainings: TRAININGS.filter(t => t.key !== 'suivi4s'),
+    trainings: TRAININGS.filter(t => t.key !== 'suivi4s' && t.key !== 'suivi60j'),
     sheetKey: 'gestion',
     addSheetKey: 'new_manager',
     deleteSheetKey: 'delete_manager',
@@ -2353,7 +2521,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         <td class="name-col">${e.nom}<div class="matrix-name-sub">${e.dateEntree ? frDate(parseDate(e.dateEntree)) : ''}</div></td>
         ${POSTES.map((p, idx) => `<td class="cell-td"><span class="matrix-dot clickable ${e.skills[idx] ? 'on '+p.group : ''}" data-nom="${e.nom.replace(/"/g,'&quot;')}" data-idx="${idx}" title="${p.label} — cliquer pour ${e.skills[idx] ? 'retirer' : 'valider'}"></span></td>`).join('')}
         <td>
-          <div class="score-cell">${e.polyScore}/${POSTES.length}</div>
+          <div class="score-cell">${e.polyScore}/${POSTES.length} <span class="score-pct">(${(e.polyPct*100).toFixed(1).replace('.', ',')}%)</span></div>
           <div class="score-bar-mini"><i style="width:${(e.polyPct*100).toFixed(0)}%;"></i></div>
           <button type="button" class="poste-upload-trigger" data-nom="${e.nom.replace(/"/g,'&quot;')}" title="Envoyer des fiches signées pour ${e.nom}">📤</button>
         </td>
@@ -2477,8 +2645,11 @@ const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz0Dg-wg4Y4XFo7
 
   const whoAreYouGate = document.getElementById('whoAreYouGate');
   const formateurListEl = document.getElementById('formateurList');
-  const whoAreYouOtherForm = document.getElementById('whoAreYouOtherForm');
-  const whoAreYouOtherInput = document.getElementById('whoAreYouOtherInput');
+  const formateurCodeForm = document.getElementById('formateurCodeForm');
+  const formateurCodeLabel = document.getElementById('formateurCodeLabel');
+  const formateurCodeInput = document.getElementById('formateurCodeInput');
+  const formateurCodeBack = document.getElementById('formateurCodeBack');
+  const whoAreYouError = document.getElementById('whoAreYouError');
 
   modeBtns.forEach(btn => {
     btn.addEventListener('click', () => {
@@ -2506,20 +2677,26 @@ const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz0Dg-wg4Y4XFo7
   }
   loadRestaurantNames();
 
-  async function afterLogin(appData, isGerant, fixedRestaurant, sessionPassword, sessionFormateur){
+  async function afterLogin(appData, isGerant, fixedRestaurant, sessionPassword, sessionFormateur, sessionRole){
     loadingState.style.display = 'none';
     appRoot.style.display = '';
-    initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFormateur);
+    initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFormateur, sessionRole);
   }
 
   // ---------------- "Qui es-tu ?" (connexion restaurant uniquement) ----------------
-  let pendingLoginData = null; // {appData, restaurant, password}, en attente du choix du formateur
+  // Identification par nom + code personnel — le tout premier compte
+  // ("Responsable formation") de chaque restaurant est créé par le gérant.
+  let pendingLoginData = null; // {appData, restaurant, password}
+  let selectedFormateurNom = null;
 
   async function showWhoAreYou(restaurant){
     authGate.style.display = 'none';
     whoAreYouGate.style.display = 'flex';
+    whoAreYouError.style.display = 'none';
+    formateurCodeForm.style.display = 'none';
+    formateurCodeInput.value = '';
+    formateurListEl.style.display = '';
     formateurListEl.innerHTML = '<p style="color:var(--ink-soft);font-size:13px;">Chargement…</p>';
-    whoAreYouOtherInput.value = '';
     try{
       const res = await fetch(APPS_SCRIPT_URL, {
         method: 'POST',
@@ -2528,38 +2705,62 @@ const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz0Dg-wg4Y4XFo7
       });
       const data = await res.json();
       const noms = (data.formateurs || []);
-      formateurListEl.innerHTML = noms.length
-        ? noms.map(n => `<button type="button" class="auth-formateur-btn" data-nom="${n.replace(/"/g,'&quot;')}">${n}</button>`).join('')
-        : '<p style="color:var(--ink-soft);font-size:13px;">Aucun formateur enregistré pour l\'instant — indique ton nom ci-dessous.</p>';
-      formateurListEl.querySelectorAll('.auth-formateur-btn').forEach(btn => {
-        btn.addEventListener('click', () => chooseFormateur(btn.dataset.nom));
-      });
+      if(noms.length){
+        formateurListEl.innerHTML = noms.map(n => `<button type="button" class="auth-formateur-btn" data-nom="${n.replace(/"/g,'&quot;')}">${n}</button>`).join('');
+        formateurListEl.querySelectorAll('.auth-formateur-btn').forEach(btn => {
+          btn.addEventListener('click', () => selectFormateur(btn.dataset.nom));
+        });
+      } else {
+        formateurListEl.innerHTML = '<p style="color:var(--ink-soft);font-size:13px;">Aucun accès formateur n\'est encore configuré pour ce restaurant. Demande au gérant de créer ton accès (« Responsable formation ») depuis « ⚙️ Gérer les formateurs ».</p>';
+      }
     } catch(err){
       formateurListEl.innerHTML = '<p style="color:var(--red);font-size:13px;">Erreur de chargement de la liste.</p>';
     }
   }
 
-  async function chooseFormateur(nom){
-    nom = String(nom || '').trim();
-    if(!nom) return;
-    // Enregistre ce nom pour la prochaine fois (silencieux, sans bloquer si ça échoue).
-    try{
-      await fetch(APPS_SCRIPT_URL, {
-        method: 'POST',
-        headers: {'Content-Type': 'text/plain;charset=utf-8'},
-        body: JSON.stringify({sheet: 'register_formateur', restaurant: pendingLoginData.restaurant, nom})
-      });
-    } catch(err){ /* pas bloquant */ }
-
-    whoAreYouGate.style.display = 'none';
-    loadingState.style.display = 'flex';
-    await afterLogin(pendingLoginData.appData, false, pendingLoginData.restaurant, pendingLoginData.password, nom);
-    pendingLoginData = null;
+  function selectFormateur(nom){
+    selectedFormateurNom = nom;
+    formateurListEl.style.display = 'none';
+    formateurCodeForm.style.display = 'flex';
+    formateurCodeLabel.textContent = 'Code de ' + nom;
+    formateurCodeInput.value = '';
+    whoAreYouError.style.display = 'none';
+    formateurCodeInput.focus();
   }
 
-  whoAreYouOtherForm.addEventListener('submit', (e) => {
+  formateurCodeBack.addEventListener('click', () => {
+    selectedFormateurNom = null;
+    formateurCodeForm.style.display = 'none';
+    formateurListEl.style.display = '';
+    whoAreYouError.style.display = 'none';
+  });
+
+  formateurCodeForm.addEventListener('submit', async (e) => {
     e.preventDefault();
-    chooseFormateur(whoAreYouOtherInput.value);
+    const code = formateurCodeInput.value.trim();
+    if(!code || !selectedFormateurNom) return;
+    const submitBtn = formateurCodeForm.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+    whoAreYouError.style.display = 'none';
+    try{
+      const res = await fetch(APPS_SCRIPT_URL, {
+        method: 'POST',
+        headers: {'Content-Type': 'text/plain;charset=utf-8'},
+        body: JSON.stringify({sheet: 'login_formateur', restaurant: pendingLoginData.restaurant, password: pendingLoginData.password, nom: selectedFormateurNom, code})
+      });
+      const data = await res.json();
+      if(!data.ok) throw new Error(data.error || 'Code incorrect');
+
+      whoAreYouGate.style.display = 'none';
+      loadingState.style.display = 'flex';
+      await afterLogin(pendingLoginData.appData, false, pendingLoginData.restaurant, pendingLoginData.password, selectedFormateurNom, data.role);
+      pendingLoginData = null;
+    } catch(err){
+      whoAreYouError.textContent = err.message;
+      whoAreYouError.style.display = 'block';
+    } finally {
+      submitBtn.disabled = false;
+    }
   });
 
   formRestaurant.addEventListener('submit', async (e) => {
