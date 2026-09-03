@@ -3196,30 +3196,41 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
   function matchFormateursToNeeds(needsByEmp, formateurCompetences){
     const usedPairs = new Set();
     const proposals = [];
-    const shortages = [];
+    const counts = {}; // nom -> nombre de propositions déjà attribuées à ce formateur
+    formateurCompetences.forEach(f => { counts[f.nom] = 0; });
 
-    formateurCompetences.forEach(f => {
-      let count = 0;
-      const candidates = Object.keys(needsByEmp)
-        .map(nom => ({ nom, gaps: needsByEmp[nom] }))
-        .sort((a,b) => a.gaps.length - b.gaps.length); // priorité à ceux les plus proches de finir leur famille
+    // Deux passes plutôt qu'une seule : d'abord UNE proposition pour CHAQUE
+    // formateur (équitable), puis une deuxième si des besoins restent après
+    // le premier tour. Évite qu'un formateur traité en premier n'épuise à
+    // lui seul tous les besoins disponibles au détriment des suivants.
+    for(let pass = 0; pass < 2; pass++){
+      formateurCompetences.forEach(f => {
+        if(counts[f.nom] >= 2) return;
+        const candidates = Object.keys(needsByEmp)
+          .map(nom => ({ nom, gaps: needsByEmp[nom] }))
+          .sort((a,b) => a.gaps.length - b.gaps.length); // priorité à ceux les plus proches de finir leur famille
 
-      for(const cand of candidates){
-        if(count >= 2) break;
-        for(const posteKey of cand.gaps){
-          const pairKey = cand.nom + '|' + posteKey;
-          if(usedPairs.has(pairKey)) continue;
-          const posteIdx = POSTES.findIndex(p => p.key === posteKey);
-          if(!f.competences[posteIdx]) continue;
-          proposals.push({ formateur: f.nom, equipier: cand.nom, posteKey, posteLabel: POSTES[posteIdx].label });
-          usedPairs.add(pairKey);
-          count++;
-          break;
+        for(const cand of candidates){
+          let assigned = false;
+          for(const posteKey of cand.gaps){
+            const pairKey = cand.nom + '|' + posteKey;
+            if(usedPairs.has(pairKey)) continue;
+            const posteIdx = POSTES.findIndex(p => p.key === posteKey);
+            if(!f.competences[posteIdx]) continue;
+            proposals.push({ formateur: f.nom, equipier: cand.nom, posteKey, posteLabel: POSTES[posteIdx].label });
+            usedPairs.add(pairKey);
+            counts[f.nom]++;
+            assigned = true;
+            break;
+          }
+          if(assigned) break;
         }
-        if(count >= 2) break;
-      }
-      if(count < 2) shortages.push({ formateur: f.nom, manquant: 2 - count });
-    });
+      });
+    }
+
+    const shortages = formateurCompetences
+      .filter(f => counts[f.nom] < 2)
+      .map(f => ({ formateur: f.nom, manquant: 2 - counts[f.nom] }));
 
     return { proposals, shortages };
   }
