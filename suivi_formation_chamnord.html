@@ -1543,13 +1543,40 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       formateurManageList.innerHTML = list.length
         ? list.map(f => `<div class="poste-upload-item">
             <div class="poste-upload-item-head">
-              <span class="poste-name">${f.nom} <span style="font-weight:400;color:var(--ink-soft);">— ${f.role}${f.actif ? '' : ' · inactif'}</span></span>
+              <span class="poste-name">${f.nom} <span style="font-weight:400;color:var(--ink-soft);">— ${f.role}${f.actif ? '' : ' · inactif'} · code : <code style="background:#efece2;padding:2px 6px;border-radius:4px;">${(f.code || '—').replace(/</g,'&lt;')}</code></span></span>
               <button type="button" class="toggle-formateur-btn" data-nom="${f.nom.replace(/"/g,'&quot;')}" data-actif="${f.actif}">${f.actif ? 'Désactiver' : 'Réactiver'}</button>
             </div>
-            <button type="button" class="verif-folder-btn delete-formateur-btn" data-nom="${f.nom.replace(/"/g,'&quot;')}" style="margin-top:6px; color:var(--red); border-color:var(--red);">🗑️ Supprimer définitivement</button>
+            <div style="display:flex; gap:6px; margin-top:6px; flex-wrap:wrap;">
+              <button type="button" class="verif-folder-btn edit-formateur-code-btn" data-nom="${f.nom.replace(/"/g,'&quot;')}">🔑 Modifier le code</button>
+              <button type="button" class="verif-folder-btn delete-formateur-btn" data-nom="${f.nom.replace(/"/g,'&quot;')}" style="color:var(--red); border-color:var(--red);">🗑️ Supprimer définitivement</button>
+            </div>
           </div>`).join('')
         : '<p style="color:var(--ink-soft);font-size:13px;">Aucun formateur enregistré pour ce restaurant pour l\'instant.</p>';
 
+      formateurManageList.querySelectorAll('.edit-formateur-code-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const nom = btn.dataset.nom;
+          const code = window.prompt(`Nouveau code pour ${nom} (remplace immédiatement l'ancien) :`, '');
+          if(code === null) return;
+          if(!code.trim()){ alert('Le code ne peut pas être vide.'); return; }
+          btn.disabled = true;
+          try{
+            const restaurant = targetRestaurantForFormateurs();
+            const res = await fetch(APPS_SCRIPT_URL, {
+              method: 'POST',
+              headers: {'Content-Type': 'text/plain;charset=utf-8'},
+              body: JSON.stringify(authBody({ sheet: 'update_formateur_code', targetRestaurant: restaurant, nom, code: code.trim() }))
+            });
+            const data = await res.json();
+            if(!data.ok) throw new Error(data.error || 'Échec de la mise à jour');
+            renderFormateurList(data.formateurs || []);
+          } catch(err){
+            alert('Erreur : ' + err.message);
+          } finally {
+            btn.disabled = false;
+          }
+        });
+      });
       formateurManageList.querySelectorAll('.toggle-formateur-btn').forEach(btn => {
         btn.addEventListener('click', async () => {
           const nom = btn.dataset.nom;
@@ -1912,6 +1939,8 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     }
 
     function deleteSectionHtml(nom){
+      const canDelete = isGerant || sessionRole === 'Responsable';
+      if(!canDelete) return '';
       return `<div class="delete-section">
         <button class="delete-emp-btn" data-nom="${nom.replace(/"/g,'&quot;')}">Supprimer ${cfg.personLabelSingular}</button>
         <span class="delete-status"></span>
