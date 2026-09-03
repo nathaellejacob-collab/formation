@@ -912,16 +912,7 @@
 
   <div class="table-wrap">
     <table>
-      <thead>
-        <tr>
-          <th>Équipier</th>
-          <th>Prévention &amp; Sécurité <br><span style="font-weight:400;text-transform:none;">(6 mois)</span></th>
-          <th>Hygiène &amp; Sécurité alim. <br><span style="font-weight:400;text-transform:none;">(6 mois)</span></th>
-          <th>MTSRI <br><span style="font-weight:400;text-transform:none;">(tous les ans)</span></th>
-          <th>Culture Service <br><span style="font-weight:400;text-transform:none;">(1er mois)</span></th>
-          <th>Suivi 4 semaines</th>
-        </tr>
-      </thead>
+      <thead id="tableHead"></thead>
       <tbody id="tableBody"></tbody>
     </table>
   </div>
@@ -957,15 +948,7 @@
 
   <div class="table-wrap">
     <table>
-      <thead>
-        <tr>
-          <th>Équipe de gestion</th>
-          <th>Prévention &amp; Sécurité <br><span style="font-weight:400;text-transform:none;">(6 mois)</span></th>
-          <th>Hygiène &amp; Sécurité alim. <br><span style="font-weight:400;text-transform:none;">(6 mois)</span></th>
-          <th>MTSRI <br><span style="font-weight:400;text-transform:none;">(tous les ans)</span></th>
-          <th>Culture Service <br><span style="font-weight:400;text-transform:none;">(1er mois)</span></th>
-        </tr>
-      </thead>
+      <thead id="tableHeadGestion"></thead>
       <tbody id="tableBodyGestion"></tbody>
     </table>
   </div>
@@ -2010,10 +1993,18 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
 
 
     const tbody = document.getElementById(cfg.ids.tableBody);
+    const thead = document.getElementById(cfg.ids.tableHead);
     const cardsWrap = document.getElementById(cfg.ids.cardsWrap);
     const emptyState = document.getElementById(cfg.ids.emptyState);
     const searchInput = document.getElementById(cfg.ids.search);
     const sortSelect = document.getElementById(cfg.ids.sort);
+
+    function renderHead(){
+      const cols = trainingFocus ? trainings.filter(t => t.key === trainingFocus) : trainings;
+      thead.innerHTML = '<tr><th>' + cfg.nameColLabel + '</th>' +
+        cols.map(t => `<th>${t.label}${(t.period && t.period !== 'ponctuel') ? ` <br><span style="font-weight:400;text-transform:none;">(${t.period})</span>` : ''}</th>`).join('') +
+        '</tr>';
+    }
 
     function getFiltered(){
       const q = searchInput.value.trim().toLowerCase();
@@ -2041,6 +2032,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     }
 
     function render(){
+      renderHead();
       const filtered = getFiltered();
       emptyState.style.display = filtered.length ? 'none' : 'block';
       const colCount = (trainingFocus ? 1 : trainings.length) + 1;
@@ -2206,11 +2198,12 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     deleteSheetKey: 'delete_employee',
     personLabelSingular: 'cet équipier',
     personLabelPlural: 'Équipiers',
+    nameColLabel: 'Équipier',
     hasSkills: true,
     hasSuivi4s: true,
     ids: {
       search:'searchInput', sort:'sortSelect', addBtn:'addEmployeeBtn', chips:'trainingChips',
-      statsRow:'statsRow', tableBody:'tableBody', cardsWrap:'cardsWrap', emptyState:'emptyState',
+      statsRow:'statsRow', tableBody:'tableBody', tableHead:'tableHead', cardsWrap:'cardsWrap', emptyState:'emptyState',
       modal:'addEmployeeModal', form:'addEmployeeForm', nomInput:'newEmpNom', restaurantInput:'newEmpRestaurant', dateInput:'newEmpDate',
       error:'addEmployeeError', submitBtn:'submitAddEmployee', cancelBtn:'cancelAddEmployee'
     },
@@ -2231,11 +2224,12 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     deleteSheetKey: 'delete_manager',
     personLabelSingular: 'ce membre',
     personLabelPlural: 'Membres',
+    nameColLabel: 'Équipe de gestion',
     hasSkills: false,
     hasSuivi4s: false,
     ids: {
       search:'searchInputGestion', sort:'sortSelectGestion', addBtn:'addManagerBtn', chips:'trainingChipsGestion',
-      statsRow:'statsRowGestion', tableBody:'tableBodyGestion', cardsWrap:'cardsWrapGestion', emptyState:'emptyStateGestion',
+      statsRow:'statsRowGestion', tableBody:'tableBodyGestion', tableHead:'tableHeadGestion', cardsWrap:'cardsWrapGestion', emptyState:'emptyStateGestion',
       modal:'addManagerModal', form:'addManagerForm', nomInput:'newMgrNom', restaurantInput:'newMgrRestaurant', dateInput:'newMgrDate',
       error:'addManagerError', submitBtn:'submitAddManager', cancelBtn:'cancelAddManager'
     },
