@@ -588,6 +588,13 @@
   }
   .delete-emp-btn:hover{background:var(--red); color:#fff;}
   .delete-emp-btn:disabled{opacity:0.6; cursor:default;}
+  .rename-emp-btn{
+    appearance:none; border:1px solid var(--line); border-radius:8px;
+    background:#fff; color:var(--navy-2); font-size:12px; font-weight:700;
+    padding:8px 14px; cursor:pointer;
+  }
+  .rename-emp-btn:hover{border-color:var(--amber-dark); color:var(--amber-dark);}
+  .rename-emp-btn:disabled{opacity:0.6; cursor:default;}
   .delete-status{font-size:11px; color:var(--ink-soft);}
   .delete-status.pending{color:var(--amber-dark);}
   .delete-status.error{color:var(--red); font-weight:700;}
@@ -1939,12 +1946,45 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     }
 
     function deleteSectionHtml(nom){
-      const canDelete = isGerant || sessionRole === 'Responsable';
-      if(!canDelete) return '';
-      return `<div class="delete-section">
+      const canManage = isGerant || sessionRole === 'Responsable';
+      if(!canManage) return '';
+      return `<div class="delete-section" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+        <button class="rename-emp-btn" data-nom="${nom.replace(/"/g,'&quot;')}">✏️ Modifier le nom</button>
         <button class="delete-emp-btn" data-nom="${nom.replace(/"/g,'&quot;')}">Supprimer ${cfg.personLabelSingular}</button>
         <span class="delete-status"></span>
       </div>`;
+    }
+
+    function wireRenameButton(container, nom, onRenamed){
+      const btn = container.querySelector('.rename-emp-btn');
+      if(!btn) return;
+      btn.addEventListener('click', async (ev) => {
+        ev.stopPropagation();
+        const newNom = window.prompt(`Nouveau nom pour ${nom} :`, nom);
+        if(newNom === null) return;
+        const trimmed = newNom.trim();
+        if(!trimmed || trimmed === nom) return;
+        const statusSpan = container.querySelector('.delete-status');
+        btn.disabled = true;
+        if(statusSpan){ statusSpan.textContent = 'Modification…'; statusSpan.className = 'delete-status pending'; }
+        try{
+          const targetPerson = list.find(e => e.nom === nom);
+          await postUpdate(cfg.renameSheetKey, nom, null, null, {
+            oldNom: nom, newNom: trimmed,
+            targetRestaurant: targetPerson ? targetPerson.restaurant : undefined
+          });
+          if(targetPerson) targetPerson.nom = trimmed;
+          renderStats();
+          render();
+          afterChange();
+          onRenamed(trimmed);
+        } catch(err){
+          if(statusSpan){ statusSpan.textContent = 'Erreur : ' + err.message; statusSpan.className = 'delete-status error'; }
+          alert('Erreur : ' + err.message);
+        } finally {
+          btn.disabled = false;
+        }
+      });
     }
 
     function wireDeleteButton(container, nom, onDeleted){
@@ -2088,6 +2128,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
           tr.after(exp);
           wireSaveButtons(exp);
           wireVerifUpload(exp);
+          wireRenameButton(exp, e.nom, () => { exp.remove(); tr.remove(); });
           wireDeleteButton(exp, e.nom, () => { exp.remove(); tr.remove(); });
         });
         tbody.appendChild(tr);
@@ -2118,6 +2159,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
           editBtn.textContent = 'Masquer';
           wireSaveButtons(detailWrap);
           wireVerifUpload(detailWrap);
+          wireRenameButton(detailWrap, e.nom, () => { card.remove(); });
           wireDeleteButton(detailWrap, e.nom, () => { card.remove(); });
         });
         cardsWrap.appendChild(card);
@@ -2225,6 +2267,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     sheetKey: 'formations',
     addSheetKey: 'new_employee',
     deleteSheetKey: 'delete_employee',
+    renameSheetKey: 'rename_employee',
     personLabelSingular: 'cet équipier',
     personLabelPlural: 'Équipiers',
     nameColLabel: 'Équipier',
@@ -2251,6 +2294,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     sheetKey: 'gestion',
     addSheetKey: 'new_manager',
     deleteSheetKey: 'delete_manager',
+    renameSheetKey: 'rename_manager',
     personLabelSingular: 'ce membre',
     personLabelPlural: 'Membres',
     nameColLabel: 'Équipe de gestion',
