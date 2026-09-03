@@ -682,6 +682,48 @@
   .panel-head h3{margin:0 0 4px; font-size:16px; font-weight:800;}
   .panel-head p{margin:0 0 16px; font-size:12.5px; color:var(--ink-soft);}
 
+  .planning-generate-btn{
+    appearance:none; border:none; border-radius:10px; background:var(--navy); color:#fff;
+    font-size:13.5px; font-weight:700; padding:12px 20px; cursor:pointer;
+  }
+  .planning-generate-btn:hover{background:var(--navy-2);}
+  .planning-generate-btn:disabled{opacity:0.6; cursor:default;}
+  .planning-proposal{
+    display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+    padding:14px 16px; border:1px solid var(--line); border-radius:10px; margin-top:12px;
+    background:#fff;
+  }
+  .planning-proposal .pp-arrow{color:var(--ink-soft); font-weight:700;}
+  .planning-proposal .pp-formateur{font-weight:800; color:var(--navy-2);}
+  .planning-proposal .pp-equipier{font-weight:800; color:var(--ink);}
+  .planning-proposal .pp-poste{
+    font-size:11.5px; font-weight:700; padding:3px 9px; border-radius:999px;
+    background:var(--amber); color:#fff;
+  }
+  .planning-proposal .pp-actions{margin-left:auto; display:flex; gap:8px;}
+  .planning-validate-btn{
+    appearance:none; border:none; border-radius:8px; background:var(--green); color:#fff;
+    font-size:12px; font-weight:700; padding:7px 14px; cursor:pointer;
+  }
+  .planning-ignore-btn{
+    appearance:none; border:1px solid var(--line); border-radius:8px; background:#fff; color:var(--ink-soft);
+    font-size:12px; font-weight:700; padding:7px 14px; cursor:pointer;
+  }
+  .planning-proposal.validated{opacity:0.5;}
+  .planning-shortage{
+    margin-top:16px; padding:12px 16px; border-radius:10px; background:#fdf1de;
+    color:var(--amber-dark); font-size:12.5px; font-weight:600;
+  }
+  .planning-empty{color:var(--ink-soft); font-size:13px; padding:16px 0;}
+
+  .competence-toggle-btn, .restriction-toggle-btn{
+    appearance:none; border:1px solid var(--line); border-radius:8px; background:#fff;
+    color:var(--navy-2); font-size:12px; font-weight:700; padding:8px 14px; cursor:pointer;
+    margin-bottom:14px;
+  }
+  .competence-toggle-btn:hover, .restriction-toggle-btn:hover{border-color:var(--amber-dark); color:var(--amber-dark);}
+  .competence-matrix-wrap, .restriction-matrix-wrap{display:none;}
+
   .bar-row{
     display:grid;
     grid-template-columns:220px 1fr 84px;
@@ -762,6 +804,7 @@
   .matrix-dot.on.production{background:var(--amber);}
   .matrix-dot.on.service{background:var(--teal);}
   .matrix-dot.on.autres{background:var(--plum);}
+  .matrix-dot.on.restricted{background:var(--red);}
   .score-cell{font-weight:800; font-size:12px;}
   .score-pct{font-weight:600; color:var(--ink-soft); font-size:10.5px;}
   .score-bar-mini{width:52px; height:6px; border-radius:99px; background:#ece8dc; margin:3px auto 0; overflow:hidden;}
@@ -890,6 +933,7 @@
     <button class="tab-btn" data-tab="gestion">Équipe de gestion</button>
     <button class="tab-btn" id="tabComparaisonBtn" data-tab="comparaison" style="display:none;">Comparaison</button>
     <button class="tab-btn" data-tab="activite">Activité</button>
+    <button class="tab-btn" data-tab="planification">Planification</button>
   </nav>
 </header>
 
@@ -1015,6 +1059,10 @@
     <div class="matrix-wrap">
       <table class="matrix-table" id="matrixTable"></table>
     </div>
+    <button type="button" id="toggleRestrictionMatrixBtn" class="restriction-toggle-btn" style="margin-top:16px;">🚫 Voir/gérer les restrictions par équipier</button>
+    <div id="restrictionMatrixWrap" class="restriction-matrix-wrap matrix-wrap">
+      <table class="matrix-table" id="restrictionMatrixTable"></table>
+    </div>
   </div>
 
 </section>
@@ -1042,6 +1090,17 @@
     <div class="matrix-wrap">
       <table class="matrix-table" id="activiteTable"></table>
     </div>
+  </div>
+</section>
+
+<section id="tab-planification" style="display:none;">
+  <div class="panel-block">
+    <div class="panel-head">
+      <h3>Planification mensuelle des formations</h3>
+      <p>Propose automatiquement 2 formations initiales par formateur, en respectant qui peut former quoi et les besoins réels des équipiers.</p>
+    </div>
+    <button type="button" id="generatePlanningBtn" class="planning-generate-btn">🧮 Générer le planning du mois</button>
+    <div id="planningResults"></div>
   </div>
 </section>
 
@@ -1137,6 +1196,10 @@
       <button type="button" id="closeManageFormateurs" class="modal-close-btn">✕</button>
     </div>
     <div id="formateurManageList" class="poste-upload-list"></div>
+    <button type="button" id="toggleCompetenceMatrixBtn" class="competence-toggle-btn">🎯 Voir/gérer les postes que chacun peut former</button>
+    <div id="competenceMatrixWrap" class="competence-matrix-wrap matrix-wrap">
+      <table class="matrix-table" id="competenceMatrixTable"></table>
+    </div>
     <form id="addFormateurForm" style="margin-top:16px; border-top:1px dashed var(--line); padding-top:16px; display:flex; flex-direction:column; gap:6px;">
       <label for="newFormateurNom">Ajouter un formateur</label>
       <input type="text" id="newFormateurNom" required placeholder="Prénom NOM" autocomplete="off">
@@ -1559,6 +1622,75 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       return isGerant ? currentRestaurant : fixedRestaurant;
     }
 
+    // ---- Matrice des compétences (quels postes chaque formateur peut former) ----
+    const toggleCompetenceMatrixBtn = document.getElementById('toggleCompetenceMatrixBtn');
+    const competenceMatrixWrap = document.getElementById('competenceMatrixWrap');
+    const competenceMatrixTable = document.getElementById('competenceMatrixTable');
+    let competenceMatrixLoaded = false;
+
+    async function loadAndRenderCompetenceMatrix(){
+      competenceMatrixTable.innerHTML = '<tbody><tr><td style="padding:16px;color:var(--ink-soft);">Chargement…</td></tr></tbody>';
+      try{
+        const restaurant = targetRestaurantForFormateurs();
+        const res = await fetch(APPS_SCRIPT_URL, {
+          method: 'POST',
+          headers: {'Content-Type': 'text/plain;charset=utf-8'},
+          body: JSON.stringify(authBody({ sheet: 'get_formateur_competences', targetRestaurant: restaurant }))
+        });
+        const data = await res.json();
+        if(!data.ok) throw new Error(data.error || 'Erreur de chargement');
+        const formateurs = data.formateurs || [];
+        const thead = `<thead><tr><th>Formateur</th>${POSTES.map(p => `<th title="${p.label}">${p.short || p.label}</th>`).join('')}</tr></thead>`;
+        const tbody = '<tbody>' + (formateurs.length ? formateurs.map(f => `
+          <tr>
+            <td class="name-col">${f.nom}</td>
+            ${POSTES.map((p, idx) => `<td class="cell-td"><span class="matrix-dot clickable ${f.competences[idx] ? 'on '+p.group : ''}" data-nom="${f.nom.replace(/"/g,'&quot;')}" data-idx="${idx}" title="${p.label} — cliquer pour ${f.competences[idx] ? 'retirer' : 'ajouter'}"></span></td>`).join('')}
+          </tr>
+        `).join('') : `<tr><td colspan="${POSTES.length+1}" style="padding:16px;color:var(--ink-soft);text-align:center;">Aucun formateur actif pour ce restaurant.</td></tr>`) + '</tbody>';
+        competenceMatrixTable.innerHTML = thead + tbody;
+
+        competenceMatrixTable.querySelectorAll('.matrix-dot.clickable').forEach(dot => {
+          dot.addEventListener('click', async () => {
+            const nom = dot.dataset.nom;
+            const idx = Number(dot.dataset.idx);
+            const poste = POSTES[idx];
+            const newVal = !dot.classList.contains('on');
+            dot.style.opacity = '0.4';
+            try{
+              const restaurant = targetRestaurantForFormateurs();
+              const r = await fetch(APPS_SCRIPT_URL, {
+                method: 'POST',
+                headers: {'Content-Type': 'text/plain;charset=utf-8'},
+                body: JSON.stringify(authBody({ sheet: 'update_formateur_competence', targetRestaurant: restaurant, nom, posteLabel: poste.label, value: newVal }))
+              });
+              const d = await r.json();
+              if(!d.ok) throw new Error(d.error || 'Échec');
+              dot.classList.toggle('on', newVal);
+              dot.classList.toggle(poste.group, newVal);
+              dot.title = poste.label + ' — cliquer pour ' + (newVal ? 'retirer' : 'ajouter');
+            } catch(err){
+              alert('Erreur : ' + err.message);
+            } finally {
+              dot.style.opacity = '';
+            }
+          });
+        });
+      } catch(err){
+        competenceMatrixTable.innerHTML = '<tbody><tr><td style="padding:16px;color:var(--red);">Erreur : ' + err.message + '</td></tr></tbody>';
+      }
+    }
+
+    if(toggleCompetenceMatrixBtn){
+      toggleCompetenceMatrixBtn.addEventListener('click', () => {
+        const isOpen = competenceMatrixWrap.style.display === 'block';
+        competenceMatrixWrap.style.display = isOpen ? 'none' : 'block';
+        if(!isOpen && !competenceMatrixLoaded){
+          competenceMatrixLoaded = true;
+          loadAndRenderCompetenceMatrix();
+        }
+      });
+    }
+
     function renderFormateurList(list){
       formateurManageList.innerHTML = list.length
         ? list.map(f => `<div class="poste-upload-item">
@@ -1666,6 +1798,8 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       addFormateurError.style.display = 'none';
       addFormateurForm.reset();
       loadAndRenderFormateurs();
+      competenceMatrixLoaded = false;
+      competenceMatrixWrap.style.display = 'none';
       formateursModal.style.display = 'flex';
     });
     closeFormateursBtn.addEventListener('click', () => { formateursModal.style.display = 'none'; });
@@ -2393,6 +2527,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
   const tabComparaison = document.getElementById('tab-comparaison');
   const tabComparaisonBtn = document.getElementById('tabComparaisonBtn');
   const tabActivite = document.getElementById('tab-activite');
+  const tabPlanification = document.getElementById('tab-planification');
   const statsWrap = document.getElementById('statsWrap');
   const statsRowEl = document.getElementById('statsRow');
   const statsRowGestionEl = document.getElementById('statsRowGestion');
@@ -2404,13 +2539,14 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
   tabBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       tabBtns.forEach(b => b.classList.toggle('active', b === btn));
-      const tab = btn.dataset.tab; // 'formations' | 'gestion' | 'polyvalence' | 'comparaison' | 'activite'
+      const tab = btn.dataset.tab; // 'formations' | 'gestion' | 'polyvalence' | 'comparaison' | 'activite' | 'planification'
       tabFormations.style.display = tab === 'formations' ? '' : 'none';
       tabGestion.style.display = tab === 'gestion' ? '' : 'none';
       tabPolyvalence.style.display = tab === 'polyvalence' ? '' : 'none';
       tabComparaison.style.display = tab === 'comparaison' ? '' : 'none';
       tabActivite.style.display = tab === 'activite' ? '' : 'none';
-      statsWrap.style.display = (tab === 'polyvalence' || tab === 'comparaison' || tab === 'activite') ? 'none' : '';
+      tabPlanification.style.display = tab === 'planification' ? '' : 'none';
+      statsWrap.style.display = (tab === 'polyvalence' || tab === 'comparaison' || tab === 'activite' || tab === 'planification') ? 'none' : '';
       statsRowEl.style.display = tab === 'formations' ? '' : 'none';
       statsRowGestionEl.style.display = tab === 'gestion' ? '' : 'none';
       if(tab === 'comparaison'){ renderComparaisonCharts(); renderComparaison(); }
@@ -2719,6 +2855,73 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     });
   }
 
+  // ---- Restrictions par équipier (postes à ne jamais proposer en formation) ----
+  const toggleRestrictionMatrixBtn = document.getElementById('toggleRestrictionMatrixBtn');
+  const restrictionMatrixWrap = document.getElementById('restrictionMatrixWrap');
+  const canManageRestrictions = isGerant || sessionRole === 'Responsable';
+  if(toggleRestrictionMatrixBtn && !canManageRestrictions){
+    toggleRestrictionMatrixBtn.style.display = 'none';
+  }
+
+  function renderRestrictionMatrix(){
+    const table = document.getElementById('restrictionMatrixTable');
+    const list = restaurantEmployees();
+    const thead = `<thead><tr>
+      <th class="name-col">Équipier</th>
+      ${POSTES.map(p => `<th title="${p.label}">${p.short || p.label}</th>`).join('')}
+    </tr></thead>`;
+    const tbody = '<tbody>' + list.map(e => `
+      <tr>
+        <td class="name-col">${e.nom}</td>
+        ${POSTES.map((p, idx) => `<td class="cell-td"><span class="matrix-dot clickable ${e.restrictions && e.restrictions[idx] ? 'on restricted' : ''}" data-nom="${e.nom.replace(/"/g,'&quot;')}" data-idx="${idx}" title="${p.label} — cliquer pour ${e.restrictions && e.restrictions[idx] ? 'retirer la restriction' : 'restreindre'}"></span></td>`).join('')}
+      </tr>
+    `).join('') + '</tbody>';
+    table.innerHTML = thead + tbody;
+
+    table.querySelectorAll('.matrix-dot.clickable').forEach(dot => {
+      dot.addEventListener('click', async () => {
+        const nom = dot.dataset.nom;
+        const idx = Number(dot.dataset.idx);
+        const poste = POSTES[idx];
+        const newVal = !dot.classList.contains('on');
+        dot.style.opacity = '0.4';
+        try{
+          const res = await fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            headers: {'Content-Type': 'text/plain;charset=utf-8'},
+            body: JSON.stringify(authBody({ sheet: 'update_restriction', nom, posteLabel: poste.label, value: newVal }))
+          });
+          const d = await res.json();
+          if(!d.ok) throw new Error(d.error || 'Échec');
+          const emp = employees.find(e => e.nom === nom);
+          if(emp){
+            if(!emp.restrictions) emp.restrictions = POSTES.map(() => false);
+            emp.restrictions[idx] = newVal;
+          }
+          dot.classList.toggle('on', newVal);
+          dot.classList.toggle('restricted', newVal);
+          dot.title = poste.label + ' — cliquer pour ' + (newVal ? 'retirer la restriction' : 'restreindre');
+        } catch(err){
+          alert('Erreur : ' + err.message);
+        } finally {
+          dot.style.opacity = '';
+        }
+      });
+    });
+  }
+
+  let restrictionMatrixLoaded = false;
+  if(toggleRestrictionMatrixBtn){
+    toggleRestrictionMatrixBtn.addEventListener('click', () => {
+      const isOpen = restrictionMatrixWrap.style.display === 'block';
+      restrictionMatrixWrap.style.display = isOpen ? 'none' : 'block';
+      if(!isOpen && !restrictionMatrixLoaded){
+        restrictionMatrixLoaded = true;
+        renderRestrictionMatrix();
+      }
+    });
+  }
+
   polySearchInput.addEventListener('input', renderMatrix);
   polySortSelect.addEventListener('change', () => { matrixSortKey = null; renderMatrix(); });
 
@@ -2767,6 +2970,164 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     renderBars();
     renderMatrix();
   });
+
+  // ================= PLANIFICATION MENSUELLE (formations initiales) =================
+  //
+  // Règles connues, propres à ce restaurant :
+  // - certains postes ne sont jamais proposés en formation planifiée
+  // - un équipier qui a commencé Production ou Service doit finir cette
+  //   famille à 100% avant de basculer sur l'autre
+  // - chaque formateur ne peut former que sur les postes où il est coché
+  //   compétent ; un équipier ne se voit jamais proposer un poste marqué
+  //   comme restreint pour lui
+  const PLANNING_EXCLUDED_POSTE_KEYS = new Set(['ouverture','fermeture','livraison','plonge','huiles','tempering','oeufs','petit_dej']);
+
+  function computePlanningNeeds(){
+    const activePostes = POSTES.filter(p => !PLANNING_EXCLUDED_POSTE_KEYS.has(p.key));
+    const prodPostes = activePostes.filter(p => p.group === 'production');
+    const servPostes = activePostes.filter(p => p.group === 'service');
+
+    const eligible = employees.filter(e => e.restaurant === currentRestaurant);
+
+    const needsByEmp = {};
+    eligible.forEach(e => {
+      function statusFor(list){
+        const done = list.filter(p => e.skills[POSTES.indexOf(p)]).length;
+        return { total: list.length, done };
+      }
+      const prod = statusFor(prodPostes);
+      const serv = statusFor(servPostes);
+      const prodStarted = prod.done > 0, prodComplete = prod.total > 0 && prod.done === prod.total;
+      const servStarted = serv.done > 0, servComplete = serv.total > 0 && serv.done === serv.total;
+
+      let candidatePostes;
+      if(prodStarted && !prodComplete && (!servStarted || servComplete)){
+        candidatePostes = prodPostes;
+      } else if(servStarted && !servComplete && (!prodStarted || prodComplete)){
+        candidatePostes = servPostes;
+      } else if(prodStarted && !prodComplete && servStarted && !servComplete){
+        // Les deux familles entamées à la fois (ne devrait pas arriver) : on continue la plus avancée.
+        candidatePostes = (prod.total ? prod.done/prod.total : 0) >= (serv.total ? serv.done/serv.total : 0) ? prodPostes : servPostes;
+      } else if(!prodStarted && !servStarted){
+        candidatePostes = prodPostes; // par défaut, on démarre par la production
+      } else {
+        candidatePostes = []; // les deux familles déjà complètes
+      }
+
+      const gaps = candidatePostes
+        .filter(p => !e.skills[POSTES.indexOf(p)])
+        .filter(p => !e.restrictions[POSTES.indexOf(p)])
+        .map(p => p.key);
+      if(gaps.length) needsByEmp[e.nom] = gaps;
+    });
+
+    return needsByEmp;
+  }
+
+  function matchFormateursToNeeds(needsByEmp, formateurCompetences){
+    const usedPairs = new Set();
+    const proposals = [];
+    const shortages = [];
+
+    formateurCompetences.forEach(f => {
+      let count = 0;
+      const candidates = Object.keys(needsByEmp)
+        .map(nom => ({ nom, gaps: needsByEmp[nom] }))
+        .sort((a,b) => a.gaps.length - b.gaps.length); // priorité à ceux les plus proches de finir leur famille
+
+      for(const cand of candidates){
+        if(count >= 2) break;
+        for(const posteKey of cand.gaps){
+          const pairKey = cand.nom + '|' + posteKey;
+          if(usedPairs.has(pairKey)) continue;
+          const posteIdx = POSTES.findIndex(p => p.key === posteKey);
+          if(!f.competences[posteIdx]) continue;
+          proposals.push({ formateur: f.nom, equipier: cand.nom, posteKey, posteLabel: POSTES[posteIdx].label });
+          usedPairs.add(pairKey);
+          count++;
+          break;
+        }
+        if(count >= 2) break;
+      }
+      if(count < 2) shortages.push({ formateur: f.nom, manquant: 2 - count });
+    });
+
+    return { proposals, shortages };
+  }
+
+  function renderPlanningResults(proposals, shortages){
+    const wrap = document.getElementById('planningResults');
+    if(proposals.length === 0 && shortages.length === 0){
+      wrap.innerHTML = '<p class="planning-empty">Rien à proposer ce mois-ci — soit tous les équipiers éligibles sont déjà à jour sur leur famille de postes en cours, soit aucun formateur n\'a de compétence enregistrée. Vérifie les compétences des formateurs si ça te semble anormal.</p>';
+      return;
+    }
+    wrap.innerHTML = proposals.map((p, i) => `
+      <div class="planning-proposal" data-idx="${i}">
+        <span class="pp-formateur">${p.formateur}</span>
+        <span class="pp-arrow">→</span>
+        <span class="pp-equipier">${p.equipier}</span>
+        <span class="pp-poste">${p.posteLabel}</span>
+        <div class="pp-actions">
+          <button type="button" class="planning-validate-btn">✓ Valider</button>
+          <button type="button" class="planning-ignore-btn">✗ Ignorer</button>
+        </div>
+      </div>
+    `).join('') + (shortages.length ? '<div class="planning-shortage">' +
+      shortages.map(s => `${s.formateur} : ${s.manquant} proposition${s.manquant>1?'s':''} de moins que l'objectif (pas assez de besoins compatibles avec ses compétences ce mois-ci)`).join('<br>') +
+      '</div>' : '');
+
+    wrap.querySelectorAll('.planning-proposal').forEach(row => {
+      const idx = Number(row.dataset.idx);
+      const p = proposals[idx];
+      row.querySelector('.planning-ignore-btn').addEventListener('click', () => row.remove());
+      row.querySelector('.planning-validate-btn').addEventListener('click', async (ev) => {
+        const btn = ev.currentTarget;
+        btn.disabled = true;
+        try{
+          await fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            headers: {'Content-Type': 'text/plain;charset=utf-8'},
+            body: JSON.stringify(authBody({
+              sheet: 'log_planning_validation',
+              equipier: p.equipier, formateurAssigne: p.formateur, posteLabel: p.posteLabel
+            }))
+          });
+          row.classList.add('validated');
+          row.querySelector('.pp-actions').innerHTML = '<span style="color:var(--green);font-weight:700;font-size:12px;">✓ Enregistré dans le journal</span>';
+        } catch(err){
+          alert('Erreur : ' + err.message);
+          btn.disabled = false;
+        }
+      });
+    });
+  }
+
+  const generatePlanningBtn = document.getElementById('generatePlanningBtn');
+  if(generatePlanningBtn){
+    generatePlanningBtn.addEventListener('click', async () => {
+      generatePlanningBtn.disabled = true;
+      generatePlanningBtn.textContent = 'Génération…';
+      const wrap = document.getElementById('planningResults');
+      wrap.innerHTML = '<p class="planning-empty">Chargement des compétences formateurs…</p>';
+      try{
+        const res = await fetch(APPS_SCRIPT_URL, {
+          method: 'POST',
+          headers: {'Content-Type': 'text/plain;charset=utf-8'},
+          body: JSON.stringify(authBody({ sheet: 'get_formateur_competences' }))
+        });
+        const data = await res.json();
+        if(!data.ok) throw new Error(data.error || 'Erreur de chargement');
+        const needsByEmp = computePlanningNeeds();
+        const { proposals, shortages } = matchFormateursToNeeds(needsByEmp, data.formateurs || []);
+        renderPlanningResults(proposals, shortages);
+      } catch(err){
+        wrap.innerHTML = '<p class="planning-empty" style="color:var(--red);">Erreur : ' + err.message + '</p>';
+      } finally {
+        generatePlanningBtn.disabled = false;
+        generatePlanningBtn.textContent = '🧮 Générer le planning du mois';
+      }
+    });
+  }
 }
 
 // ============================================================
