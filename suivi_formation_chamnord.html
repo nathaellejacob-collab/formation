@@ -46,6 +46,7 @@
     color:var(--ink);
     font-family:'Segoe UI', Inter, -apple-system, BlinkMacSystemFont, Arial, sans-serif;
     -webkit-font-smoothing:antialiased;
+    overflow-x:hidden; /* garde-fou : rien ne doit jamais faire défiler la page entière horizontalement */
   }
 
   /* ---------- HEADER ---------- */
@@ -113,7 +114,11 @@
     margin:20px auto 0;
     display:flex;
     gap:6px;
+    overflow-x:auto;
+    -webkit-overflow-scrolling:touch;
+    scrollbar-width:none; /* Firefox */
   }
+  .tabnav::-webkit-scrollbar{display:none;} /* Chrome/Safari */
   .tab-btn{
     appearance:none;
     border:1px solid rgba(255,255,255,0.16);
@@ -125,6 +130,8 @@
     border-radius:999px 999px 0 0;
     cursor:pointer;
     transition:background .12s ease, color .12s ease;
+    flex-shrink:0;
+    white-space:nowrap;
   }
   .tab-btn:hover{background:rgba(255,255,255,0.12); color:#fff;}
   .tab-btn.active{
@@ -139,8 +146,10 @@
     margin:16px auto 0;
     padding:0 28px;
     display:flex;
+    flex-wrap:wrap;
     align-items:center;
     gap:10px;
+    row-gap:8px;
   }
   .restaurant-bar-label{
     font-size:12.5px; font-weight:700; color:var(--ink-soft);
@@ -695,6 +704,10 @@
   }
   .planning-generate-btn:hover{background:var(--navy-2);}
   .planning-generate-btn:disabled{opacity:0.6; cursor:default;}
+  .planning-month-select{
+    padding:9px 14px; border-radius:8px; border:1px solid var(--line);
+    font-size:13px; font-weight:700; color:var(--navy-2); background:#fff; cursor:pointer;
+  }
   .planning-proposal{
     display:flex; align-items:center; gap:14px; flex-wrap:wrap;
     padding:14px 16px; border:1px solid var(--line); border-radius:10px; margin-top:12px;
@@ -706,6 +719,13 @@
   .planning-proposal .pp-poste{
     font-size:11.5px; font-weight:700; padding:3px 9px; border-radius:999px;
     background:var(--amber); color:#fff;
+  }
+  .pp-date-label{
+    display:flex; flex-direction:column; gap:3px; font-size:10.5px; font-weight:700; color:var(--ink-soft);
+    margin-left:12px;
+  }
+  .pp-date-input{
+    padding:6px 9px; border-radius:7px; border:1px solid var(--line); font-size:12.5px; font-family:inherit;
   }
   .planning-proposal .pp-actions{margin-left:auto; display:flex; gap:8px;}
   .planning-validate-btn{
@@ -727,6 +747,23 @@
     color:var(--amber-dark); font-size:12.5px; font-weight:600;
   }
   .planning-empty{color:var(--ink-soft); font-size:13px; padding:16px 0;}
+  .planning-summary{display:flex; gap:10px; flex-wrap:wrap; margin:14px 0;}
+  .planning-summary-chip{
+    display:flex; align-items:baseline; gap:6px; padding:8px 14px; border-radius:10px;
+    background:#faf9f4; border:1px solid var(--line);
+  }
+  .planning-summary-chip b{font-size:16px; color:var(--navy);}
+  .planning-summary-chip span{font-size:11.5px; color:var(--ink-soft); font-weight:600;}
+  .planning-history-status{
+    display:inline-block; font-size:10.5px; font-weight:700; padding:2px 8px; border-radius:999px;
+  }
+  .planning-history-status.valide{background:#e3f1e8; color:var(--green);}
+  .planning-history-status.ignore{background:#efece2; color:var(--ink-soft);}
+  .planning-undo-history-btn{
+    appearance:none; border:1px solid var(--line); border-radius:6px; background:#fff; color:var(--ink-soft);
+    font-size:10.5px; font-weight:700; padding:4px 10px; cursor:pointer;
+  }
+  .planning-undo-history-btn:hover{border-color:var(--amber-dark); color:var(--amber-dark);}
 
   .restriction-toggle-btn{
     appearance:none; border:1px solid var(--line); border-radius:8px; background:#fff;
@@ -892,6 +929,17 @@
     .stats{grid-template-columns:repeat(2,1fr);}
     header.top{padding:22px 18px 20px;}
     main{padding:18px 16px 50px;}
+  }
+
+  @media (max-width: 520px){
+    header.top{padding:18px 14px 16px;}
+    header.top h1{font-size:20px;}
+    .restaurant-bar{padding:0 14px; gap:8px;}
+    .restaurant-bar-label{display:none;} /* l'icône 🏠 seule suffit, gagne de la place */
+    main{padding:14px 12px 40px;}
+    .tab-btn{padding:9px 14px; font-size:12.5px;}
+    .stats{grid-template-columns:1fr 1fr; gap:8px;}
+    .stat-card{padding:12px 14px;}
   }
 </style>
 </head>
@@ -1132,10 +1180,25 @@
   <div class="panel-block">
     <div class="panel-head">
       <h3>Planification mensuelle des formations</h3>
-      <p>Propose automatiquement 2 formations initiales par formateur, en respectant qui peut former quoi et les besoins réels des équipiers.</p>
+      <p>Propose automatiquement 2 formations initiales par formateur, en respectant qui peut former quoi et les besoins réels des équipiers. Une proposition devient validée automatiquement dès que le poste est coché maîtrisé dans « Postes &amp; Polyvalence » — inutile de la valider ici. « Ignorer » sert seulement à retirer une proposition qui n'aurait pas dû être faite.</p>
     </div>
-    <button type="button" id="generatePlanningBtn" class="planning-generate-btn">🧮 Générer le planning du mois</button>
+    <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+      <button type="button" id="generatePlanningBtn" class="planning-generate-btn">🧮 Générer le planning du mois</button>
+      <label for="planningMonthSelect" style="font-size:12px; font-weight:700; color:var(--ink-soft);">Mois affiché :</label>
+      <select id="planningMonthSelect" class="planning-month-select"></select>
+    </div>
+    <div id="planningSummary" class="planning-summary"></div>
     <div id="planningResults"></div>
+  </div>
+
+  <div class="panel-block">
+    <div class="panel-head">
+      <h3>Historique</h3>
+      <p>Formations validées, ignorées, ou automatiquement confirmées quand le poste est coché maîtrisé dans Postes &amp; Polyvalence.</p>
+    </div>
+    <div class="matrix-wrap">
+      <table class="matrix-table" id="planningHistoryTable"></table>
+    </div>
   </div>
 </section>
 
@@ -3161,113 +3224,227 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     return { proposals, shortages };
   }
 
-  const canManagePlanning = isGerant || sessionRole === 'Responsable';
-
-  function renderPersistedPlanning(proposals){
-    const wrap = document.getElementById('planningResults');
-    if(!proposals.length){
-      wrap.innerHTML = '<p class="planning-empty">' + (canManagePlanning
-        ? 'Aucun planning généré pour l\'instant — clique « Générer le planning du mois » ci-dessus.'
-        : 'Aucun planning n\'a encore été généré par le responsable formation pour ce mois-ci.') + '</p>';
-      return;
-    }
-    wrap.innerHTML = proposals.map(p => `
-      <div class="planning-proposal ${p.statut === 'Validé' ? 'validated' : ''}" data-row="${p.rowIndex}">
-        <span class="pp-formateur">${p.formateur}</span>
-        <span class="pp-arrow">→</span>
-        <span class="pp-equipier">${p.equipier}</span>
-        <span class="pp-poste">${p.posteLabel}</span>
-        ${canManagePlanning ? `
-          <div class="pp-actions">
-            ${p.statut === 'Validé'
-              ? '<span style="color:var(--green);font-weight:700;font-size:12px;">✓ Validé</span><button type="button" class="planning-undo-btn">↩ Annuler</button>'
-              : `<button type="button" class="planning-validate-btn">✓ Valider</button><button type="button" class="planning-ignore-btn">✗ Ignorer</button>`}
-          </div>
-        ` : `<span style="margin-left:auto;font-size:11.5px;color:var(--ink-soft);font-weight:700;">${p.statut === 'Validé' ? '✓ Validé' : 'Proposé'}</span>`}
-      </div>
-    `).join('');
-
-    if(!canManagePlanning) return; // lecture seule pour un simple formateur
-
-    wrap.querySelectorAll('.planning-proposal').forEach(row => {
-      const rowIndex = Number(row.dataset.row);
-      const p = proposals.find(x => x.rowIndex === rowIndex);
-      const ignoreBtn = row.querySelector('.planning-ignore-btn');
-      const validateBtn = row.querySelector('.planning-validate-btn');
-      const undoBtn = row.querySelector('.planning-undo-btn');
-      if(ignoreBtn) ignoreBtn.addEventListener('click', async () => {
-        ignoreBtn.disabled = true;
-        try{
-          await fetch(APPS_SCRIPT_URL, {
-            method: 'POST',
-            headers: {'Content-Type': 'text/plain;charset=utf-8'},
-            body: JSON.stringify(authBody({ sheet: 'update_planning_status', rowIndex, statut: 'Ignoré' }))
-          });
-          row.remove();
-        } catch(err){
-          alert('Erreur : ' + err.message);
-          ignoreBtn.disabled = false;
-        }
+  // Quand une proposition est ignorée (« ce n'est pas la bonne formation »),
+  // cherche immédiatement UNE autre paire valide pour le MÊME formateur, afin
+  // qu'il garde son objectif de 2 propositions ce mois-ci — sans jamais
+  // reproposer la paire équipier+poste qui vient d'être refusée, ni une paire
+  // déjà utilisée ailleurs dans le planning en cours.
+  async function proposeReplacementFor(ignoredProposal){
+    try{
+      const compRes = await fetch(APPS_SCRIPT_URL, {
+        method: 'POST',
+        headers: {'Content-Type': 'text/plain;charset=utf-8'},
+        body: JSON.stringify(authBody({ sheet: 'get_formateur_competences' }))
       });
-      if(validateBtn) validateBtn.addEventListener('click', async () => {
-        validateBtn.disabled = true;
-        try{
-          await fetch(APPS_SCRIPT_URL, {
-            method: 'POST',
-            headers: {'Content-Type': 'text/plain;charset=utf-8'},
-            body: JSON.stringify(authBody({
-              sheet: 'update_planning_status', rowIndex, statut: 'Validé',
-              equipier: p.equipier, formateurAssigne: p.formateur, posteLabel: p.posteLabel
-            }))
-          });
-          row.classList.add('validated');
-          row.querySelector('.pp-actions').innerHTML = '<span style="color:var(--green);font-weight:700;font-size:12px;">✓ Validé</span><button type="button" class="planning-undo-btn">↩ Annuler</button>';
-          wireUndoBtn(row, rowIndex);
-        } catch(err){
-          alert('Erreur : ' + err.message);
-          validateBtn.disabled = false;
-        }
-      });
-      if(undoBtn) wireUndoBtn(row, rowIndex);
-    });
-  }
+      const compData = await compRes.json();
+      const formateurComp = (compData.formateurs || []).find(f => f.nom === ignoredProposal.formateur);
+      if(!formateurComp) return; // formateur désactivé/supprimé entre-temps : rien à proposer
 
-  function wireUndoBtn(row, rowIndex){
-    const btn = row.querySelector('.planning-undo-btn');
-    if(!btn) return;
-    btn.addEventListener('click', async () => {
-      btn.disabled = true;
-      try{
+      const planRes = await fetch(APPS_SCRIPT_URL, {
+        method: 'POST',
+        headers: {'Content-Type': 'text/plain;charset=utf-8'},
+        body: JSON.stringify(authBody({ sheet: 'get_planning' }))
+      });
+      const planData = await planRes.json();
+      const stillPending = (planData.proposals || []).filter(p => p.statut === 'Proposé');
+      const usedPairs = new Set(stillPending.map(p => p.equipier + '|' + p.posteLabel));
+      usedPairs.add(ignoredProposal.equipier + '|' + ignoredProposal.posteLabel);
+
+      const needsByEmp = computePlanningNeeds();
+      Object.keys(needsByEmp).forEach(nom => {
+        needsByEmp[nom] = needsByEmp[nom].filter(posteKey => {
+          const poste = POSTES.find(p => p.key === posteKey);
+          return !usedPairs.has(nom + '|' + poste.label);
+        });
+        if(!needsByEmp[nom].length) delete needsByEmp[nom];
+      });
+
+      const { proposals: candidates } = matchFormateursToNeeds(needsByEmp, [formateurComp]);
+      if(candidates.length){
         await fetch(APPS_SCRIPT_URL, {
           method: 'POST',
           headers: {'Content-Type': 'text/plain;charset=utf-8'},
-          body: JSON.stringify(authBody({ sheet: 'update_planning_status', rowIndex, statut: 'Proposé' }))
+          body: JSON.stringify(authBody({ sheet: 'append_planning_proposal', proposal: candidates[0] }))
         });
-        row.classList.remove('validated');
-        row.querySelector('.pp-actions').innerHTML = '<button type="button" class="planning-validate-btn">✓ Valider</button><button type="button" class="planning-ignore-btn">✗ Ignorer</button>';
-        loadPersistedPlanning(); // recharge proprement pour rebrancher les bons écouteurs
-      } catch(err){
-        alert('Erreur : ' + err.message);
-        btn.disabled = false;
       }
-    });
+      // Si aucun candidat trouvé, on ne fait rien de plus : le résumé "en attente" du formateur
+      // reflètera simplement 1 proposition de moins, sans bloquer le reste du planning.
+    } catch(err){ /* la mise à "Ignoré" reste effective même si le remplacement échoue */ }
   }
 
-  async function loadPersistedPlanning(){
+  const canManagePlanning = isGerant || sessionRole === 'Responsable';
+
+  function renderPlanningSummary(proposals){
+    const summary = document.getElementById('planningSummary');
+    const pending = proposals.filter(p => p.statut === 'Proposé').length;
+    const valides = proposals.filter(p => p.statut === 'Validé').length;
+    const ignores = proposals.filter(p => p.statut === 'Ignoré').length;
+    if(!proposals.length){ summary.innerHTML = ''; return; }
+    summary.innerHTML = `
+      <div class="planning-summary-chip"><b>${pending}</b><span>en attente</span></div>
+      <div class="planning-summary-chip"><b>${valides}</b><span>validée${valides>1?'s':''}</span></div>
+      <div class="planning-summary-chip"><b>${ignores}</b><span>ignorée${ignores>1?'s':''}</span></div>
+    `;
+  }
+
+  function renderPersistedPlanning(proposals){
+    renderPlanningSummary(proposals);
+
+    const pending = proposals.filter(p => p.statut === 'Proposé');
+    const history = proposals.filter(p => p.statut !== 'Proposé');
+
+    // ---- Zone "en attente" (propositions actives) ----
+    const wrap = document.getElementById('planningResults');
+    if(!pending.length){
+      wrap.innerHTML = '<p class="planning-empty">' + (proposals.length
+        ? 'Rien en attente pour l\'instant — tout a été traité (voir l\'historique ci-dessous).'
+        : (canManagePlanning
+            ? 'Aucun planning généré pour l\'instant — clique « Générer le planning du mois » ci-dessus.'
+            : 'Aucun planning n\'a encore été généré par le responsable formation pour ce mois-ci.')) + '</p>';
+    } else {
+      wrap.innerHTML = pending.map(p => `
+        <div class="planning-proposal" data-row="${p.rowIndex}">
+          <span class="pp-formateur">${p.formateur}</span>
+          <span class="pp-arrow">→</span>
+          <span class="pp-equipier">${p.equipier}</span>
+          <span class="pp-poste">${p.posteLabel}</span>
+          <label class="pp-date-label">
+            Date prévue
+            <input type="date" class="pp-date-input" data-row="${p.rowIndex}" value="${p.dateFormation || ''}">
+          </label>
+          ${canManagePlanning ? `
+            <div class="pp-actions">
+              <button type="button" class="planning-ignore-btn">✗ Ignorer</button>
+            </div>
+          ` : ''}
+        </div>
+      `).join('');
+
+      wrap.querySelectorAll('.pp-date-input').forEach(input => {
+        input.addEventListener('change', async () => {
+          const rowIndex = Number(input.dataset.row);
+          input.disabled = true;
+          try{
+            await fetch(APPS_SCRIPT_URL, {
+              method: 'POST',
+              headers: {'Content-Type': 'text/plain;charset=utf-8'},
+              body: JSON.stringify(authBody({ sheet: 'update_planning_date', rowIndex, dateFormation: input.value }))
+            });
+          } catch(err){
+            alert('Erreur : ' + err.message);
+          } finally {
+            input.disabled = false;
+          }
+        });
+      });
+
+      if(canManagePlanning){
+        wrap.querySelectorAll('.planning-proposal').forEach(row => {
+          const rowIndex = Number(row.dataset.row);
+          const p = pending.find(x => x.rowIndex === rowIndex);
+          row.querySelector('.planning-ignore-btn').addEventListener('click', async (ev) => {
+            const btn = ev.currentTarget;
+            btn.disabled = true;
+            btn.textContent = '…';
+            try{
+              await fetch(APPS_SCRIPT_URL, {
+                method: 'POST',
+                headers: {'Content-Type': 'text/plain;charset=utf-8'},
+                body: JSON.stringify(authBody({ sheet: 'update_planning_status', rowIndex, statut: 'Ignoré' }))
+              });
+              await proposeReplacementFor(p);
+              loadPersistedPlanning(currentViewedMonth);
+            } catch(err){
+              alert('Erreur : ' + err.message);
+              btn.disabled = false;
+              btn.textContent = '✗ Ignorer';
+            }
+          });
+        });
+      }
+    }
+
+    // ---- Zone "historique" (vrai tableau) ----
+    const histTable = document.getElementById('planningHistoryTable');
+    if(!history.length){
+      histTable.innerHTML = '<tbody><tr><td style="padding:16px;color:var(--ink-soft);">Rien dans l\'historique pour l\'instant.</td></tr></tbody>';
+      return;
+    }
+    const thead = `<thead><tr>
+      <th>Formateur</th><th>Équipier</th><th>Poste</th><th>Statut</th><th>Date</th><th>Date formation</th>${canManagePlanning ? '<th></th>' : ''}
+    </tr></thead>`;
+    const tbody = '<tbody>' + history.map(p => `
+      <tr>
+        <td>${p.formateur}</td>
+        <td>${p.equipier}</td>
+        <td>${p.posteLabel}</td>
+        <td><span class="planning-history-status ${p.statut === 'Validé' ? 'valide' : 'ignore'}">${p.statut === 'Validé' ? '✓ Validée' : '✗ Ignorée'}</span></td>
+        <td>${p.date}</td>
+        <td>${p.dateFormation ? frDate(parseDate(p.dateFormation)) : '—'}</td>
+        ${canManagePlanning ? `<td><button type="button" class="planning-undo-history-btn" data-row="${p.rowIndex}">↩ Remettre en attente</button></td>` : ''}
+      </tr>
+    `).join('') + '</tbody>';
+    histTable.innerHTML = thead + tbody;
+
+    if(canManagePlanning){
+      histTable.querySelectorAll('.planning-undo-history-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const rowIndex = Number(btn.dataset.row);
+          btn.disabled = true;
+          try{
+            await fetch(APPS_SCRIPT_URL, {
+              method: 'POST',
+              headers: {'Content-Type': 'text/plain;charset=utf-8'},
+              body: JSON.stringify(authBody({ sheet: 'update_planning_status', rowIndex, statut: 'Proposé' }))
+            });
+            loadPersistedPlanning(currentViewedMonth);
+          } catch(err){
+            alert('Erreur : ' + err.message);
+            btn.disabled = false;
+          }
+        });
+      });
+    }
+  }
+
+  const MONTH_NAMES_FR = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+  function monthLabel(moisKey){
+    const [y, m] = moisKey.split('-');
+    return MONTH_NAMES_FR[Number(m) - 1] + ' ' + y;
+  }
+
+  let currentViewedMonth = null;
+
+  function populateMonthSelect(months, currentMonth, selected){
+    const select = document.getElementById('planningMonthSelect');
+    const allMonths = Array.from(new Set([currentMonth, ...months])).sort().reverse();
+    select.innerHTML = allMonths.map(m => `<option value="${m}" ${m === selected ? 'selected' : ''}>${monthLabel(m)}${m === currentMonth ? ' (en cours)' : ''}</option>`).join('');
+  }
+
+  async function loadPersistedPlanning(mois){
     const wrap = document.getElementById('planningResults');
     wrap.innerHTML = '<p class="planning-empty">Chargement…</p>';
     try{
       const res = await fetch(APPS_SCRIPT_URL, {
         method: 'POST',
         headers: {'Content-Type': 'text/plain;charset=utf-8'},
-        body: JSON.stringify(authBody({ sheet: 'get_planning' }))
+        body: JSON.stringify(authBody({ sheet: 'get_planning', mois }))
       });
       const data = await res.json();
       if(!data.ok) throw new Error(data.error || 'Erreur de chargement');
+      currentViewedMonth = mois || data.currentMonth;
+      populateMonthSelect(data.months || [], data.currentMonth, currentViewedMonth);
       renderPersistedPlanning(data.proposals || []);
     } catch(err){
       wrap.innerHTML = '<p class="planning-empty" style="color:var(--red);">Erreur : ' + err.message + '</p>';
     }
+  }
+
+  const planningMonthSelect = document.getElementById('planningMonthSelect');
+  if(planningMonthSelect){
+    planningMonthSelect.addEventListener('change', () => {
+      loadPersistedPlanning(planningMonthSelect.value);
+    });
   }
 
   const generatePlanningBtn = document.getElementById('generatePlanningBtn');
@@ -3301,6 +3478,8 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
           const saveData = await saveRes.json();
           if(!saveData.ok) throw new Error(saveData.error || "Échec de l'enregistrement");
 
+          currentViewedMonth = saveData.currentMonth;
+          populateMonthSelect(saveData.months || [], saveData.currentMonth, currentViewedMonth);
           renderPersistedPlanning(saveData.proposals || []);
           if(shortages.length){
             const wrap2 = document.getElementById('planningResults');
