@@ -2466,10 +2466,13 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     });
     groupStats = GROUP_ORDER.map(g => {
       const items = posteStats.filter(p => p.group === g);
-      const avg = items.reduce((s,p) => s + p.pct, 0) / items.length;
-      return {group:g, label:GROUP_LABELS[g], pct:avg};
+      const avg = items.length ? items.reduce((s,p) => s + p.pct, 0) / items.length : 0;
+      return {group:g, label:GROUP_LABELS[g], pct:avg, count: items.length};
     });
-    globalPct = posteStats.reduce((s,p) => s + p.pct, 0) / posteStats.length;
+    // Le taux global ne compte que Production + Service — la famille "Autres"
+    // (ouverture, fermeture, plonge…) n'y entre pas.
+    const coreStats = posteStats.filter(p => p.group !== 'autres');
+    globalPct = coreStats.length ? coreStats.reduce((s,p) => s + p.pct, 0) / coreStats.length : 0;
   }
   computePolyStats();
 
@@ -2477,11 +2480,12 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
 
   function renderKpis(){
     const wrap = document.getElementById('polyKpis');
+    const nbCore = posteStats.filter(p => p.group !== 'autres').length;
     const cards = [
-      {cls:'global', label:'Taux de polyvalence global', pct:globalPct, sub: POSTES.length + ' postes suivis · ' + restaurantEmployees().length + ' équipiers'},
-      {cls:'production', label:'Production', pct:groupStats[0].pct, sub:'8 postes cuisine'},
-      {cls:'service', label:'Service', pct:groupStats[1].pct, sub:'3 postes comptoir/salle'},
-      {cls:'autres', label:'Autres', pct:groupStats[2].pct, sub:'5 postes support (ouverture, plonge…)'}
+      {cls:'global', label:'Taux de polyvalence global', pct:globalPct, sub: nbCore + ' postes suivis (hors Autres) · ' + restaurantEmployees().length + ' équipiers'},
+      {cls:'production', label:'Production', pct:groupStats[0].pct, sub: groupStats[0].count + ' poste' + (groupStats[0].count>1?'s':'') + ' cuisine'},
+      {cls:'service', label:'Service', pct:groupStats[1].pct, sub: groupStats[1].count + ' poste' + (groupStats[1].count>1?'s':'') + ' comptoir/salle'},
+      {cls:'autres', label:'Autres', pct:groupStats[2].pct, sub: groupStats[2].count + ' poste' + (groupStats[2].count>1?'s':'') + ' support (ouverture, plonge…)'}
     ];
     wrap.innerHTML = cards.map(c => `
       <div class="kpi-card ${c.cls}">
