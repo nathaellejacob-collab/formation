@@ -716,20 +716,44 @@
     appearance:none; border:1px solid var(--line); border-radius:8px; background:#fff; color:var(--ink-soft);
     font-size:12px; font-weight:700; padding:7px 14px; cursor:pointer;
   }
-  .planning-proposal.validated{opacity:0.5;}
+  .planning-undo-btn{
+    appearance:none; border:1px solid var(--line); border-radius:8px; background:#fff; color:var(--ink-soft);
+    font-size:11.5px; font-weight:700; padding:6px 12px; cursor:pointer;
+  }
+  .planning-undo-btn:hover{border-color:var(--amber-dark); color:var(--amber-dark);}
+  .planning-proposal.validated{opacity:0.75;}
   .planning-shortage{
     margin-top:16px; padding:12px 16px; border-radius:10px; background:#fdf1de;
     color:var(--amber-dark); font-size:12.5px; font-weight:600;
   }
   .planning-empty{color:var(--ink-soft); font-size:13px; padding:16px 0;}
 
-  .competence-toggle-btn, .restriction-toggle-btn{
+  .restriction-toggle-btn{
     appearance:none; border:1px solid var(--line); border-radius:8px; background:#fff;
     color:var(--navy-2); font-size:12px; font-weight:700; padding:8px 14px; cursor:pointer;
     margin-bottom:14px;
   }
-  .competence-toggle-btn:hover, .restriction-toggle-btn:hover{border-color:var(--amber-dark); color:var(--amber-dark);}
-  .competence-matrix-wrap, .restriction-matrix-wrap{display:none;}
+  .restriction-toggle-btn:hover{border-color:var(--amber-dark); color:var(--amber-dark);}
+  .restriction-matrix-wrap{display:none;}
+
+  .toggle-comp-btn{
+    appearance:none; border:1px solid var(--line); border-radius:8px; background:#fff;
+    color:var(--navy-2); font-size:11.5px; font-weight:700; padding:7px 12px; cursor:pointer;
+  }
+  .toggle-comp-btn:hover{border-color:var(--amber-dark); color:var(--amber-dark);}
+  .comp-checklist{
+    margin-top:10px; padding:12px 14px; background:#faf9f4; border:1px solid var(--line);
+    border-radius:10px; display:flex; flex-direction:column; gap:12px;
+  }
+  .comp-group-label{
+    font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.04em;
+    color:var(--ink-soft); margin-bottom:6px;
+  }
+  .comp-check-row{
+    display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--ink);
+    padding:3px 0; cursor:pointer;
+  }
+  .comp-check-row input{flex-shrink:0;}
 
   .bar-row{
     display:grid;
@@ -1207,10 +1231,6 @@
       <button type="button" id="closeManageFormateurs" class="modal-close-btn">✕</button>
     </div>
     <div id="formateurManageList" class="poste-upload-list"></div>
-    <button type="button" id="toggleCompetenceMatrixBtn" class="competence-toggle-btn">🎯 Voir/gérer les postes que chacun peut former</button>
-    <div id="competenceMatrixWrap" class="competence-matrix-wrap matrix-wrap">
-      <table class="matrix-table" id="competenceMatrixTable"></table>
-    </div>
     <form id="addFormateurForm" style="margin-top:16px; border-top:1px dashed var(--line); padding-top:16px; display:flex; flex-direction:column; gap:6px;">
       <label for="newFormateurNom">Ajouter un formateur</label>
       <input type="text" id="newFormateurNom" required placeholder="Prénom NOM" autocomplete="off">
@@ -1269,7 +1289,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
   // Postes qui ne sont jamais utilisés pour de la formation planifiée, ni
   // affichés dans les matrices compétences/restrictions (pas de sens à les y
   // faire figurer). Utilisé par la planification ET les deux matrices.
-  const PLANNING_EXCLUDED_POSTE_KEYS = new Set(['ouverture','fermeture','livraison','plonge','huiles','tempering','oeufs','petit_dej']);
+  const PLANNING_EXCLUDED_POSTE_KEYS = new Set(['plonge','oeufs','petit_dej']);
   const TRAINABLE_POSTES = POSTES.filter(p => !PLANNING_EXCLUDED_POSTE_KEYS.has(p.key));
 
   const TRAININGS = [
@@ -1639,14 +1659,12 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       return isGerant ? currentRestaurant : fixedRestaurant;
     }
 
-    // ---- Matrice des compétences (quels postes chaque formateur peut former) ----
-    const toggleCompetenceMatrixBtn = document.getElementById('toggleCompetenceMatrixBtn');
-    const competenceMatrixWrap = document.getElementById('competenceMatrixWrap');
-    const competenceMatrixTable = document.getElementById('competenceMatrixTable');
-    let competenceMatrixLoaded = false;
+    // ---- Compétences (quels postes chaque formateur peut former) ----
+    // Une checklist verticale par formateur, groupée par famille — plus
+    // lisible qu'une matrice large dans un modal étroit.
+    let competencesByNom = {};
 
-    async function loadAndRenderCompetenceMatrix(){
-      competenceMatrixTable.innerHTML = '<tbody><tr><td style="padding:16px;color:var(--ink-soft);">Chargement…</td></tr></tbody>';
+    async function loadCompetences(){
       try{
         const restaurant = targetRestaurantForFormateurs();
         const res = await fetch(APPS_SCRIPT_URL, {
@@ -1655,59 +1673,58 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
           body: JSON.stringify(authBody({ sheet: 'get_formateur_competences', targetRestaurant: restaurant }))
         });
         const data = await res.json();
-        if(!data.ok) throw new Error(data.error || 'Erreur de chargement');
-        const formateurs = data.formateurs || [];
-        const thead = `<thead><tr><th>Formateur</th>${TRAINABLE_POSTES.map(p => `<th title="${p.label}">${p.short || p.label}</th>`).join('')}</tr></thead>`;
-        const tbody = '<tbody>' + (formateurs.length ? formateurs.map(f => `
-          <tr>
-            <td class="name-col">${f.nom}</td>
-            ${TRAINABLE_POSTES.map(p => {
-              const idx = POSTES.indexOf(p);
-              return `<td class="cell-td"><span class="matrix-dot clickable ${f.competences[idx] ? 'on '+p.group : ''}" data-nom="${f.nom.replace(/"/g,'&quot;')}" data-idx="${idx}" title="${p.label} — cliquer pour ${f.competences[idx] ? 'retirer' : 'ajouter'}"></span></td>`;
-            }).join('')}
-          </tr>
-        `).join('') : `<tr><td colspan="${TRAINABLE_POSTES.length+1}" style="padding:16px;color:var(--ink-soft);text-align:center;">Aucun formateur actif pour ce restaurant.</td></tr>`) + '</tbody>';
-        competenceMatrixTable.innerHTML = thead + tbody;
-
-        competenceMatrixTable.querySelectorAll('.matrix-dot.clickable').forEach(dot => {
-          dot.addEventListener('click', async () => {
-            const nom = dot.dataset.nom;
-            const idx = Number(dot.dataset.idx);
-            const poste = POSTES[idx];
-            const newVal = !dot.classList.contains('on');
-            dot.style.opacity = '0.4';
-            try{
-              const restaurant = targetRestaurantForFormateurs();
-              const r = await fetch(APPS_SCRIPT_URL, {
-                method: 'POST',
-                headers: {'Content-Type': 'text/plain;charset=utf-8'},
-                body: JSON.stringify(authBody({ sheet: 'update_formateur_competence', targetRestaurant: restaurant, nom, posteLabel: poste.label, value: newVal }))
-              });
-              const d = await r.json();
-              if(!d.ok) throw new Error(d.error || 'Échec');
-              dot.classList.toggle('on', newVal);
-              dot.classList.toggle(poste.group, newVal);
-              dot.title = poste.label + ' — cliquer pour ' + (newVal ? 'retirer' : 'ajouter');
-            } catch(err){
-              alert('Erreur : ' + err.message);
-            } finally {
-              dot.style.opacity = '';
-            }
-          });
-        });
-      } catch(err){
-        competenceMatrixTable.innerHTML = '<tbody><tr><td style="padding:16px;color:var(--red);">Erreur : ' + err.message + '</td></tr></tbody>';
-      }
+        competencesByNom = {};
+        (data.formateurs || []).forEach(f => { competencesByNom[f.nom] = f.competences; });
+      } catch(err){ /* la liste des formateurs reste utilisable même si les compétences échouent à charger */ }
     }
 
-    if(toggleCompetenceMatrixBtn){
-      toggleCompetenceMatrixBtn.addEventListener('click', () => {
-        const isOpen = competenceMatrixWrap.style.display === 'block';
-        competenceMatrixWrap.style.display = isOpen ? 'none' : 'block';
-        if(!isOpen && !competenceMatrixLoaded){
-          competenceMatrixLoaded = true;
-          loadAndRenderCompetenceMatrix();
-        }
+    function competenceChecklistHtml(nom){
+      const comp = competencesByNom[nom] || TRAINABLE_POSTES.map(() => true);
+      const groups = [['production','Production'], ['service','Service'], ['autres','Autres']];
+      return groups.map(([g, label]) => {
+        const postesInGroup = TRAINABLE_POSTES.filter(p => p.group === g);
+        if(!postesInGroup.length) return '';
+        return `<div class="comp-group">
+          <div class="comp-group-label">${label}</div>
+          ${postesInGroup.map(p => {
+            const idx = POSTES.indexOf(p);
+            const checked = !!comp[idx];
+            return `<label class="comp-check-row">
+              <input type="checkbox" class="comp-checkbox" data-nom="${nom.replace(/"/g,'&quot;')}" data-idx="${idx}" ${checked ? 'checked' : ''}>
+              <span>${p.label}</span>
+            </label>`;
+          }).join('')}
+        </div>`;
+      }).join('');
+    }
+
+    function wireCompetenceCheckboxes(container){
+      container.querySelectorAll('.comp-checkbox').forEach(cb => {
+        cb.addEventListener('click', async (ev) => {
+          ev.stopPropagation();
+          const nom = cb.dataset.nom;
+          const idx = Number(cb.dataset.idx);
+          const poste = POSTES[idx];
+          const newVal = cb.checked;
+          cb.disabled = true;
+          try{
+            const restaurant = targetRestaurantForFormateurs();
+            const res = await fetch(APPS_SCRIPT_URL, {
+              method: 'POST',
+              headers: {'Content-Type': 'text/plain;charset=utf-8'},
+              body: JSON.stringify(authBody({ sheet: 'update_formateur_competence', targetRestaurant: restaurant, nom, posteLabel: poste.label, value: newVal }))
+            });
+            const d = await res.json();
+            if(!d.ok) throw new Error(d.error || 'Échec');
+            if(!competencesByNom[nom]) competencesByNom[nom] = TRAINABLE_POSTES.map(() => true);
+            competencesByNom[nom][idx] = newVal;
+          } catch(err){
+            alert('Erreur : ' + err.message);
+            cb.checked = !newVal;
+          } finally {
+            cb.disabled = false;
+          }
+        });
       });
     }
 
@@ -1719,11 +1736,31 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
               <button type="button" class="toggle-formateur-btn" data-nom="${f.nom.replace(/"/g,'&quot;')}" data-actif="${f.actif}">${f.actif ? 'Désactiver' : 'Réactiver'}</button>
             </div>
             <div style="display:flex; gap:6px; margin-top:6px; flex-wrap:wrap;">
+              <button type="button" class="toggle-comp-btn" data-nom="${f.nom.replace(/"/g,'&quot;')}">🎯 Postes qu'il/elle peut former</button>
               <button type="button" class="verif-folder-btn edit-formateur-code-btn" data-nom="${f.nom.replace(/"/g,'&quot;')}">🔑 Modifier le code</button>
               <button type="button" class="verif-folder-btn delete-formateur-btn" data-nom="${f.nom.replace(/"/g,'&quot;')}" style="color:var(--red); border-color:var(--red);">🗑️ Supprimer définitivement</button>
             </div>
+            <div class="comp-checklist" data-nom="${f.nom.replace(/"/g,'&quot;')}" style="display:none;"></div>
           </div>`).join('')
         : '<p style="color:var(--ink-soft);font-size:13px;">Aucun formateur enregistré pour ce restaurant pour l\'instant.</p>';
+
+      formateurManageList.querySelectorAll('.toggle-comp-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const nom = btn.dataset.nom;
+          const box = formateurManageList.querySelector(`.comp-checklist[data-nom="${CSS.escape(nom)}"]`);
+          const isOpen = box.style.display !== 'none';
+          if(isOpen){ box.style.display = 'none'; return; }
+          if(!box.innerHTML){
+            box.innerHTML = '<p style="color:var(--ink-soft);font-size:12px;">Chargement…</p>';
+            box.style.display = 'block';
+            if(Object.keys(competencesByNom).length === 0) await loadCompetences();
+            box.innerHTML = competenceChecklistHtml(nom);
+            wireCompetenceCheckboxes(box);
+          } else {
+            box.style.display = 'block';
+          }
+        });
+      });
 
       formateurManageList.querySelectorAll('.edit-formateur-code-btn').forEach(btn => {
         btn.addEventListener('click', async () => {
@@ -1817,9 +1854,8 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     manageFormateursBtn.addEventListener('click', () => {
       addFormateurError.style.display = 'none';
       addFormateurForm.reset();
+      competencesByNom = {};
       loadAndRenderFormateurs();
-      competenceMatrixLoaded = false;
-      competenceMatrixWrap.style.display = 'none';
       formateursModal.style.display = 'flex';
     });
     closeFormateursBtn.addEventListener('click', () => { formateursModal.style.display = 'none'; });
@@ -3144,7 +3180,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         ${canManagePlanning ? `
           <div class="pp-actions">
             ${p.statut === 'Validé'
-              ? '<span style="color:var(--green);font-weight:700;font-size:12px;">✓ Validé</span>'
+              ? '<span style="color:var(--green);font-weight:700;font-size:12px;">✓ Validé</span><button type="button" class="planning-undo-btn">↩ Annuler</button>'
               : `<button type="button" class="planning-validate-btn">✓ Valider</button><button type="button" class="planning-ignore-btn">✗ Ignorer</button>`}
           </div>
         ` : `<span style="margin-left:auto;font-size:11.5px;color:var(--ink-soft);font-weight:700;">${p.statut === 'Validé' ? '✓ Validé' : 'Proposé'}</span>`}
@@ -3158,6 +3194,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       const p = proposals.find(x => x.rowIndex === rowIndex);
       const ignoreBtn = row.querySelector('.planning-ignore-btn');
       const validateBtn = row.querySelector('.planning-validate-btn');
+      const undoBtn = row.querySelector('.planning-undo-btn');
       if(ignoreBtn) ignoreBtn.addEventListener('click', async () => {
         ignoreBtn.disabled = true;
         try{
@@ -3184,12 +3221,35 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
             }))
           });
           row.classList.add('validated');
-          row.querySelector('.pp-actions').innerHTML = '<span style="color:var(--green);font-weight:700;font-size:12px;">✓ Validé</span>';
+          row.querySelector('.pp-actions').innerHTML = '<span style="color:var(--green);font-weight:700;font-size:12px;">✓ Validé</span><button type="button" class="planning-undo-btn">↩ Annuler</button>';
+          wireUndoBtn(row, rowIndex);
         } catch(err){
           alert('Erreur : ' + err.message);
           validateBtn.disabled = false;
         }
       });
+      if(undoBtn) wireUndoBtn(row, rowIndex);
+    });
+  }
+
+  function wireUndoBtn(row, rowIndex){
+    const btn = row.querySelector('.planning-undo-btn');
+    if(!btn) return;
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      try{
+        await fetch(APPS_SCRIPT_URL, {
+          method: 'POST',
+          headers: {'Content-Type': 'text/plain;charset=utf-8'},
+          body: JSON.stringify(authBody({ sheet: 'update_planning_status', rowIndex, statut: 'Proposé' }))
+        });
+        row.classList.remove('validated');
+        row.querySelector('.pp-actions').innerHTML = '<button type="button" class="planning-validate-btn">✓ Valider</button><button type="button" class="planning-ignore-btn">✗ Ignorer</button>';
+        loadPersistedPlanning(); // recharge proprement pour rebrancher les bons écouteurs
+      } catch(err){
+        alert('Erreur : ' + err.message);
+        btn.disabled = false;
+      }
     });
   }
 
