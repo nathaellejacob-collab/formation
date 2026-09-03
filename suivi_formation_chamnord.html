@@ -1949,9 +1949,57 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       if(!canManage) return '';
       return `<div class="delete-section" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
         <button class="rename-emp-btn" data-nom="${nom.replace(/"/g,'&quot;')}">✏️ Modifier le nom</button>
+        <button class="rename-date-btn" data-nom="${nom.replace(/"/g,'&quot;')}">📅 Modifier la date d'entrée</button>
         <button class="delete-emp-btn" data-nom="${nom.replace(/"/g,'&quot;')}">Supprimer ${cfg.personLabelSingular}</button>
         <span class="delete-status"></span>
       </div>`;
+    }
+
+    function wireDateEntreeButton(container, nom, onChanged){
+      const btn = container.querySelector('.rename-date-btn');
+      if(!btn) return;
+      btn.addEventListener('click', async (ev) => {
+        ev.stopPropagation();
+        const targetPerson = list.find(e => e.nom === nom);
+        const current = targetPerson ? targetPerson.dateEntree : '';
+        const input = window.prompt(`Nouvelle date d'entrée pour ${nom} (format AAAA-MM-JJ) :`, current || '');
+        if(input === null) return;
+        const trimmed = input.trim();
+        if(!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)){
+          alert("Format invalide — utilise AAAA-MM-JJ, par exemple 2024-03-15.");
+          return;
+        }
+        if(trimmed === current) return;
+        const statusSpan = container.querySelector('.delete-status');
+        btn.disabled = true;
+        if(statusSpan){ statusSpan.textContent = 'Modification…'; statusSpan.className = 'delete-status pending'; }
+        try{
+          const category = cfg.sheetKey === 'gestion' ? 'gestion' : 'nouveaux';
+          await postUpdate('update_date_entree', nom, null, null, {
+            dateEntree: trimmed, category,
+            targetRestaurant: targetPerson ? targetPerson.restaurant : undefined
+          });
+          if(targetPerson){
+            targetPerson.dateEntree = trimmed;
+            const entreeDt = new Date(trimmed + 'T00:00:00');
+            targetPerson.ancienneteMois = Math.max(0, Math.round((today - entreeDt) / (1000*60*60*24*30.44)));
+            if(cfg.hasSuivi4s){
+              targetPerson.suivi4sButoir = addMonthsJS(trimmed, 1);
+              targetPerson.suivi60jButoir = addDaysJS(trimmed, 60);
+            }
+            computeDerived(targetPerson);
+          }
+          renderStats();
+          render();
+          afterChange();
+          onChanged(trimmed);
+        } catch(err){
+          if(statusSpan){ statusSpan.textContent = 'Erreur : ' + err.message; statusSpan.className = 'delete-status error'; }
+          alert('Erreur : ' + err.message);
+        } finally {
+          btn.disabled = false;
+        }
+      });
     }
 
     function wireRenameButton(container, nom, onRenamed){
@@ -2123,6 +2171,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         wireSaveButtons(exp);
         wireVerifUpload(exp);
         wireRenameButton(exp, e.nom, () => { openDetailNoms.delete(e.nom); exp.remove(); tr.remove(); });
+        wireDateEntreeButton(exp, e.nom, () => {});
         wireDeleteButton(exp, e.nom, () => { openDetailNoms.delete(e.nom); exp.remove(); tr.remove(); });
         exp.querySelector('.collapse-detail-btn').addEventListener('click', (ev) => {
           ev.stopPropagation();
@@ -2159,6 +2208,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         wireSaveButtons(detailWrap);
         wireVerifUpload(detailWrap);
         wireRenameButton(detailWrap, e.nom, () => { openDetailNoms.delete(e.nom); card.remove(); });
+        wireDateEntreeButton(detailWrap, e.nom, () => {});
         wireDeleteButton(detailWrap, e.nom, () => { openDetailNoms.delete(e.nom); card.remove(); });
         detailWrap.querySelector('.collapse-detail-btn').addEventListener('click', () => {
           openDetailNoms.delete(e.nom);
