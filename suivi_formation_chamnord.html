@@ -581,6 +581,11 @@
     padding:14px 20px 18px; border-top:1px dashed var(--line); margin-top:4px;
     display:flex; align-items:center; gap:10px; flex-wrap:wrap;
   }
+  .collapse-detail-btn{
+    display:block; margin:2px 20px 14px; appearance:none; border:none; background:none;
+    color:var(--ink-soft); font-size:11.5px; font-weight:700; cursor:pointer; padding:4px 0;
+  }
+  .collapse-detail-btn:hover{color:var(--ink);}
   .delete-emp-btn{
     appearance:none; border:1px solid var(--red-line); border-radius:8px;
     background:var(--red-bg); color:var(--red); font-size:12px; font-weight:700;
@@ -1852,6 +1857,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
 
     const statsRow = document.getElementById(cfg.ids.statsRow);
     let activeFilter = 'all';
+    const openDetailNoms = new Set(); // noms dont la fiche détail reste ouverte (survit à un re-rendu après enregistrement)
 
     function renderStats(){
       const c = computeCounts();
@@ -1910,14 +1916,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     }
 
     function verifUploadHtml(nom, key, label, restaurant){
-      if(!VERIF_AVAILABLE.has(key)) return '';
-      const safeNom = nom.replace(/"/g,'&quot;');
-      const safeRest = (restaurant || '').replace(/"/g,'&quot;');
-      const category = cfg.sheetKey === 'gestion' ? 'gestion' : 'nouveaux';
-      return `<div class="verif-upload">
-        <button type="button" class="verif-folder-btn" data-nom="${safeNom}" data-restaurant="${safeRest}" data-category="${category}" data-scope="formation" data-key="${key}">📁 Voir les fiches déjà envoyées</button>
-        <span class="verif-folder-status"></span>
-      </div>`;
+      return '';
     }
 
     function detailCardHtml(e){
@@ -2017,6 +2016,14 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     }
 
     function wireSaveButtons(container){
+      container.querySelectorAll('.fait-input').forEach(input => {
+        input.addEventListener('keydown', (ev) => {
+          if(ev.key !== 'Enter') return;
+          ev.preventDefault();
+          const btn = input.nextElementSibling; // .save-btn, toujours juste après le champ
+          if(btn && btn.classList.contains('save-btn')) btn.click();
+        });
+      });
       container.querySelectorAll('.save-btn').forEach(btn => {
         btn.addEventListener('click', async (ev) => {
           ev.stopPropagation();
@@ -2106,6 +2113,24 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       emptyState.style.display = filtered.length ? 'none' : 'block';
       const colCount = (trainingFocus ? 1 : trainings.length) + 1;
 
+      function openRowDetail(tr, e, rowId){
+        tbody.querySelectorAll('.expand-row').forEach(r => r.remove());
+        const exp = document.createElement('tr');
+        exp.className = 'expand-row';
+        exp.id = rowId;
+        exp.innerHTML = `<td colspan="${colCount}"><div class="expand-inner">${detailCardHtml(e)}</div>${deleteSectionHtml(e.nom)}<button type="button" class="collapse-detail-btn">▲ Masquer les vérifications</button></td>`;
+        tr.after(exp);
+        wireSaveButtons(exp);
+        wireVerifUpload(exp);
+        wireRenameButton(exp, e.nom, () => { openDetailNoms.delete(e.nom); exp.remove(); tr.remove(); });
+        wireDeleteButton(exp, e.nom, () => { openDetailNoms.delete(e.nom); exp.remove(); tr.remove(); });
+        exp.querySelector('.collapse-detail-btn').addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          openDetailNoms.delete(e.nom);
+          exp.remove();
+        });
+      }
+
       tbody.innerHTML = '';
       filtered.forEach((e, idx) => {
         const rowId = cfg.sheetKey + '-row-' + idx;
@@ -2119,20 +2144,28 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         `;
         tr.addEventListener('click', () => {
           const existing = document.getElementById(rowId);
-          if(existing){ existing.remove(); return; }
-          tbody.querySelectorAll('.expand-row').forEach(r => r.remove());
-          const exp = document.createElement('tr');
-          exp.className = 'expand-row';
-          exp.id = rowId;
-          exp.innerHTML = `<td colspan="${colCount}"><div class="expand-inner">${detailCardHtml(e)}</div>${deleteSectionHtml(e.nom)}</td>`;
-          tr.after(exp);
-          wireSaveButtons(exp);
-          wireVerifUpload(exp);
-          wireRenameButton(exp, e.nom, () => { exp.remove(); tr.remove(); });
-          wireDeleteButton(exp, e.nom, () => { exp.remove(); tr.remove(); });
+          if(existing){ openDetailNoms.delete(e.nom); existing.remove(); return; }
+          openDetailNoms.add(e.nom);
+          openRowDetail(tr, e, rowId);
         });
         tbody.appendChild(tr);
+        if(openDetailNoms.has(e.nom)) openRowDetail(tr, e, rowId);
       });
+
+      function openCardDetail(card, editBtn, detailWrap, e){
+        detailWrap.innerHTML = `<div class="expand-inner">${detailCardHtml(e)}</div>${deleteSectionHtml(e.nom)}<button type="button" class="collapse-detail-btn">▲ Masquer les vérifications</button>`;
+        detailWrap.style.display = 'block';
+        editBtn.textContent = 'Masquer';
+        wireSaveButtons(detailWrap);
+        wireVerifUpload(detailWrap);
+        wireRenameButton(detailWrap, e.nom, () => { openDetailNoms.delete(e.nom); card.remove(); });
+        wireDeleteButton(detailWrap, e.nom, () => { openDetailNoms.delete(e.nom); card.remove(); });
+        detailWrap.querySelector('.collapse-detail-btn').addEventListener('click', () => {
+          openDetailNoms.delete(e.nom);
+          detailWrap.style.display = 'none';
+          editBtn.textContent = 'Saisir une date de réalisation';
+        });
+      }
 
       cardsWrap.innerHTML = '';
       filtered.forEach(e => {
@@ -2153,16 +2186,12 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         const detailWrap = card.querySelector('.card-detail');
         editBtn.addEventListener('click', () => {
           const isOpen = detailWrap.style.display !== 'none';
-          if(isOpen){ detailWrap.style.display = 'none'; editBtn.textContent = 'Saisir une date de réalisation'; return; }
-          detailWrap.innerHTML = `<div class="expand-inner">${detailCardHtml(e)}</div>${deleteSectionHtml(e.nom)}`;
-          detailWrap.style.display = 'block';
-          editBtn.textContent = 'Masquer';
-          wireSaveButtons(detailWrap);
-          wireVerifUpload(detailWrap);
-          wireRenameButton(detailWrap, e.nom, () => { card.remove(); });
-          wireDeleteButton(detailWrap, e.nom, () => { card.remove(); });
+          if(isOpen){ openDetailNoms.delete(e.nom); detailWrap.style.display = 'none'; editBtn.textContent = 'Saisir une date de réalisation'; return; }
+          openDetailNoms.add(e.nom);
+          openCardDetail(card, editBtn, detailWrap, e);
         });
         cardsWrap.appendChild(card);
+        if(openDetailNoms.has(e.nom)) openCardDetail(card, editBtn, detailWrap, e);
       });
     }
 
