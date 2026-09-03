@@ -1859,6 +1859,11 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     const addPosteError = document.getElementById('addPosteError');
     const managePostesBtn = document.getElementById('managePostesBtn');
 
+    // Seul le gérant ou un "Responsable formation" actif peut gérer les postes.
+    if(!isGerant && sessionRole !== 'Responsable'){
+      managePostesBtn.style.display = 'none';
+    }
+
     const GROUP_LABELS = {production:'Production', service:'Service', autres:'Autres'};
 
     function renderPosteList(list){
@@ -2590,6 +2595,14 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     tabComparaisonBtn.style.display = '';
   }
 
+  // Seul le gérant ou un "Responsable formation" actif voit l'onglet Activité —
+  // invisible pour un simple formateur.
+  const canSeeActivite = isGerant || sessionRole === 'Responsable';
+  const tabActiviteBtn = document.querySelector('.tab-btn[data-tab="activite"]');
+  if(tabActiviteBtn && !canSeeActivite){
+    tabActiviteBtn.style.display = 'none';
+  }
+
   tabBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       tabBtns.forEach(b => b.classList.toggle('active', b === btn));
@@ -2605,6 +2618,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       statsRowGestionEl.style.display = tab === 'gestion' ? '' : 'none';
       if(tab === 'comparaison'){ renderComparaisonCharts(); renderComparaison(); }
       if(tab === 'activite'){ renderActivite(); }
+      if(tab === 'planification'){ loadPersistedPlanning(); }
     });
   });
 
@@ -3111,79 +3125,139 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     return { proposals, shortages };
   }
 
-  function renderPlanningResults(proposals, shortages){
+  const canManagePlanning = isGerant || sessionRole === 'Responsable';
+
+  function renderPersistedPlanning(proposals){
     const wrap = document.getElementById('planningResults');
-    if(proposals.length === 0 && shortages.length === 0){
-      wrap.innerHTML = '<p class="planning-empty">Rien à proposer ce mois-ci — soit tous les équipiers éligibles sont déjà à jour sur leur famille de postes en cours, soit aucun formateur n\'a de compétence enregistrée. Vérifie les compétences des formateurs si ça te semble anormal.</p>';
+    if(!proposals.length){
+      wrap.innerHTML = '<p class="planning-empty">' + (canManagePlanning
+        ? 'Aucun planning généré pour l\'instant — clique « Générer le planning du mois » ci-dessus.'
+        : 'Aucun planning n\'a encore été généré par le responsable formation pour ce mois-ci.') + '</p>';
       return;
     }
-    wrap.innerHTML = proposals.map((p, i) => `
-      <div class="planning-proposal" data-idx="${i}">
+    wrap.innerHTML = proposals.map(p => `
+      <div class="planning-proposal ${p.statut === 'Validé' ? 'validated' : ''}" data-row="${p.rowIndex}">
         <span class="pp-formateur">${p.formateur}</span>
         <span class="pp-arrow">→</span>
         <span class="pp-equipier">${p.equipier}</span>
         <span class="pp-poste">${p.posteLabel}</span>
-        <div class="pp-actions">
-          <button type="button" class="planning-validate-btn">✓ Valider</button>
-          <button type="button" class="planning-ignore-btn">✗ Ignorer</button>
-        </div>
+        ${canManagePlanning ? `
+          <div class="pp-actions">
+            ${p.statut === 'Validé'
+              ? '<span style="color:var(--green);font-weight:700;font-size:12px;">✓ Validé</span>'
+              : `<button type="button" class="planning-validate-btn">✓ Valider</button><button type="button" class="planning-ignore-btn">✗ Ignorer</button>`}
+          </div>
+        ` : `<span style="margin-left:auto;font-size:11.5px;color:var(--ink-soft);font-weight:700;">${p.statut === 'Validé' ? '✓ Validé' : 'Proposé'}</span>`}
       </div>
-    `).join('') + (shortages.length ? '<div class="planning-shortage">' +
-      shortages.map(s => `${s.formateur} : ${s.manquant} proposition${s.manquant>1?'s':''} de moins que l'objectif (pas assez de besoins compatibles avec ses compétences ce mois-ci)`).join('<br>') +
-      '</div>' : '');
+    `).join('');
+
+    if(!canManagePlanning) return; // lecture seule pour un simple formateur
 
     wrap.querySelectorAll('.planning-proposal').forEach(row => {
-      const idx = Number(row.dataset.idx);
-      const p = proposals[idx];
-      row.querySelector('.planning-ignore-btn').addEventListener('click', () => row.remove());
-      row.querySelector('.planning-validate-btn').addEventListener('click', async (ev) => {
-        const btn = ev.currentTarget;
-        btn.disabled = true;
+      const rowIndex = Number(row.dataset.row);
+      const p = proposals.find(x => x.rowIndex === rowIndex);
+      const ignoreBtn = row.querySelector('.planning-ignore-btn');
+      const validateBtn = row.querySelector('.planning-validate-btn');
+      if(ignoreBtn) ignoreBtn.addEventListener('click', async () => {
+        ignoreBtn.disabled = true;
+        try{
+          await fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            headers: {'Content-Type': 'text/plain;charset=utf-8'},
+            body: JSON.stringify(authBody({ sheet: 'update_planning_status', rowIndex, statut: 'Ignoré' }))
+          });
+          row.remove();
+        } catch(err){
+          alert('Erreur : ' + err.message);
+          ignoreBtn.disabled = false;
+        }
+      });
+      if(validateBtn) validateBtn.addEventListener('click', async () => {
+        validateBtn.disabled = true;
         try{
           await fetch(APPS_SCRIPT_URL, {
             method: 'POST',
             headers: {'Content-Type': 'text/plain;charset=utf-8'},
             body: JSON.stringify(authBody({
-              sheet: 'log_planning_validation',
+              sheet: 'update_planning_status', rowIndex, statut: 'Validé',
               equipier: p.equipier, formateurAssigne: p.formateur, posteLabel: p.posteLabel
             }))
           });
           row.classList.add('validated');
-          row.querySelector('.pp-actions').innerHTML = '<span style="color:var(--green);font-weight:700;font-size:12px;">✓ Enregistré dans le journal</span>';
+          row.querySelector('.pp-actions').innerHTML = '<span style="color:var(--green);font-weight:700;font-size:12px;">✓ Validé</span>';
         } catch(err){
           alert('Erreur : ' + err.message);
-          btn.disabled = false;
+          validateBtn.disabled = false;
         }
       });
     });
   }
 
+  async function loadPersistedPlanning(){
+    const wrap = document.getElementById('planningResults');
+    wrap.innerHTML = '<p class="planning-empty">Chargement…</p>';
+    try{
+      const res = await fetch(APPS_SCRIPT_URL, {
+        method: 'POST',
+        headers: {'Content-Type': 'text/plain;charset=utf-8'},
+        body: JSON.stringify(authBody({ sheet: 'get_planning' }))
+      });
+      const data = await res.json();
+      if(!data.ok) throw new Error(data.error || 'Erreur de chargement');
+      renderPersistedPlanning(data.proposals || []);
+    } catch(err){
+      wrap.innerHTML = '<p class="planning-empty" style="color:var(--red);">Erreur : ' + err.message + '</p>';
+    }
+  }
+
   const generatePlanningBtn = document.getElementById('generatePlanningBtn');
   if(generatePlanningBtn){
-    generatePlanningBtn.addEventListener('click', async () => {
-      generatePlanningBtn.disabled = true;
-      generatePlanningBtn.textContent = 'Génération…';
-      const wrap = document.getElementById('planningResults');
-      wrap.innerHTML = '<p class="planning-empty">Chargement des compétences formateurs…</p>';
-      try{
-        const res = await fetch(APPS_SCRIPT_URL, {
-          method: 'POST',
-          headers: {'Content-Type': 'text/plain;charset=utf-8'},
-          body: JSON.stringify(authBody({ sheet: 'get_formateur_competences' }))
-        });
-        const data = await res.json();
-        if(!data.ok) throw new Error(data.error || 'Erreur de chargement');
-        const needsByEmp = computePlanningNeeds();
-        const { proposals, shortages } = matchFormateursToNeeds(needsByEmp, data.formateurs || []);
-        renderPlanningResults(proposals, shortages);
-      } catch(err){
-        wrap.innerHTML = '<p class="planning-empty" style="color:var(--red);">Erreur : ' + err.message + '</p>';
-      } finally {
-        generatePlanningBtn.disabled = false;
-        generatePlanningBtn.textContent = '🧮 Générer le planning du mois';
-      }
-    });
+    if(!canManagePlanning){
+      // Seul le Responsable formation ou le gérant peut générer/modifier le
+      // planning — un simple formateur peut seulement le consulter.
+      generatePlanningBtn.style.display = 'none';
+    } else {
+      generatePlanningBtn.addEventListener('click', async () => {
+        generatePlanningBtn.disabled = true;
+        generatePlanningBtn.textContent = 'Génération…';
+        const wrap = document.getElementById('planningResults');
+        wrap.innerHTML = '<p class="planning-empty">Chargement des compétences formateurs…</p>';
+        try{
+          const res = await fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            headers: {'Content-Type': 'text/plain;charset=utf-8'},
+            body: JSON.stringify(authBody({ sheet: 'get_formateur_competences' }))
+          });
+          const data = await res.json();
+          if(!data.ok) throw new Error(data.error || 'Erreur de chargement');
+          const needsByEmp = computePlanningNeeds();
+          const { proposals, shortages } = matchFormateursToNeeds(needsByEmp, data.formateurs || []);
+
+          const saveRes = await fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            headers: {'Content-Type': 'text/plain;charset=utf-8'},
+            body: JSON.stringify(authBody({ sheet: 'save_planning', proposals }))
+          });
+          const saveData = await saveRes.json();
+          if(!saveData.ok) throw new Error(saveData.error || "Échec de l'enregistrement");
+
+          renderPersistedPlanning(saveData.proposals || []);
+          if(shortages.length){
+            const wrap2 = document.getElementById('planningResults');
+            wrap2.insertAdjacentHTML('beforeend', '<div class="planning-shortage">' +
+              shortages.map(s => `${s.formateur} : ${s.manquant} proposition${s.manquant>1?'s':''} de moins que l'objectif (pas assez de besoins compatibles avec ses compétences ce mois-ci)`).join('<br>') +
+              '</div>');
+          }
+        } catch(err){
+          document.getElementById('planningResults').innerHTML = '<p class="planning-empty" style="color:var(--red);">Erreur : ' + err.message + '</p>';
+        } finally {
+          generatePlanningBtn.disabled = false;
+          generatePlanningBtn.textContent = '🧮 Générer le planning du mois';
+        }
+      });
+    }
   }
+
 }
 
 // ============================================================
