@@ -599,6 +599,13 @@
     padding:8px 14px; cursor:pointer;
   }
   .edit-profile-btn:hover{border-color:var(--amber-dark); color:var(--amber-dark);}
+  .arret-toggle-btn{
+    appearance:none; border:1px solid var(--red-line); border-radius:8px;
+    background:var(--red-bg); color:var(--red); font-size:12px; font-weight:700;
+    padding:8px 14px; cursor:pointer;
+  }
+  .arret-toggle-btn[data-actif="true"]{background:var(--green); border-color:var(--green); color:#fff;}
+  .arret-toggle-btn:disabled{opacity:0.6; cursor:default;}
   .edit-profile-save{
     appearance:none; border:none; border-radius:8px; background:var(--ink); color:#fff;
     font-size:12.5px; font-weight:700; padding:9px 16px; cursor:pointer;
@@ -807,6 +814,10 @@
   .matrix-dot.on.restricted{background:var(--red);}
   .score-cell{font-weight:800; font-size:12px;}
   .score-pct{font-weight:600; color:var(--ink-soft); font-size:10.5px;}
+  .arret-badge{
+    display:inline-block; font-size:10.5px; font-weight:700; color:#fff;
+    background:var(--red); padding:2px 8px; border-radius:999px; vertical-align:middle;
+  }
   .score-bar-mini{width:52px; height:6px; border-radius:99px; background:#ece8dc; margin:3px auto 0; overflow:hidden;}
   .score-bar-mini i{display:block; height:100%; background:var(--ink); border-radius:99px;}
 
@@ -932,8 +943,8 @@
     <button class="tab-btn" data-tab="polyvalence">Postes &amp; Polyvalence</button>
     <button class="tab-btn" data-tab="gestion">Équipe de gestion</button>
     <button class="tab-btn" id="tabComparaisonBtn" data-tab="comparaison" style="display:none;">Comparaison</button>
-    <button class="tab-btn" data-tab="activite">Activité</button>
     <button class="tab-btn" data-tab="planification">Planification</button>
+    <button class="tab-btn" data-tab="activite">Activité</button>
   </nav>
 </header>
 
@@ -1254,6 +1265,12 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
   document.getElementById('todayLabel').textContent = today.toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
 
   const POSTES = appData.postes;
+
+  // Postes qui ne sont jamais utilisés pour de la formation planifiée, ni
+  // affichés dans les matrices compétences/restrictions (pas de sens à les y
+  // faire figurer). Utilisé par la planification ET les deux matrices.
+  const PLANNING_EXCLUDED_POSTE_KEYS = new Set(['ouverture','fermeture','livraison','plonge','huiles','tempering','oeufs','petit_dej']);
+  const TRAINABLE_POSTES = POSTES.filter(p => !PLANNING_EXCLUDED_POSTE_KEYS.has(p.key));
 
   const TRAININGS = [
     {key:'secu',    label:'Prévention & Sécurité',      faitKey:'secuFait',    butoirKey:'secuButoir',    period:'6 mois',        oneTime:false},
@@ -1640,13 +1657,16 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         const data = await res.json();
         if(!data.ok) throw new Error(data.error || 'Erreur de chargement');
         const formateurs = data.formateurs || [];
-        const thead = `<thead><tr><th>Formateur</th>${POSTES.map(p => `<th title="${p.label}">${p.short || p.label}</th>`).join('')}</tr></thead>`;
+        const thead = `<thead><tr><th>Formateur</th>${TRAINABLE_POSTES.map(p => `<th title="${p.label}">${p.short || p.label}</th>`).join('')}</tr></thead>`;
         const tbody = '<tbody>' + (formateurs.length ? formateurs.map(f => `
           <tr>
             <td class="name-col">${f.nom}</td>
-            ${POSTES.map((p, idx) => `<td class="cell-td"><span class="matrix-dot clickable ${f.competences[idx] ? 'on '+p.group : ''}" data-nom="${f.nom.replace(/"/g,'&quot;')}" data-idx="${idx}" title="${p.label} — cliquer pour ${f.competences[idx] ? 'retirer' : 'ajouter'}"></span></td>`).join('')}
+            ${TRAINABLE_POSTES.map(p => {
+              const idx = POSTES.indexOf(p);
+              return `<td class="cell-td"><span class="matrix-dot clickable ${f.competences[idx] ? 'on '+p.group : ''}" data-nom="${f.nom.replace(/"/g,'&quot;')}" data-idx="${idx}" title="${p.label} — cliquer pour ${f.competences[idx] ? 'retirer' : 'ajouter'}"></span></td>`;
+            }).join('')}
           </tr>
-        `).join('') : `<tr><td colspan="${POSTES.length+1}" style="padding:16px;color:var(--ink-soft);text-align:center;">Aucun formateur actif pour ce restaurant.</td></tr>`) + '</tbody>';
+        `).join('') : `<tr><td colspan="${TRAINABLE_POSTES.length+1}" style="padding:16px;color:var(--ink-soft);text-align:center;">Aucun formateur actif pour ce restaurant.</td></tr>`) + '</tbody>';
         competenceMatrixTable.innerHTML = thead + tbody;
 
         competenceMatrixTable.querySelectorAll('.matrix-dot.clickable').forEach(dot => {
@@ -2086,13 +2106,14 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       }).join('');
     }
 
-    function deleteSectionHtml(nom, dateEntree){
+    function deleteSectionHtml(nom, dateEntree, enArret){
       const canManage = isGerant || sessionRole === 'Responsable';
       if(!canManage) return '';
       const safeNom = nom.replace(/"/g,'&quot;');
       return `<div class="delete-section" style="display:flex; flex-direction:column; align-items:flex-start; gap:10px;">
         <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
           <button type="button" class="edit-profile-btn">✏️ Modifier le profil</button>
+          <button type="button" class="arret-toggle-btn" data-nom="${safeNom}" data-actif="${!!enArret}">${enArret ? '✓ De retour (fin d\'arrêt)' : '🏥 Déclarer un arrêt maladie'}</button>
           <button class="delete-emp-btn" data-nom="${safeNom}">Supprimer ${cfg.personLabelSingular}</button>
           <span class="delete-status"></span>
         </div>
@@ -2165,6 +2186,37 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
           statusSpan.textContent = 'Erreur : ' + err.message;
           statusSpan.className = 'edit-profile-status error';
           saveBtn.disabled = false;
+        }
+      });
+    }
+
+    function wireArretButton(container, nom){
+      const btn = container.querySelector('.arret-toggle-btn');
+      if(!btn) return;
+      btn.addEventListener('click', async (ev) => {
+        ev.stopPropagation();
+        const current = btn.dataset.actif === 'true';
+        const newVal = !current;
+        if(newVal){
+          const confirmed = window.confirm(`Déclarer ${nom} en arrêt maladie ? Cette personne sera écartée des propositions de planification de formation tant que l'arrêt n'est pas levé.`);
+          if(!confirmed) return;
+        }
+        btn.disabled = true;
+        try{
+          const targetPerson = list.find(e => e.nom === nom);
+          const category = cfg.sheetKey === 'gestion' ? 'gestion' : 'nouveaux';
+          await postUpdate('update_arret', nom, null, null, {
+            value: newVal, category,
+            targetRestaurant: targetPerson ? targetPerson.restaurant : undefined
+          });
+          if(targetPerson) targetPerson.enArret = newVal;
+          renderStats();
+          render();
+          afterChange();
+        } catch(err){
+          alert('Erreur : ' + err.message);
+        } finally {
+          btn.disabled = false;
         }
       });
     }
@@ -2301,11 +2353,12 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         const exp = document.createElement('tr');
         exp.className = 'expand-row';
         exp.id = rowId;
-        exp.innerHTML = `<td colspan="${colCount}"><div class="expand-inner">${detailCardHtml(e)}</div>${deleteSectionHtml(e.nom, e.dateEntree)}<button type="button" class="collapse-detail-btn">▲ Masquer les vérifications</button></td>`;
+        exp.innerHTML = `<td colspan="${colCount}"><div class="expand-inner">${detailCardHtml(e)}</div>${deleteSectionHtml(e.nom, e.dateEntree, e.enArret)}<button type="button" class="collapse-detail-btn">▲ Masquer les vérifications</button></td>`;
         tr.after(exp);
         wireSaveButtons(exp);
         wireVerifUpload(exp);
         wireProfileEditForm(exp, e.nom);
+        wireArretButton(exp, e.nom);
         wireDeleteButton(exp, e.nom, () => { openDetailNoms.delete(e.nom); exp.remove(); tr.remove(); });
         exp.querySelector('.collapse-detail-btn').addEventListener('click', (ev) => {
           ev.stopPropagation();
@@ -2320,7 +2373,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td>
-            <div class="name-cell">${e.nom}</div>
+            <div class="name-cell">${e.nom}${e.enArret ? ' <span class="arret-badge">🏥 Arrêt maladie</span>' : ''}</div>
             <div class="name-sub">${e.dateEntree ? frDate(parseDate(e.dateEntree)) : ''}${e.ancienneteMois != null ? ' · ' + e.ancienneteMois + ' mois d\'ancienneté' : ''}</div>
           </td>
           ${(trainingFocus ? trainings.filter(t => t.key === trainingFocus) : trainings).map(t => `<td>${pillHtml(t, e.statuses[t.key])}</td>`).join('')}
@@ -2336,12 +2389,13 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       });
 
       function openCardDetail(card, editBtn, detailWrap, e){
-        detailWrap.innerHTML = `<div class="expand-inner">${detailCardHtml(e)}</div>${deleteSectionHtml(e.nom, e.dateEntree)}<button type="button" class="collapse-detail-btn">▲ Masquer les vérifications</button>`;
+        detailWrap.innerHTML = `<div class="expand-inner">${detailCardHtml(e)}</div>${deleteSectionHtml(e.nom, e.dateEntree, e.enArret)}<button type="button" class="collapse-detail-btn">▲ Masquer les vérifications</button>`;
         detailWrap.style.display = 'block';
         editBtn.textContent = 'Masquer';
         wireSaveButtons(detailWrap);
         wireVerifUpload(detailWrap);
         wireProfileEditForm(detailWrap, e.nom);
+        wireArretButton(detailWrap, e.nom);
         wireDeleteButton(detailWrap, e.nom, () => { openDetailNoms.delete(e.nom); card.remove(); });
         detailWrap.querySelector('.collapse-detail-btn').addEventListener('click', () => {
           openDetailNoms.delete(e.nom);
@@ -2356,7 +2410,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         card.className = 'emp-card';
         card.innerHTML = `
           <div class="emp-card-head">
-            <div class="name">${e.nom}</div>
+            <div class="name">${e.nom}${e.enArret ? ' <span class="arret-badge">🏥 Arrêt maladie</span>' : ''}</div>
             <div class="anc">${e.dateEntree ? frDate(parseDate(e.dateEntree)) : ''}${e.ancienneteMois != null ? ' · ' + e.ancienneteMois + ' mois' : ''}</div>
           </div>
           <div class="emp-card-grid">
@@ -2868,12 +2922,15 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     const list = restaurantEmployees();
     const thead = `<thead><tr>
       <th class="name-col">Équipier</th>
-      ${POSTES.map(p => `<th title="${p.label}">${p.short || p.label}</th>`).join('')}
+      ${TRAINABLE_POSTES.map(p => `<th title="${p.label}">${p.short || p.label}</th>`).join('')}
     </tr></thead>`;
     const tbody = '<tbody>' + list.map(e => `
       <tr>
         <td class="name-col">${e.nom}</td>
-        ${POSTES.map((p, idx) => `<td class="cell-td"><span class="matrix-dot clickable ${e.restrictions && e.restrictions[idx] ? 'on restricted' : ''}" data-nom="${e.nom.replace(/"/g,'&quot;')}" data-idx="${idx}" title="${p.label} — cliquer pour ${e.restrictions && e.restrictions[idx] ? 'retirer la restriction' : 'restreindre'}"></span></td>`).join('')}
+        ${TRAINABLE_POSTES.map(p => {
+          const idx = POSTES.indexOf(p);
+          return `<td class="cell-td"><span class="matrix-dot clickable ${e.restrictions && e.restrictions[idx] ? 'on restricted' : ''}" data-nom="${e.nom.replace(/"/g,'&quot;')}" data-idx="${idx}" title="${p.label} — cliquer pour ${e.restrictions && e.restrictions[idx] ? 'retirer la restriction' : 'restreindre'}"></span></td>`;
+        }).join('')}
       </tr>
     `).join('') + '</tbody>';
     table.innerHTML = thead + tbody;
@@ -2980,14 +3037,13 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
   // - chaque formateur ne peut former que sur les postes où il est coché
   //   compétent ; un équipier ne se voit jamais proposer un poste marqué
   //   comme restreint pour lui
-  const PLANNING_EXCLUDED_POSTE_KEYS = new Set(['ouverture','fermeture','livraison','plonge','huiles','tempering','oeufs','petit_dej']);
 
   function computePlanningNeeds(){
-    const activePostes = POSTES.filter(p => !PLANNING_EXCLUDED_POSTE_KEYS.has(p.key));
+    const activePostes = TRAINABLE_POSTES;
     const prodPostes = activePostes.filter(p => p.group === 'production');
     const servPostes = activePostes.filter(p => p.group === 'service');
 
-    const eligible = employees.filter(e => e.restaurant === currentRestaurant);
+    const eligible = employees.filter(e => e.restaurant === currentRestaurant && !e.enArret);
 
     const needsByEmp = {};
     eligible.forEach(e => {
