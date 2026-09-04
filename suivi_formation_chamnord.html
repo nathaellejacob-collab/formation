@@ -778,6 +778,12 @@
     color:var(--navy-2); font-size:11.5px; font-weight:700; padding:7px 12px; cursor:pointer;
   }
   .toggle-comp-btn:hover{border-color:var(--amber-dark); color:var(--amber-dark);}
+  .toggle-planif-btn{
+    appearance:none; border:1px solid var(--line); border-radius:8px; background:#fff;
+    color:var(--ink-soft); font-size:11.5px; font-weight:700; padding:7px 12px; cursor:pointer;
+  }
+  .toggle-planif-btn:hover{border-color:var(--amber-dark); color:var(--amber-dark);}
+  .toggle-planif-btn:disabled{opacity:0.6; cursor:default;}
   .comp-checklist{
     margin-top:10px; padding:12px 14px; background:#faf9f4; border:1px solid var(--line);
     border-radius:10px; display:flex; flex-direction:column; gap:12px;
@@ -1795,17 +1801,40 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       formateurManageList.innerHTML = list.length
         ? list.map(f => `<div class="poste-upload-item">
             <div class="poste-upload-item-head">
-              <span class="poste-name">${f.nom} <span style="font-weight:400;color:var(--ink-soft);">— ${f.role}${f.actif ? '' : ' · inactif'} · code : <code style="background:#efece2;padding:2px 6px;border-radius:4px;">${(f.code || '—').replace(/</g,'&lt;')}</code></span></span>
+              <span class="poste-name">${f.nom} <span style="font-weight:400;color:var(--ink-soft);">— ${f.role}${f.actif ? '' : ' · inactif'}${f.participePlanification === false ? ' · <span style="color:var(--red);font-weight:700;">ne forme pas</span>' : ''} · code : <code style="background:#efece2;padding:2px 6px;border-radius:4px;">${(f.code || '—').replace(/</g,'&lt;')}</code></span></span>
               <button type="button" class="toggle-formateur-btn" data-nom="${f.nom.replace(/"/g,'&quot;')}" data-actif="${f.actif}">${f.actif ? 'Désactiver' : 'Réactiver'}</button>
             </div>
             <div style="display:flex; gap:6px; margin-top:6px; flex-wrap:wrap;">
               <button type="button" class="toggle-comp-btn" data-nom="${f.nom.replace(/"/g,'&quot;')}">🎯 Postes qu'il/elle peut former</button>
+              <button type="button" class="toggle-planif-btn" data-nom="${f.nom.replace(/"/g,'&quot;')}" data-participe="${f.participePlanification !== false}">${f.participePlanification === false ? '✓ Réinclure dans la planification' : '🚫 Ne participe pas à la planification'}</button>
               <button type="button" class="verif-folder-btn edit-formateur-code-btn" data-nom="${f.nom.replace(/"/g,'&quot;')}">🔑 Modifier le code</button>
               <button type="button" class="verif-folder-btn delete-formateur-btn" data-nom="${f.nom.replace(/"/g,'&quot;')}" style="color:var(--red); border-color:var(--red);">🗑️ Supprimer définitivement</button>
             </div>
             <div class="comp-checklist" data-nom="${f.nom.replace(/"/g,'&quot;')}" style="display:none;"></div>
           </div>`).join('')
         : '<p style="color:var(--ink-soft);font-size:13px;">Aucun formateur enregistré pour ce restaurant pour l\'instant.</p>';
+
+      formateurManageList.querySelectorAll('.toggle-planif-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const nom = btn.dataset.nom;
+          const participe = btn.dataset.participe === 'true';
+          btn.disabled = true;
+          try{
+            const restaurant = targetRestaurantForFormateurs();
+            const res = await fetch(APPS_SCRIPT_URL, {
+              method: 'POST',
+              headers: {'Content-Type': 'text/plain;charset=utf-8'},
+              body: JSON.stringify(authBody({ sheet: 'toggle_formateur_planification', targetRestaurant: restaurant, nom, participe: !participe }))
+            });
+            const d = await res.json();
+            if(!d.ok) throw new Error(d.error || 'Échec');
+            renderFormateurList(d.formateurs || []);
+          } catch(err){
+            alert('Erreur : ' + err.message);
+            btn.disabled = false;
+          }
+        });
+      });
 
       formateurManageList.querySelectorAll('.toggle-comp-btn').forEach(btn => {
         btn.addEventListener('click', async () => {
@@ -3245,7 +3274,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       const compRes = await fetch(APPS_SCRIPT_URL, {
         method: 'POST',
         headers: {'Content-Type': 'text/plain;charset=utf-8'},
-        body: JSON.stringify(authBody({ sheet: 'get_formateur_competences' }))
+        body: JSON.stringify(authBody({ sheet: 'get_formateur_competences', targetRestaurant: currentRestaurant }))
       });
       const compData = await compRes.json();
       const formateurComp = (compData.formateurs || []).find(f => f.nom === ignoredProposal.formateur);
@@ -3254,7 +3283,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       const planRes = await fetch(APPS_SCRIPT_URL, {
         method: 'POST',
         headers: {'Content-Type': 'text/plain;charset=utf-8'},
-        body: JSON.stringify(authBody({ sheet: 'get_planning' }))
+        body: JSON.stringify(authBody({ sheet: 'get_planning', targetRestaurant: currentRestaurant }))
       });
       const planData = await planRes.json();
       const stillPending = (planData.proposals || []).filter(p => p.statut === 'Proposé');
@@ -3275,7 +3304,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         await fetch(APPS_SCRIPT_URL, {
           method: 'POST',
           headers: {'Content-Type': 'text/plain;charset=utf-8'},
-          body: JSON.stringify(authBody({ sheet: 'append_planning_proposal', proposal: candidates[0] }))
+          body: JSON.stringify(authBody({ sheet: 'append_planning_proposal', proposal: candidates[0], targetRestaurant: currentRestaurant }))
         });
       }
       // Si aucun candidat trouvé, on ne fait rien de plus : le résumé "en attente" du formateur
@@ -3339,7 +3368,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
             await fetch(APPS_SCRIPT_URL, {
               method: 'POST',
               headers: {'Content-Type': 'text/plain;charset=utf-8'},
-              body: JSON.stringify(authBody({ sheet: 'update_planning_date', rowIndex, dateFormation: input.value }))
+              body: JSON.stringify(authBody({ sheet: 'update_planning_date', rowIndex, dateFormation: input.value, targetRestaurant: currentRestaurant }))
             });
           } catch(err){
             alert('Erreur : ' + err.message);
@@ -3361,7 +3390,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
               await fetch(APPS_SCRIPT_URL, {
                 method: 'POST',
                 headers: {'Content-Type': 'text/plain;charset=utf-8'},
-                body: JSON.stringify(authBody({ sheet: 'update_planning_status', rowIndex, statut: 'Ignoré' }))
+                body: JSON.stringify(authBody({ sheet: 'update_planning_status', rowIndex, statut: 'Ignoré', targetRestaurant: currentRestaurant }))
               });
               await proposeReplacementFor(p);
               loadPersistedPlanning(currentViewedMonth);
@@ -3406,7 +3435,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
             await fetch(APPS_SCRIPT_URL, {
               method: 'POST',
               headers: {'Content-Type': 'text/plain;charset=utf-8'},
-              body: JSON.stringify(authBody({ sheet: 'update_planning_status', rowIndex, statut: 'Proposé' }))
+              body: JSON.stringify(authBody({ sheet: 'update_planning_status', rowIndex, statut: 'Proposé', targetRestaurant: currentRestaurant }))
             });
             loadPersistedPlanning(currentViewedMonth);
           } catch(err){
@@ -3439,7 +3468,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       const res = await fetch(APPS_SCRIPT_URL, {
         method: 'POST',
         headers: {'Content-Type': 'text/plain;charset=utf-8'},
-        body: JSON.stringify(authBody({ sheet: 'get_planning', mois }))
+        body: JSON.stringify(authBody({ sheet: 'get_planning', mois, targetRestaurant: currentRestaurant }))
       });
       const data = await res.json();
       if(!data.ok) throw new Error(data.error || 'Erreur de chargement');
@@ -3474,7 +3503,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
           const res = await fetch(APPS_SCRIPT_URL, {
             method: 'POST',
             headers: {'Content-Type': 'text/plain;charset=utf-8'},
-            body: JSON.stringify(authBody({ sheet: 'get_formateur_competences' }))
+            body: JSON.stringify(authBody({ sheet: 'get_formateur_competences', targetRestaurant: currentRestaurant }))
           });
           const data = await res.json();
           if(!data.ok) throw new Error(data.error || 'Erreur de chargement');
@@ -3484,7 +3513,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
           const saveRes = await fetch(APPS_SCRIPT_URL, {
             method: 'POST',
             headers: {'Content-Type': 'text/plain;charset=utf-8'},
-            body: JSON.stringify(authBody({ sheet: 'save_planning', proposals }))
+            body: JSON.stringify(authBody({ sheet: 'save_planning', proposals, targetRestaurant: currentRestaurant }))
           });
           const saveData = await saveRes.json();
           if(!saveData.ok) throw new Error(saveData.error || "Échec de l'enregistrement");
