@@ -3527,6 +3527,10 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
               shortages.map(s => `${s.formateur} : ${s.manquant} proposition${s.manquant>1?'s':''} de moins que l'objectif (pas assez de besoins compatibles avec ses compétences ce mois-ci)`).join('<br>') +
               '</div>');
           }
+          const totalNeeds = Object.values(needsByEmp).reduce((s, arr) => s + arr.length, 0);
+          document.getElementById('planningResults').insertAdjacentHTML('beforeend',
+            `<p style="font-size:11px;color:var(--ink-soft);margin-top:14px;">Diagnostic : ${data.formateurs.length} formateur(s) pris en compte, ${Object.keys(needsByEmp).length} équipier(s) avec des besoins de formation (${totalNeeds} besoin(s) au total) ce mois-ci.</p>`
+          );
         } catch(err){
           document.getElementById('planningResults').innerHTML = '<p class="planning-empty" style="color:var(--red);">Erreur : ' + err.message + '</p>';
         } finally {
