@@ -1376,6 +1376,23 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
   today.setHours(0,0,0,0);
   document.getElementById('todayLabel').textContent = today.toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
 
+  // Recharge les données fraîches depuis le serveur (postes, équipiers,
+  // gestion) et relance l'appli avec — sans jamais recharger la page ni
+  // perdre la session, contrairement à location.reload(). Réutilise le mot
+  // de passe déjà en mémoire pour re-passer par l'action de connexion.
+  async function refreshAppDataAndReinit(){
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'text/plain;charset=utf-8'},
+      body: JSON.stringify(isGerant
+        ? { sheet: 'login_gerant', password: sessionPassword }
+        : { sheet: 'login_restaurant', restaurant: fixedRestaurant, password: sessionPassword })
+    });
+    const data = await res.json();
+    if(!data.ok) throw new Error(data.error || 'Erreur de rechargement des données');
+    initApp(data, isGerant, fixedRestaurant, sessionPassword, sessionFormateur, sessionRole);
+  }
+
   const POSTES = appData.postes;
 
   // Postes qui ne sont jamais utilisés pour de la formation planifiée, ni
@@ -2145,7 +2162,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
             const data = await res.json();
             if(!data.ok) throw new Error(data.error || 'Échec');
             renderPosteList(data.postes || []);
-            location.reload();
+            refreshAppDataAndReinit();
           } catch(err){
             alert('Erreur : ' + err.message);
           } finally {
@@ -2170,7 +2187,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
             const data = await res.json();
             if(!data.ok) throw new Error(data.error || 'Échec');
             renderPosteList(data.postes || []);
-            location.reload();
+            refreshAppDataAndReinit();
           } catch(err){
             alert('Erreur : ' + err.message);
             btn.disabled = false;
@@ -2220,10 +2237,10 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         if(!data.ok) throw new Error(data.error || "Échec de l'ajout");
         renderPosteList(data.postes || []);
         addPosteForm.reset();
-        addPosteError.textContent = 'Ajouté — la page va se recharger pour le faire apparaître partout.';
+        addPosteError.textContent = 'Ajouté — mise à jour en cours…';
         addPosteError.style.color = 'var(--green)';
         addPosteError.style.display = 'block';
-        setTimeout(() => location.reload(), 1200);
+        setTimeout(() => refreshAppDataAndReinit(), 1200);
       } catch(err){
         addPosteError.style.color = '';
         addPosteError.textContent = 'Erreur : ' + err.message;
