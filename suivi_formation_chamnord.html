@@ -3034,10 +3034,12 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
           renderKpis();
           renderBars();
           renderMatrix();
-          if(res.autoValidePlanning){
+          if(res.autoValidePlanning || res.autoDevalidePlanning){
             const toast = document.createElement('div');
-            toast.textContent = '✓ Formation planifiée validée automatiquement';
-            toast.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;padding:10px 18px;border-radius:999px;font-size:13px;font-weight:700;z-index:9999;box-shadow:0 8px 20px rgba(0,0,0,0.2);';
+            toast.textContent = res.autoValidePlanning
+              ? '✓ Formation planifiée validée automatiquement'
+              : '↩ Formation planifiée repassée en attente';
+            toast.style.cssText = `position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:${res.autoValidePlanning ? 'var(--green)' : 'var(--ink-soft)'};color:#fff;padding:10px 18px;border-radius:999px;font-size:13px;font-weight:700;z-index:9999;box-shadow:0 8px 20px rgba(0,0,0,0.2);`;
             document.body.appendChild(toast);
             setTimeout(() => toast.remove(), 3000);
           }
