@@ -741,7 +741,16 @@
     font-size:11.5px; font-weight:700; padding:6px 12px; cursor:pointer;
   }
   .planning-undo-btn:hover{border-color:var(--amber-dark); color:var(--amber-dark);}
-  .planning-proposal.validated{opacity:0.75;}
+  .planning-proposal.validated{background:#f3faf5;}
+  .planning-proposal.ignored{opacity:0.6;}
+  .pp-done-badge{
+    font-size:11.5px; font-weight:700; padding:3px 10px; border-radius:999px;
+    background:var(--green); color:#fff;
+  }
+  .pp-ignored-badge{
+    font-size:11.5px; font-weight:700; padding:3px 10px; border-radius:999px;
+    background:#efece2; color:var(--ink-soft);
+  }
   .planning-shortage{
     margin-top:16px; padding:12px 16px; border-radius:10px; background:#fdf1de;
     color:var(--amber-dark); font-size:12.5px; font-weight:600;
@@ -1195,16 +1204,6 @@
     </div>
     <div id="planningSummary" class="planning-summary"></div>
     <div id="planningResults"></div>
-  </div>
-
-  <div class="panel-block">
-    <div class="panel-head">
-      <h3>Historique</h3>
-      <p>Formations validées, ignorées, ou automatiquement confirmées quand le poste est coché maîtrisé dans Postes &amp; Polyvalence.</p>
-    </div>
-    <div class="matrix-wrap">
-      <table class="matrix-table" id="planningHistoryTable"></table>
-    </div>
   </div>
 </section>
 
@@ -3330,108 +3329,87 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
   function renderPersistedPlanning(proposals){
     renderPlanningSummary(proposals);
 
-    const pending = proposals.filter(p => p.statut === 'Proposé')
-      .sort((a, b) => a.formateur.localeCompare(b.formateur, 'fr'));
-    const history = proposals.filter(p => p.statut !== 'Proposé');
+    const sorted = proposals.slice().sort((a, b) => a.formateur.localeCompare(b.formateur, 'fr'));
 
-    // ---- Zone "en attente" (propositions actives) ----
     const wrap = document.getElementById('planningResults');
-    if(!pending.length){
-      wrap.innerHTML = '<p class="planning-empty">' + (proposals.length
-        ? 'Rien en attente pour l\'instant — tout a été traité (voir l\'historique ci-dessous).'
-        : (canManagePlanning
-            ? 'Aucun planning généré pour l\'instant — clique « Générer le planning du mois » ci-dessus.'
-            : 'Aucun planning n\'a encore été généré par le responsable formation pour ce mois-ci.')) + '</p>';
-    } else {
-      wrap.innerHTML = pending.map(p => `
-        <div class="planning-proposal" data-row="${p.rowIndex}">
+    if(!sorted.length){
+      wrap.innerHTML = '<p class="planning-empty">' + (canManagePlanning
+        ? 'Aucun planning généré pour l\'instant — clique « Générer le planning du mois » ci-dessus.'
+        : 'Aucun planning n\'a encore été généré par le responsable formation pour ce mois-ci.') + '</p>';
+      return;
+    }
+
+    wrap.innerHTML = sorted.map(p => {
+      const isValide = p.statut === 'Validé';
+      const isIgnore = p.statut === 'Ignoré';
+      return `
+        <div class="planning-proposal ${isValide ? 'validated' : ''} ${isIgnore ? 'ignored' : ''}" data-row="${p.rowIndex}">
           <span class="pp-formateur">${p.formateur}</span>
           <span class="pp-arrow">→</span>
           <span class="pp-equipier">${p.equipier}</span>
           <span class="pp-poste">${p.posteLabel}</span>
-          <label class="pp-date-label">
-            Date prévue
-            <input type="date" class="pp-date-input" data-row="${p.rowIndex}" value="${p.dateFormation || ''}">
-          </label>
+          ${isValide ? '<span class="pp-done-badge" title="Réalisée — poste coché maîtrisé dans Postes & Polyvalence">✓ Réalisée</span>' : ''}
+          ${isIgnore ? '<span class="pp-ignored-badge">✗ Ignorée</span>' : ''}
+          ${!isIgnore ? `
+            <label class="pp-date-label">
+              Date prévue
+              <input type="date" class="pp-date-input" data-row="${p.rowIndex}" value="${p.dateFormation || ''}">
+            </label>
+          ` : ''}
           ${canManagePlanning ? `
             <div class="pp-actions">
-              <button type="button" class="planning-ignore-btn">✗ Ignorer</button>
+              ${!isValide && !isIgnore ? '<button type="button" class="planning-ignore-btn">✗ Ignorer</button>' : ''}
+              ${isIgnore ? '<button type="button" class="planning-undo-history-btn">↩ Remettre en attente</button>' : ''}
             </div>
           ` : ''}
         </div>
-      `).join('');
+      `;
+    }).join('');
 
-      wrap.querySelectorAll('.pp-date-input').forEach(input => {
-        input.addEventListener('change', async () => {
-          const rowIndex = Number(input.dataset.row);
-          input.disabled = true;
+    wrap.querySelectorAll('.pp-date-input').forEach(input => {
+      input.addEventListener('change', async () => {
+        const rowIndex = Number(input.dataset.row);
+        input.disabled = true;
+        try{
+          await fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            headers: {'Content-Type': 'text/plain;charset=utf-8'},
+            body: JSON.stringify(authBody({ sheet: 'update_planning_date', rowIndex, dateFormation: input.value, targetRestaurant: currentRestaurant }))
+          });
+        } catch(err){
+          alert('Erreur : ' + err.message);
+        } finally {
+          input.disabled = false;
+        }
+      });
+    });
+
+    if(canManagePlanning){
+      wrap.querySelectorAll('.planning-proposal').forEach(row => {
+        const rowIndex = Number(row.dataset.row);
+        const p = sorted.find(x => x.rowIndex === rowIndex);
+        const ignoreBtn = row.querySelector('.planning-ignore-btn');
+        const undoBtn = row.querySelector('.planning-undo-history-btn');
+        if(ignoreBtn) ignoreBtn.addEventListener('click', async (ev) => {
+          const btn = ev.currentTarget;
+          btn.disabled = true;
+          btn.textContent = '…';
           try{
             await fetch(APPS_SCRIPT_URL, {
               method: 'POST',
               headers: {'Content-Type': 'text/plain;charset=utf-8'},
-              body: JSON.stringify(authBody({ sheet: 'update_planning_date', rowIndex, dateFormation: input.value, targetRestaurant: currentRestaurant }))
+              body: JSON.stringify(authBody({ sheet: 'update_planning_status', rowIndex, statut: 'Ignoré', targetRestaurant: currentRestaurant }))
             });
+            await proposeReplacementFor(p);
+            loadPersistedPlanning(currentViewedMonth);
           } catch(err){
             alert('Erreur : ' + err.message);
-          } finally {
-            input.disabled = false;
+            btn.disabled = false;
+            btn.textContent = '✗ Ignorer';
           }
         });
-      });
-
-      if(canManagePlanning){
-        wrap.querySelectorAll('.planning-proposal').forEach(row => {
-          const rowIndex = Number(row.dataset.row);
-          const p = pending.find(x => x.rowIndex === rowIndex);
-          row.querySelector('.planning-ignore-btn').addEventListener('click', async (ev) => {
-            const btn = ev.currentTarget;
-            btn.disabled = true;
-            btn.textContent = '…';
-            try{
-              await fetch(APPS_SCRIPT_URL, {
-                method: 'POST',
-                headers: {'Content-Type': 'text/plain;charset=utf-8'},
-                body: JSON.stringify(authBody({ sheet: 'update_planning_status', rowIndex, statut: 'Ignoré', targetRestaurant: currentRestaurant }))
-              });
-              await proposeReplacementFor(p);
-              loadPersistedPlanning(currentViewedMonth);
-            } catch(err){
-              alert('Erreur : ' + err.message);
-              btn.disabled = false;
-              btn.textContent = '✗ Ignorer';
-            }
-          });
-        });
-      }
-    }
-
-    // ---- Zone "historique" (vrai tableau) ----
-    const histTable = document.getElementById('planningHistoryTable');
-    if(!history.length){
-      histTable.innerHTML = '<tbody><tr><td style="padding:16px;color:var(--ink-soft);">Rien dans l\'historique pour l\'instant.</td></tr></tbody>';
-      return;
-    }
-    const thead = `<thead><tr>
-      <th>Formateur</th><th>Équipier</th><th>Poste</th><th>Statut</th><th>Date</th><th>Date formation</th>${canManagePlanning ? '<th></th>' : ''}
-    </tr></thead>`;
-    const tbody = '<tbody>' + history.map(p => `
-      <tr>
-        <td>${p.formateur}</td>
-        <td>${p.equipier}</td>
-        <td>${p.posteLabel}</td>
-        <td><span class="planning-history-status ${p.statut === 'Validé' ? 'valide' : 'ignore'}">${p.statut === 'Validé' ? '✓ Validée' : '✗ Ignorée'}</span></td>
-        <td>${p.date}</td>
-        <td>${p.dateFormation ? frDate(parseDate(p.dateFormation)) : '—'}</td>
-        ${canManagePlanning ? `<td><button type="button" class="planning-undo-history-btn" data-row="${p.rowIndex}">↩ Remettre en attente</button></td>` : ''}
-      </tr>
-    `).join('') + '</tbody>';
-    histTable.innerHTML = thead + tbody;
-
-    if(canManagePlanning){
-      histTable.querySelectorAll('.planning-undo-history-btn').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          const rowIndex = Number(btn.dataset.row);
-          btn.disabled = true;
+        if(undoBtn) undoBtn.addEventListener('click', async () => {
+          undoBtn.disabled = true;
           try{
             await fetch(APPS_SCRIPT_URL, {
               method: 'POST',
@@ -3441,7 +3419,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
             loadPersistedPlanning(currentViewedMonth);
           } catch(err){
             alert('Erreur : ' + err.message);
-            btn.disabled = false;
+            undoBtn.disabled = false;
           }
         });
       });
@@ -3740,6 +3718,7 @@ const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz0Dg-wg4Y4XFo7
     }
   });
 })();
+
 
 </script>
 
