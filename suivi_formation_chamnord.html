@@ -3330,7 +3330,8 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
   function renderPersistedPlanning(proposals){
     renderPlanningSummary(proposals);
 
-    const pending = proposals.filter(p => p.statut === 'Proposé');
+    const pending = proposals.filter(p => p.statut === 'Proposé')
+      .sort((a, b) => a.formateur.localeCompare(b.formateur, 'fr'));
     const history = proposals.filter(p => p.statut !== 'Proposé');
 
     // ---- Zone "en attente" (propositions actives) ----
