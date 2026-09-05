@@ -1195,7 +1195,7 @@
   <div class="panel-block">
     <div class="panel-head">
       <h3>Planification mensuelle des formations</h3>
-      <p>Propose automatiquement 2 formations initiales par formateur, en respectant qui peut former quoi et les besoins réels des équipiers. Une proposition devient validée automatiquement dès que le poste est coché maîtrisé dans « Postes &amp; Polyvalence » — inutile de la valider ici. « Ignorer » cherche aussitôt un remplacement pour le même formateur ; « Générer » ne touche jamais à ce qui existe déjà, il ne fait que compléter les formateurs qui n'ont pas encore leurs 2 propositions.</p>
+      <p>Propose automatiquement 2 formations initiales par formateur, en respectant qui peut former quoi et les besoins réels des équipiers. Une proposition devient validée automatiquement dès que le poste est coché maîtrisé dans « Postes &amp; Polyvalence » — inutile de la valider ici. « Ignorer » retire simplement une proposition qui n'aurait pas dû être faite ; reclique « Générer » ensuite pour compléter automatiquement les formateurs qui n'ont plus leurs 2 propositions.</p>
     </div>
     <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
       <button type="button" id="generatePlanningBtn" class="planning-generate-btn">🧮 Générer le planning du mois</button>
@@ -3273,54 +3273,6 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     return { proposals, shortages };
   }
 
-  // Quand une proposition est ignorée (« ce n'est pas la bonne formation »),
-  // cherche immédiatement UNE autre paire valide pour le MÊME formateur, afin
-  // qu'il garde son objectif de 2 propositions ce mois-ci — sans jamais
-  // reproposer la paire équipier+poste qui vient d'être refusée, ni une paire
-  // déjà utilisée ailleurs dans le planning en cours.
-  async function proposeReplacementFor(ignoredProposal){
-    try{
-      const compRes = await fetch(APPS_SCRIPT_URL, {
-        method: 'POST',
-        headers: {'Content-Type': 'text/plain;charset=utf-8'},
-        body: JSON.stringify(authBody({ sheet: 'get_formateur_competences', targetRestaurant: currentRestaurant }))
-      });
-      const compData = await compRes.json();
-      const formateurComp = (compData.formateurs || []).find(f => f.nom === ignoredProposal.formateur);
-      if(!formateurComp) return; // formateur désactivé/supprimé entre-temps : rien à proposer
-
-      const planRes = await fetch(APPS_SCRIPT_URL, {
-        method: 'POST',
-        headers: {'Content-Type': 'text/plain;charset=utf-8'},
-        body: JSON.stringify(authBody({ sheet: 'get_planning', targetRestaurant: currentRestaurant }))
-      });
-      const planData = await planRes.json();
-      const stillPending = (planData.proposals || []).filter(p => p.statut === 'Proposé');
-      const usedPairs = new Set(stillPending.map(p => p.equipier + '|' + p.posteLabel));
-      usedPairs.add(ignoredProposal.equipier + '|' + ignoredProposal.posteLabel);
-
-      const needsByEmp = computePlanningNeeds();
-      Object.keys(needsByEmp).forEach(nom => {
-        needsByEmp[nom] = needsByEmp[nom].filter(posteKey => {
-          const poste = POSTES.find(p => p.key === posteKey);
-          return !usedPairs.has(nom + '|' + poste.label);
-        });
-        if(!needsByEmp[nom].length) delete needsByEmp[nom];
-      });
-
-      const { proposals: candidates } = matchFormateursToNeeds(needsByEmp, [formateurComp]);
-      if(candidates.length){
-        await fetch(APPS_SCRIPT_URL, {
-          method: 'POST',
-          headers: {'Content-Type': 'text/plain;charset=utf-8'},
-          body: JSON.stringify(authBody({ sheet: 'append_planning_proposal', proposal: candidates[0], targetRestaurant: currentRestaurant }))
-        });
-      }
-      // Si aucun candidat trouvé, on ne fait rien de plus : le résumé "en attente" du formateur
-      // reflètera simplement 1 proposition de moins, sans bloquer le reste du planning.
-    } catch(err){ /* la mise à "Ignoré" reste effective même si le remplacement échoue */ }
-  }
-
   const canManagePlanning = isGerant || sessionRole === 'Responsable';
 
   function renderPlanningSummary(proposals){
@@ -3397,7 +3349,6 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     if(canManagePlanning){
       wrap.querySelectorAll('.planning-proposal').forEach(row => {
         const rowIndex = Number(row.dataset.row);
-        const p = sorted.find(x => x.rowIndex === rowIndex);
         const ignoreBtn = row.querySelector('.planning-ignore-btn');
         const undoBtn = row.querySelector('.planning-undo-history-btn');
         if(ignoreBtn) ignoreBtn.addEventListener('click', async (ev) => {
@@ -3410,7 +3361,6 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
               headers: {'Content-Type': 'text/plain;charset=utf-8'},
               body: JSON.stringify(authBody({ sheet: 'update_planning_status', rowIndex, statut: 'Ignoré', targetRestaurant: currentRestaurant }))
             });
-            await proposeReplacementFor(p);
             loadPersistedPlanning(currentViewedMonth);
           } catch(err){
             alert('Erreur : ' + err.message);
