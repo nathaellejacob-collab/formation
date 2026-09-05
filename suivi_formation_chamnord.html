@@ -2122,6 +2122,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
               <span class="poste-name">${p.label} <span style="font-weight:400;color:var(--ink-soft);">— ${GROUP_LABELS[p.group] || p.group}${p.actif ? '' : ' · inactif'}</span></span>
               <button type="button" class="toggle-poste-btn" data-key="${p.key}" data-actif="${p.actif}">${p.actif ? 'Retirer' : 'Réactiver'}</button>
             </div>
+            ${!p.actif ? `<button type="button" class="verif-folder-btn delete-poste-btn" data-key="${p.key}" data-label="${p.label.replace(/"/g,'&quot;')}" style="margin-top:6px;color:var(--red);border-color:var(--red);">🗑️ Supprimer définitivement</button>` : ''}
           </div>`).join('')
         : '<p style="color:var(--ink-soft);font-size:13px;">Aucun poste enregistré pour l\'instant.</p>';
 
@@ -2144,9 +2145,34 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
             const data = await res.json();
             if(!data.ok) throw new Error(data.error || 'Échec');
             renderPosteList(data.postes || []);
+            location.reload();
           } catch(err){
             alert('Erreur : ' + err.message);
           } finally {
+            btn.disabled = false;
+          }
+        });
+      });
+
+      posteManageList.querySelectorAll('.delete-poste-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const key = btn.dataset.key;
+          const label = btn.dataset.label;
+          const confirmed = window.confirm(`Supprimer définitivement « ${label} » ?\n\nContrairement à "Retirer", ceci efface aussi l'historique déjà enregistré pour ce poste (compétences, restrictions, taux de polyvalence passés) sur TOUS les restaurants — action irréversible.`);
+          if(!confirmed) return;
+          btn.disabled = true;
+          try{
+            const res = await fetch(APPS_SCRIPT_URL, {
+              method: 'POST',
+              headers: {'Content-Type': 'text/plain;charset=utf-8'},
+              body: JSON.stringify(authBody({ sheet: 'delete_poste_definitivement', key }))
+            });
+            const data = await res.json();
+            if(!data.ok) throw new Error(data.error || 'Échec');
+            renderPosteList(data.postes || []);
+            location.reload();
+          } catch(err){
+            alert('Erreur : ' + err.message);
             btn.disabled = false;
           }
         });
@@ -2194,9 +2220,10 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         if(!data.ok) throw new Error(data.error || "Échec de l'ajout");
         renderPosteList(data.postes || []);
         addPosteForm.reset();
-        addPosteError.textContent = 'Ajouté — recharge la page pour le voir apparaître dans la matrice de polyvalence.';
+        addPosteError.textContent = 'Ajouté — la page va se recharger pour le faire apparaître partout.';
         addPosteError.style.color = 'var(--green)';
         addPosteError.style.display = 'block';
+        setTimeout(() => location.reload(), 1200);
       } catch(err){
         addPosteError.style.color = '';
         addPosteError.textContent = 'Erreur : ' + err.message;
