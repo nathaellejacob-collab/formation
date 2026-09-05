@@ -1377,6 +1377,36 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
   const PLANNING_EXCLUDED_POSTE_KEYS = new Set(['plonge','oeufs','petit_dej']);
   const TRAINABLE_POSTES = POSTES.filter(p => !PLANNING_EXCLUDED_POSTE_KEYS.has(p.key));
 
+  // Ordre de formation imposé au sein de chaque filière — un équipier doit
+  // faire ces postes DANS CET ORDRE avant de passer au suivant. Les postes
+  // formables qui n'apparaissent dans aucune des deux listes n'ont pas
+  // d'ordre imposé (peu importe quand ils sont faits). Rattaché par LIBELLÉ
+  // (comparaison insensible à la casse), pas par clé technique.
+  const TRAINING_TRACK_ORDER = [
+    { track: 'cuisine',  label: 'Cuisson des viandes' },
+    { track: 'cuisine',  label: 'Cuisson des produits frits' },
+    { track: 'cuisine',  label: 'Initiation & Assemblage' },
+    { track: 'cuisine',  label: 'Tempering & préparation' },
+    { track: 'comptoir', label: 'Boissons/desserts' },
+    { track: 'comptoir', label: 'Frites' },
+    { track: 'comptoir', label: 'Assemblage et Présentation' },
+    { track: 'comptoir', label: 'Prise de commande et paiement' },
+    { track: 'comptoir', label: 'Salle à manger' },
+  ];
+  function normLabel(s){ return (s || '').toLowerCase().trim(); }
+  function labelsMatch(a, b){
+    const na = normLabel(a), nb = normLabel(b);
+    if(!na || !nb) return false;
+    return na === nb || na.includes(nb) || nb.includes(na); // tolère une petite différence de libellé (ex. suffixe en plus/en moins)
+  }
+  function trackOf(posteLabel){
+    const found = TRAINING_TRACK_ORDER.find(t => labelsMatch(t.label, posteLabel));
+    return found ? found.track : null;
+  }
+  function trackOrderIndex(posteLabel){
+    return TRAINING_TRACK_ORDER.findIndex(t => labelsMatch(t.label, posteLabel));
+  }
+
   // Grille de disponibilités habituelles (pas le planning réel) — même
   // ordre que côté serveur, utilisé pour croiser équipier/formateur avant
   // de proposer une formation.
@@ -3328,8 +3358,9 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
 
   function computePlanningNeeds(){
     const activePostes = TRAINABLE_POSTES;
-    const prodPostes = activePostes.filter(p => p.group === 'production');
-    const servPostes = activePostes.filter(p => p.group === 'service');
+    const cuisinePostes = activePostes.filter(p => trackOf(p.label) === 'cuisine');
+    const comptoirPostes = activePostes.filter(p => trackOf(p.label) === 'comptoir');
+    const untrackedPostes = activePostes.filter(p => !trackOf(p.label)); // pas d'ordre imposé
 
     const eligible = employees.filter(e => e.restaurant === currentRestaurant && !e.enArret);
 
@@ -3339,29 +3370,41 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         const done = list.filter(p => e.skills[POSTES.indexOf(p)]).length;
         return { total: list.length, done };
       }
-      const prod = statusFor(prodPostes);
-      const serv = statusFor(servPostes);
-      const prodStarted = prod.done > 0, prodComplete = prod.total > 0 && prod.done === prod.total;
-      const servStarted = serv.done > 0, servComplete = serv.total > 0 && serv.done === serv.total;
+      const cuisine = statusFor(cuisinePostes);
+      const comptoir = statusFor(comptoirPostes);
+      const cuisineStarted = cuisine.done > 0, cuisineComplete = cuisine.total > 0 && cuisine.done === cuisine.total;
+      const comptoirStarted = comptoir.done > 0, comptoirComplete = comptoir.total > 0 && comptoir.done === comptoir.total;
 
-      let candidatePostes;
-      if(prodStarted && !prodComplete && (!servStarted || servComplete)){
-        candidatePostes = prodPostes;
-      } else if(servStarted && !servComplete && (!prodStarted || prodComplete)){
-        candidatePostes = servPostes;
-      } else if(prodStarted && !prodComplete && servStarted && !servComplete){
-        // Les deux familles entamées à la fois (ne devrait pas arriver) : on continue la plus avancée.
-        candidatePostes = (prod.total ? prod.done/prod.total : 0) >= (serv.total ? serv.done/serv.total : 0) ? prodPostes : servPostes;
-      } else if(!prodStarted && !servStarted){
-        candidatePostes = prodPostes; // par défaut, on démarre par la production
+      let trackPostes;
+      if(cuisineStarted && !cuisineComplete && (!comptoirStarted || comptoirComplete)){
+        trackPostes = cuisinePostes;
+      } else if(comptoirStarted && !comptoirComplete && (!cuisineStarted || cuisineComplete)){
+        trackPostes = comptoirPostes;
+      } else if(cuisineStarted && !cuisineComplete && comptoirStarted && !comptoirComplete){
+        // Les deux filières entamées à la fois (ne devrait pas arriver) : on continue la plus avancée.
+        trackPostes = (cuisine.total ? cuisine.done/cuisine.total : 0) >= (comptoir.total ? comptoir.done/comptoir.total : 0) ? cuisinePostes : comptoirPostes;
+      } else if(!cuisineStarted && !comptoirStarted){
+        trackPostes = cuisinePostes; // par défaut, on démarre par la cuisine
       } else {
-        candidatePostes = []; // les deux familles déjà complètes
+        trackPostes = []; // les deux filières déjà complètes
       }
 
-      const gaps = candidatePostes
+      // Dans la filière en cours, un SEUL poste possible à la fois : le
+      // premier de l'ordre pas encore maîtrisé (jamais le suivant avant).
+      const nextTracked = trackPostes
+        .slice()
+        .sort((a, b) => trackOrderIndex(a.label) - trackOrderIndex(b.label))
+        .find(p => !e.skills[POSTES.indexOf(p)] && !e.restrictions[POSTES.indexOf(p)]);
+
+      // Les postes hors filière (pas d'ordre imposé) restent libres, sans blocage.
+      const freeGaps = untrackedPostes
         .filter(p => !e.skills[POSTES.indexOf(p)])
-        .filter(p => !e.restrictions[POSTES.indexOf(p)])
-        .map(p => p.key);
+        .filter(p => !e.restrictions[POSTES.indexOf(p)]);
+
+      const gaps = [];
+      if(nextTracked) gaps.push(nextTracked.key); // priorité : le prochain de la filière en premier
+      freeGaps.forEach(p => gaps.push(p.key));
+
       if(gaps.length) needsByEmp[e.nom] = gaps;
     });
 
