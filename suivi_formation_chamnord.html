@@ -293,6 +293,10 @@
   .modal-error{color:var(--red); font-size:12px; margin-top:8px;}
 
   .modal-card-wide{max-width:520px; max-height:85vh; display:flex; flex-direction:column; overflow-y:auto;}
+  .modal-card-wide .modal-head-row{
+    position:sticky; top:0; z-index:2; background:var(--panel);
+    margin:-26px -26px 16px; padding:26px 26px 14px; border-bottom:1px solid var(--line);
+  }
   .modal-head-row{display:flex; justify-content:space-between; align-items:flex-start; gap:12px;}
   .modal-close-btn{
     appearance:none; border:none; background:transparent; color:var(--ink-soft);
@@ -972,6 +976,9 @@
     .tab-btn{padding:9px 14px; font-size:12.5px;}
     .stats{grid-template-columns:1fr 1fr; gap:8px;}
     .stat-card{padding:12px 14px;}
+    .dispo-checkbox, .comp-checklist input[type="checkbox"]{width:20px; height:20px;}
+    .dispo-grid td{padding:8px 6px;}
+    .planning-proposal{padding:14px;}
   }
 </style>
 </head>
