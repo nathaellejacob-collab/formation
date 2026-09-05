@@ -1195,7 +1195,7 @@
   <div class="panel-block">
     <div class="panel-head">
       <h3>Planification mensuelle des formations</h3>
-      <p>Propose automatiquement 2 formations initiales par formateur, en respectant qui peut former quoi et les besoins réels des équipiers. Une proposition devient validée automatiquement dès que le poste est coché maîtrisé dans « Postes &amp; Polyvalence » — inutile de la valider ici. « Ignorer » sert seulement à retirer une proposition qui n'aurait pas dû être faite.</p>
+      <p>Propose automatiquement 2 formations initiales par formateur, en respectant qui peut former quoi et les besoins réels des équipiers. Une proposition devient validée automatiquement dès que le poste est coché maîtrisé dans « Postes &amp; Polyvalence » — inutile de la valider ici. « Ignorer » cherche aussitôt un remplacement pour le même formateur ; « Générer » ne touche jamais à ce qui existe déjà, il ne fait que compléter les formateurs qui n'ont pas encore leurs 2 propositions.</p>
     </div>
     <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
       <button type="button" id="generatePlanningBtn" class="planning-generate-btn">🧮 Générer le planning du mois</button>
@@ -3231,11 +3231,11 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     return needsByEmp;
   }
 
-  function matchFormateursToNeeds(needsByEmp, formateurCompetences){
+  function matchFormateursToNeeds(needsByEmp, formateurCompetences, startingCounts){
     const usedPairs = new Set();
     const proposals = [];
     const counts = {}; // nom -> nombre de propositions déjà attribuées à ce formateur
-    formateurCompetences.forEach(f => { counts[f.nom] = 0; });
+    formateurCompetences.forEach(f => { counts[f.nom] = (startingCounts && startingCounts[f.nom]) || 0; });
 
     // Deux passes plutôt qu'une seule : d'abord UNE proposition pour CHAQUE
     // formateur (équitable), puis une deuxième si des besoins restent après
@@ -3487,7 +3487,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         generatePlanningBtn.disabled = true;
         generatePlanningBtn.textContent = 'Génération…';
         const wrap = document.getElementById('planningResults');
-        wrap.innerHTML = '<p class="planning-empty">Chargement des compétences formateurs…</p>';
+        wrap.innerHTML = '<p class="planning-empty">Chargement…</p>';
         try{
           const res = await fetch(APPS_SCRIPT_URL, {
             method: 'POST',
@@ -3496,20 +3496,63 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
           });
           const data = await res.json();
           if(!data.ok) throw new Error(data.error || 'Erreur de chargement');
-          const needsByEmp = computePlanningNeeds();
-          const { proposals, shortages } = matchFormateursToNeeds(needsByEmp, data.formateurs || []);
 
-          const saveRes = await fetch(APPS_SCRIPT_URL, {
+          // "Générer" ne fait plus que COMPLÉTER : on ne touche jamais aux
+          // propositions déjà présentes (Proposé, Validé ou Ignoré) — on
+          // regarde juste combien il manque à chaque formateur pour
+          // atteindre 2, et on ajoute uniquement ce qui manque.
+          const existingRes = await fetch(APPS_SCRIPT_URL, {
             method: 'POST',
             headers: {'Content-Type': 'text/plain;charset=utf-8'},
-            body: JSON.stringify(authBody({ sheet: 'save_planning', proposals, targetRestaurant: currentRestaurant }))
+            body: JSON.stringify(authBody({ sheet: 'get_planning', targetRestaurant: currentRestaurant }))
           });
-          const saveData = await saveRes.json();
-          if(!saveData.ok) throw new Error(saveData.error || "Échec de l'enregistrement");
+          const existingData = await existingRes.json();
+          const existing = existingData.proposals || [];
 
-          currentViewedMonth = saveData.currentMonth;
-          populateMonthSelect(saveData.months || [], saveData.currentMonth, currentViewedMonth);
-          renderPersistedPlanning(saveData.proposals || []);
+          const countsByFormateur = {};
+          const usedPairs = new Set();
+          const ignoredPairs = new Set();
+          existing.forEach(p => {
+            if(p.statut === 'Ignoré'){
+              ignoredPairs.add(p.equipier + '|' + p.posteLabel);
+            } else { // Proposé ou Validé comptent pour l'objectif de 2
+              countsByFormateur[p.formateur] = (countsByFormateur[p.formateur] || 0) + 1;
+              usedPairs.add(p.equipier + '|' + p.posteLabel);
+            }
+          });
+
+          const needsByEmp = computePlanningNeeds();
+          Object.keys(needsByEmp).forEach(nom => {
+            needsByEmp[nom] = needsByEmp[nom].filter(posteKey => {
+              const poste = POSTES.find(p => p.key === posteKey);
+              const pairKey = nom + '|' + poste.label;
+              return !usedPairs.has(pairKey) && !ignoredPairs.has(pairKey);
+            });
+            if(!needsByEmp[nom].length) delete needsByEmp[nom];
+          });
+
+          const { proposals: newProposals, shortages } = matchFormateursToNeeds(needsByEmp, data.formateurs || [], countsByFormateur);
+
+          let finalProposals = existing;
+          if(newProposals.length){
+            const saveRes = await fetch(APPS_SCRIPT_URL, {
+              method: 'POST',
+              headers: {'Content-Type': 'text/plain;charset=utf-8'},
+              body: JSON.stringify(authBody({ sheet: 'append_planning_proposals', proposals: newProposals, targetRestaurant: currentRestaurant }))
+            });
+            const saveData = await saveRes.json();
+            if(!saveData.ok) throw new Error(saveData.error || "Échec de l'enregistrement");
+            finalProposals = saveData.proposals || [];
+            currentViewedMonth = saveData.currentMonth;
+            populateMonthSelect(saveData.months || [], saveData.currentMonth, currentViewedMonth);
+          }
+
+          renderPersistedPlanning(finalProposals);
+          if(!newProposals.length){
+            document.getElementById('planningResults').insertAdjacentHTML('afterbegin',
+              '<p class="planning-empty">Rien à ajouter — tout le monde a déjà ses 2 propositions, ou plus aucun besoin compatible n\'est disponible.</p>'
+            );
+          }
           if(shortages.length){
             const wrap2 = document.getElementById('planningResults');
             wrap2.insertAdjacentHTML('beforeend', '<div class="planning-shortage">' +
@@ -3518,7 +3561,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
           }
           const totalNeeds = Object.values(needsByEmp).reduce((s, arr) => s + arr.length, 0);
           document.getElementById('planningResults').insertAdjacentHTML('beforeend',
-            `<p style="font-size:11px;color:var(--ink-soft);margin-top:14px;">Diagnostic : ${data.formateurs.length} formateur(s) pris en compte, ${Object.keys(needsByEmp).length} équipier(s) avec des besoins de formation (${totalNeeds} besoin(s) au total) ce mois-ci.</p>`
+            `<p style="font-size:11px;color:var(--ink-soft);margin-top:14px;">Diagnostic : ${data.formateurs.length} formateur(s) pris en compte, ${Object.keys(needsByEmp).length} équipier(s) avec des besoins de formation restants (${totalNeeds} besoin(s) au total), ${newProposals.length} nouvelle(s) proposition(s) ajoutée(s) ce coup-ci.</p>`
           );
         } catch(err){
           document.getElementById('planningResults').innerHTML = '<p class="planning-empty" style="color:var(--red);">Erreur : ' + err.message + '</p>';
