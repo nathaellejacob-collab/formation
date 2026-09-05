@@ -807,6 +807,23 @@
   }
   .comp-check-row input{flex-shrink:0;}
 
+  .dispo-grid{border-collapse:collapse; font-size:12px; width:100%;}
+  .dispo-grid th{
+    font-size:10.5px; text-transform:uppercase; letter-spacing:0.03em; color:var(--ink-soft);
+    font-weight:700; padding:4px 8px; text-align:center;
+  }
+  .dispo-grid td{padding:4px 8px; text-align:center; border-top:1px solid var(--line);}
+  .dispo-jour{text-align:left !important; font-weight:600; color:var(--ink);}
+  .toggle-dispo-btn{
+    appearance:none; border:1px solid var(--line); border-radius:8px; background:#fff;
+    color:var(--navy-2); font-size:11.5px; font-weight:700; padding:7px 12px; cursor:pointer;
+  }
+  .toggle-dispo-btn:hover{border-color:var(--amber-dark); color:var(--amber-dark);}
+  .dispo-checklist{
+    margin-top:10px; padding:12px 14px; background:#faf9f4; border:1px solid var(--line);
+    border-radius:10px;
+  }
+
   .bar-row{
     display:grid;
     grid-template-columns:220px 1fr 84px;
@@ -1360,6 +1377,65 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
   const PLANNING_EXCLUDED_POSTE_KEYS = new Set(['plonge','oeufs','petit_dej']);
   const TRAINABLE_POSTES = POSTES.filter(p => !PLANNING_EXCLUDED_POSTE_KEYS.has(p.key));
 
+  // Grille de disponibilités habituelles (pas le planning réel) — même
+  // ordre que côté serveur, utilisé pour croiser équipier/formateur avant
+  // de proposer une formation.
+  const DISPO_JOURS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+  const DISPO_CRENEAUX = ['Matin', 'Soir'];
+  const DISPO_SLOTS = [];
+  DISPO_JOURS.forEach(j => DISPO_CRENEAUX.forEach(c => DISPO_SLOTS.push({ label: j + ' ' + c })));
+
+  function hasDispoOverlap(dispoA, dispoB){
+    for(let i = 0; i < DISPO_SLOTS.length; i++){
+      if(dispoA[i] && dispoB[i]) return true;
+    }
+    return false;
+  }
+
+  function dispoGridHtml(nom, dispoArr){
+    const dispo = dispoArr || DISPO_SLOTS.map(() => true);
+    return `<table class="dispo-grid">
+      <thead><tr><th></th>${DISPO_CRENEAUX.map(c => `<th>${c}</th>`).join('')}</tr></thead>
+      <tbody>
+        ${DISPO_JOURS.map(j => `<tr>
+          <td class="dispo-jour">${j}</td>
+          ${DISPO_CRENEAUX.map(c => {
+            const idx = DISPO_SLOTS.findIndex(s => s.label === j + ' ' + c);
+            const checked = !!dispo[idx];
+            return `<td><input type="checkbox" class="dispo-checkbox" data-nom="${nom.replace(/"/g,'&quot;')}" data-idx="${idx}" ${checked ? 'checked' : ''}></td>`;
+          }).join('')}
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
+  }
+
+  function wireDispoCheckboxes(container){
+    container.querySelectorAll('.dispo-checkbox').forEach(cb => {
+      cb.addEventListener('click', async (ev) => {
+        ev.stopPropagation();
+        const nom = cb.dataset.nom;
+        const idx = Number(cb.dataset.idx);
+        const slotLabel = DISPO_SLOTS[idx].label;
+        const newVal = cb.checked;
+        cb.disabled = true;
+        try{
+          const res = await fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            headers: {'Content-Type': 'text/plain;charset=utf-8'},
+            body: JSON.stringify(authBody({ sheet: 'update_disponibilite', nom, slotLabel, value: newVal, targetRestaurant: currentRestaurant }))
+          });
+          const d = await res.json();
+          if(!d.ok) throw new Error(d.error || 'Échec');
+        } catch(err){
+          alert('Erreur : ' + err.message);
+          cb.checked = !newVal;
+        } finally {
+          cb.disabled = false;
+        }
+      });
+    });
+  }
+
   const TRAININGS = [
     {key:'secu',    label:'Prévention & Sécurité',      faitKey:'secuFait',    butoirKey:'secuButoir',    period:'6 mois',        oneTime:false},
     {key:'hygiene', label:'Hygiène & Sécurité alim.',    faitKey:'hygieneFait', butoirKey:'hygieneButoir', period:'6 mois',        oneTime:false},
@@ -1805,13 +1881,40 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
             </div>
             <div style="display:flex; gap:6px; margin-top:6px; flex-wrap:wrap;">
               <button type="button" class="toggle-comp-btn" data-nom="${f.nom.replace(/"/g,'&quot;')}">🎯 Postes qu'il/elle peut former</button>
+              <button type="button" class="toggle-dispo-btn" data-nom="${f.nom.replace(/"/g,'&quot;')}">🕐 Disponibilités</button>
               <button type="button" class="toggle-planif-btn" data-nom="${f.nom.replace(/"/g,'&quot;')}" data-participe="${f.participePlanification !== false}">${f.participePlanification === false ? '✓ Réinclure dans la planification' : '🚫 Ne participe pas à la planification'}</button>
               <button type="button" class="verif-folder-btn edit-formateur-code-btn" data-nom="${f.nom.replace(/"/g,'&quot;')}">🔑 Modifier le code</button>
               <button type="button" class="verif-folder-btn delete-formateur-btn" data-nom="${f.nom.replace(/"/g,'&quot;')}" style="color:var(--red); border-color:var(--red);">🗑️ Supprimer définitivement</button>
             </div>
             <div class="comp-checklist" data-nom="${f.nom.replace(/"/g,'&quot;')}" style="display:none;"></div>
+            <div class="dispo-checklist" data-nom="${f.nom.replace(/"/g,'&quot;')}" style="display:none;"></div>
           </div>`).join('')
         : '<p style="color:var(--ink-soft);font-size:13px;">Aucun formateur enregistré pour ce restaurant pour l\'instant.</p>';
+
+      formateurManageList.querySelectorAll('.toggle-dispo-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const nom = btn.dataset.nom;
+          const box = formateurManageList.querySelector(`.dispo-checklist[data-nom="${CSS.escape(nom)}"]`);
+          const isOpen = box.style.display !== 'none';
+          if(isOpen){ box.style.display = 'none'; return; }
+          box.innerHTML = '<p style="color:var(--ink-soft);font-size:12px;">Chargement…</p>';
+          box.style.display = 'block';
+          try{
+            const restaurant = targetRestaurantForFormateurs();
+            const res = await fetch(APPS_SCRIPT_URL, {
+              method: 'POST',
+              headers: {'Content-Type': 'text/plain;charset=utf-8'},
+              body: JSON.stringify(authBody({ sheet: 'get_disponibilites', targetRestaurant: restaurant }))
+            });
+            const d = await res.json();
+            if(!d.ok) throw new Error(d.error || 'Erreur de chargement');
+            box.innerHTML = dispoGridHtml(nom, d.disponibilites[nom]);
+            wireDispoCheckboxes(box);
+          } catch(err){
+            box.innerHTML = '<p style="color:var(--red);font-size:12px;">Erreur : ' + err.message + '</p>';
+          }
+        });
+      });
 
       formateurManageList.querySelectorAll('.toggle-planif-btn').forEach(btn => {
         btn.addEventListener('click', async () => {
@@ -2242,13 +2345,16 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       const canManage = isGerant || sessionRole === 'Responsable';
       if(!canManage) return '';
       const safeNom = nom.replace(/"/g,'&quot;');
+      const isEquipier = cfg.sheetKey !== 'gestion';
       return `<div class="delete-section" style="display:flex; flex-direction:column; align-items:flex-start; gap:10px;">
         <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
           <button type="button" class="edit-profile-btn">✏️ Modifier le profil</button>
+          ${isEquipier ? `<button type="button" class="toggle-dispo-btn" data-nom="${safeNom}">🕐 Disponibilités</button>` : ''}
           <button type="button" class="arret-toggle-btn" data-nom="${safeNom}" data-actif="${!!enArret}">${enArret ? '✓ De retour (fin d\'arrêt)' : '🏥 Déclarer un arrêt maladie'}</button>
           <button class="delete-emp-btn" data-nom="${safeNom}">Supprimer ${cfg.personLabelSingular}</button>
           <span class="delete-status"></span>
         </div>
+        ${isEquipier ? `<div class="dispo-checklist" data-nom="${safeNom}" style="display:none; width:100%; max-width:340px;"></div>` : ''}
         <form class="edit-profile-form" style="display:none; flex-direction:column; gap:8px; width:100%; max-width:320px;">
           <label style="font-size:11px;font-weight:700;color:var(--ink-soft);">Nom
             <input type="text" class="edit-profile-nom" value="${safeNom}" required style="display:block;width:100%;margin-top:4px;padding:9px 12px;border-radius:8px;border:1px solid var(--line);font-size:13px;">
@@ -2349,6 +2455,33 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
           alert('Erreur : ' + err.message);
         } finally {
           btn.disabled = false;
+        }
+      });
+    }
+
+    function wireDispoButton(container, nom){
+      const btn = container.querySelector('.toggle-dispo-btn');
+      const box = container.querySelector('.dispo-checklist');
+      if(!btn || !box) return;
+      btn.addEventListener('click', async (ev) => {
+        ev.stopPropagation();
+        const isOpen = box.style.display !== 'none';
+        if(isOpen){ box.style.display = 'none'; return; }
+        box.innerHTML = '<p style="color:var(--ink-soft);font-size:12px;">Chargement…</p>';
+        box.style.display = 'block';
+        try{
+          const targetPerson = list.find(e => e.nom === nom);
+          const res = await fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            headers: {'Content-Type': 'text/plain;charset=utf-8'},
+            body: JSON.stringify(authBody({ sheet: 'get_disponibilites', targetRestaurant: targetPerson ? targetPerson.restaurant : undefined }))
+          });
+          const d = await res.json();
+          if(!d.ok) throw new Error(d.error || 'Erreur de chargement');
+          box.innerHTML = dispoGridHtml(nom, d.disponibilites[nom]);
+          wireDispoCheckboxes(box);
+        } catch(err){
+          box.innerHTML = '<p style="color:var(--red);font-size:12px;">Erreur : ' + err.message + '</p>';
         }
       });
     }
@@ -2491,6 +2624,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         wireVerifUpload(exp);
         wireProfileEditForm(exp, e.nom);
         wireArretButton(exp, e.nom);
+        wireDispoButton(exp, e.nom);
         wireDeleteButton(exp, e.nom, () => { openDetailNoms.delete(e.nom); exp.remove(); tr.remove(); });
         exp.querySelector('.collapse-detail-btn').addEventListener('click', (ev) => {
           ev.stopPropagation();
@@ -2528,6 +2662,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         wireVerifUpload(detailWrap);
         wireProfileEditForm(detailWrap, e.nom);
         wireArretButton(detailWrap, e.nom);
+        wireDispoButton(detailWrap, e.nom);
         wireDeleteButton(detailWrap, e.nom, () => { openDetailNoms.delete(e.nom); card.remove(); });
         detailWrap.querySelector('.collapse-detail-btn').addEventListener('click', () => {
           openDetailNoms.delete(e.nom);
@@ -3233,11 +3368,13 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     return needsByEmp;
   }
 
-  function matchFormateursToNeeds(needsByEmp, formateurCompetences, startingCounts){
+  function matchFormateursToNeeds(needsByEmp, formateurCompetences, startingCounts, dispoByNom){
     const usedPairs = new Set();
     const proposals = [];
     const counts = {}; // nom -> nombre de propositions déjà attribuées à ce formateur
     formateurCompetences.forEach(f => { counts[f.nom] = (startingCounts && startingCounts[f.nom]) || 0; });
+    const allAvailable = DISPO_SLOTS.map(() => true);
+    function dispoOf(nom){ return (dispoByNom && dispoByNom[nom]) || allAvailable; }
 
     // Deux passes plutôt qu'une seule : d'abord UNE proposition pour CHAQUE
     // formateur (équitable), puis une deuxième si des besoins restent après
@@ -3248,6 +3385,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         if(counts[f.nom] >= 2) return;
         const candidates = Object.keys(needsByEmp)
           .map(nom => ({ nom, gaps: needsByEmp[nom] }))
+          .filter(cand => !dispoByNom || hasDispoOverlap(dispoOf(f.nom), dispoOf(cand.nom))) // aucun créneau en commun : formateur et équipier ne se croisent jamais
           .sort((a,b) => a.gaps.length - b.gaps.length); // priorité à ceux les plus proches de finir leur famille
 
         for(const cand of candidates){
@@ -3449,6 +3587,14 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
           const data = await res.json();
           if(!data.ok) throw new Error(data.error || 'Erreur de chargement');
 
+          const dispoRes = await fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            headers: {'Content-Type': 'text/plain;charset=utf-8'},
+            body: JSON.stringify(authBody({ sheet: 'get_disponibilites', targetRestaurant: currentRestaurant }))
+          });
+          const dispoData = await dispoRes.json();
+          const dispoByNom = dispoData.ok ? dispoData.disponibilites : {};
+
           // "Générer" ne fait plus que COMPLÉTER : on ne touche jamais aux
           // propositions déjà présentes (Proposé, Validé ou Ignoré) — on
           // regarde juste combien il manque à chaque formateur pour
@@ -3483,7 +3629,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
             if(!needsByEmp[nom].length) delete needsByEmp[nom];
           });
 
-          const { proposals: newProposals, shortages } = matchFormateursToNeeds(needsByEmp, data.formateurs || [], countsByFormateur);
+          const { proposals: newProposals, shortages } = matchFormateursToNeeds(needsByEmp, data.formateurs || [], countsByFormateur, dispoByNom);
 
           let finalProposals = existing;
           if(newProposals.length){
