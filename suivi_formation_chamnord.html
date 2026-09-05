@@ -3451,7 +3451,30 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
 
     const shortages = formateurCompetences
       .filter(f => counts[f.nom] < 2)
-      .map(f => ({ formateur: f.nom, manquant: 2 - counts[f.nom] }));
+      .map(f => {
+        // Diagnostic : pourquoi ce formateur n'a-t-il pas ses 2 propositions ?
+        // On regarde TOUS les besoins (même déjà attribués à quelqu'un
+        // d'autre) pour distinguer la vraie cause.
+        let hasCompetenceMatch = false;
+        let hasCompetenceAndDispoMatch = false;
+        Object.keys(needsByEmp).forEach(nom => {
+          needsByEmp[nom].forEach(posteKey => {
+            const posteIdx = POSTES.findIndex(p => p.key === posteKey);
+            if(!f.competences[posteIdx]) return;
+            hasCompetenceMatch = true;
+            if(!dispoByNom || hasDispoOverlap(dispoOf(f.nom), dispoOf(nom))) hasCompetenceAndDispoMatch = true;
+          });
+        });
+        let raison;
+        if(!hasCompetenceMatch){
+          raison = "aucune compétence en commun avec les besoins actuels";
+        } else if(!hasCompetenceAndDispoMatch){
+          raison = "compétent, mais aucun créneau de disponibilité en commun avec les équipiers concernés";
+        } else {
+          raison = "les besoins compatibles ont déjà été attribués à d'autres formateurs ce mois-ci";
+        }
+        return { formateur: f.nom, manquant: 2 - counts[f.nom], raison };
+      });
 
     return { proposals, shortages };
   }
@@ -3697,7 +3720,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
           if(shortages.length){
             const wrap2 = document.getElementById('planningResults');
             wrap2.insertAdjacentHTML('beforeend', '<div class="planning-shortage">' +
-              shortages.map(s => `${s.formateur} : ${s.manquant} proposition${s.manquant>1?'s':''} de moins que l'objectif (pas assez de besoins compatibles avec ses compétences ce mois-ci)`).join('<br>') +
+              shortages.map(s => `${s.formateur} : ${s.manquant} proposition${s.manquant>1?'s':''} de moins que l'objectif (${s.raison})`).join('<br>') +
               '</div>');
           }
           const totalNeeds = Object.values(needsByEmp).reduce((s, arr) => s + arr.length, 0);
