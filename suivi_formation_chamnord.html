@@ -3589,10 +3589,13 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
 
   let currentViewedMonth = null;
 
-  function populateMonthSelect(months, currentMonth, selected){
+  function populateMonthSelect(months, currentMonth, selected, nextMonth){
     const select = document.getElementById('planningMonthSelect');
-    const allMonths = Array.from(new Set([currentMonth, ...months])).sort().reverse();
-    select.innerHTML = allMonths.map(m => `<option value="${m}" ${m === selected ? 'selected' : ''}>${monthLabel(m)}${m === currentMonth ? ' (en cours)' : ''}</option>`).join('');
+    const allMonths = Array.from(new Set([currentMonth, nextMonth, ...months].filter(Boolean))).sort().reverse();
+    select.innerHTML = allMonths.map(m => {
+      const tag = m === nextMonth ? ' (à venir)' : (m === currentMonth ? ' (en cours)' : '');
+      return `<option value="${m}" ${m === selected ? 'selected' : ''}>${monthLabel(m)}${tag}</option>`;
+    }).join('');
   }
 
   async function loadPersistedPlanning(mois){
@@ -3607,7 +3610,13 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       const data = await res.json();
       if(!data.ok) throw new Error(data.error || 'Erreur de chargement');
       currentViewedMonth = mois || data.currentMonth;
-      populateMonthSelect(data.months || [], data.currentMonth, currentViewedMonth);
+      populateMonthSelect(data.months || [], data.currentMonth, currentViewedMonth, data.nextMonth);
+      const genBtn = document.getElementById('generatePlanningBtn');
+      if(genBtn && canManagePlanning){
+        const estGenerable = currentViewedMonth === data.currentMonth || currentViewedMonth === data.nextMonth;
+        genBtn.disabled = !estGenerable;
+        genBtn.title = estGenerable ? '' : "Générer n'est possible que pour le mois en cours ou le mois suivant.";
+      }
       renderPersistedPlanning(data.proposals || []);
     } catch(err){
       wrap.innerHTML = '<p class="planning-empty" style="color:var(--red);">Erreur : ' + err.message + '</p>';
@@ -3657,7 +3666,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
           const existingRes = await fetch(APPS_SCRIPT_URL, {
             method: 'POST',
             headers: {'Content-Type': 'text/plain;charset=utf-8'},
-            body: JSON.stringify(authBody({ sheet: 'get_planning', targetRestaurant: currentRestaurant }))
+            body: JSON.stringify(authBody({ sheet: 'get_planning', mois: currentViewedMonth, targetRestaurant: currentRestaurant }))
           });
           const existingData = await existingRes.json();
           const existing = existingData.proposals || [];
@@ -3691,13 +3700,13 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
             const saveRes = await fetch(APPS_SCRIPT_URL, {
               method: 'POST',
               headers: {'Content-Type': 'text/plain;charset=utf-8'},
-              body: JSON.stringify(authBody({ sheet: 'append_planning_proposals', proposals: newProposals, targetRestaurant: currentRestaurant }))
+              body: JSON.stringify(authBody({ sheet: 'append_planning_proposals', proposals: newProposals, moisCible: currentViewedMonth, targetRestaurant: currentRestaurant }))
             });
             const saveData = await saveRes.json();
             if(!saveData.ok) throw new Error(saveData.error || "Échec de l'enregistrement");
             finalProposals = saveData.proposals || [];
-            currentViewedMonth = saveData.currentMonth;
-            populateMonthSelect(saveData.months || [], saveData.currentMonth, currentViewedMonth);
+            currentViewedMonth = saveData.moisGenere || currentViewedMonth;
+            populateMonthSelect(saveData.months || [], saveData.currentMonth, currentViewedMonth, saveData.nextMonth);
           }
 
           renderPersistedPlanning(finalProposals);
