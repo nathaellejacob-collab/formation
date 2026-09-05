@@ -3663,23 +3663,28 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
           // propositions déjà présentes (Proposé, Validé ou Ignoré) — on
           // regarde juste combien il manque à chaque formateur pour
           // atteindre 2, et on ajoute uniquement ce qui manque.
+          // On récupère TOUS les mois (pas seulement celui ciblé) pour
+          // qu'une paire équipier+poste déjà en attente ou validée ailleurs
+          // (ex. encore "Proposé" en septembre) ne soit jamais reproposée en
+          // double sur un autre mois (ex. octobre).
           const existingRes = await fetch(APPS_SCRIPT_URL, {
             method: 'POST',
             headers: {'Content-Type': 'text/plain;charset=utf-8'},
-            body: JSON.stringify(authBody({ sheet: 'get_planning', mois: currentViewedMonth, targetRestaurant: currentRestaurant }))
+            body: JSON.stringify(authBody({ sheet: 'get_planning', mois: '__ALL__', targetRestaurant: currentRestaurant }))
           });
           const existingData = await existingRes.json();
-          const existing = existingData.proposals || [];
+          const existingAll = existingData.proposals || [];
+          const existing = existingAll.filter(p => p.mois === currentViewedMonth);
 
-          const countsByFormateur = {};
-          const usedPairs = new Set();
-          const ignoredPairs = new Set();
-          existing.forEach(p => {
-            if(p.statut === 'Ignoré'){
-              ignoredPairs.add(p.equipier + '|' + p.posteLabel);
-            } else { // Proposé ou Validé comptent pour l'objectif de 2
-              countsByFormateur[p.formateur] = (countsByFormateur[p.formateur] || 0) + 1;
+          const countsByFormateur = {}; // objectif de 2 : uniquement le mois ciblé
+          const usedPairs = new Set(); // "déjà en attente/validé" : tous mois confondus, jamais de doublon
+          const ignoredPairs = new Set(); // "ignoré" : seulement pour le mois ciblé (redevient éligible ensuite)
+          existingAll.forEach(p => {
+            if(p.statut !== 'Ignoré'){
               usedPairs.add(p.equipier + '|' + p.posteLabel);
+              if(p.mois === currentViewedMonth) countsByFormateur[p.formateur] = (countsByFormateur[p.formateur] || 0) + 1;
+            } else if(p.mois === currentViewedMonth){
+              ignoredPairs.add(p.equipier + '|' + p.posteLabel);
             }
           });
 
