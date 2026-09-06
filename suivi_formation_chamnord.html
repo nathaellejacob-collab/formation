@@ -2202,9 +2202,9 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     const choiceFormationPosteBtn = document.getElementById('choiceFormationPosteBtn');
     const choiceFormationObligatoireBtn = document.getElementById('choiceFormationObligatoireBtn');
 
-    // Seul le gérant ou un "Responsable formation" actif peut ajouter/gérer
-    // les postes ou les formations obligatoires.
-    if(!isGerant && sessionRole !== 'Responsable'){
+    // Réservé au gérant uniquement — volontairement hors de portée du
+    // responsable formation, contrairement à la gestion des formateurs.
+    if(!isGerant){
       addFormationChoiceBtn.closest('div').style.display = 'none';
     }
 
