@@ -1064,7 +1064,13 @@
   <select id="restaurantSelect"></select>
   <button type="button" id="manageRestaurantsBtn" style="display:none;">⚙️ Gérer les restaurants</button>
   <button type="button" id="manageFormateursBtn">👥 Gérer les formateurs</button>
-  <button type="button" id="managePostesBtn">🍔 Gérer les postes</button>
+  <div style="position:relative; display:inline-block;">
+    <button type="button" id="addFormationChoiceBtn">➕ Ajouter une formation</button>
+    <div id="addFormationChoiceMenu" style="display:none; position:absolute; top:100%; left:0; margin-top:4px; background:#fff; border:1px solid var(--line); border-radius:10px; box-shadow:0 8px 20px rgba(0,0,0,0.12); z-index:50; min-width:200px; overflow:hidden;">
+      <button type="button" id="choiceFormationPosteBtn" style="display:block; width:100%; text-align:left; padding:10px 14px; border:none; background:#fff; font-size:13px; cursor:pointer;">🍔 Formation sur poste</button>
+      <button type="button" id="choiceFormationObligatoireBtn" style="display:block; width:100%; text-align:left; padding:10px 14px; border:none; background:#fff; font-size:13px; cursor:pointer; border-top:1px solid var(--line);">📋 Formation obligatoire</button>
+    </div>
+  </div>
 </div>
 
 <div class="stats-wrap" id="statsWrap">
@@ -1370,6 +1376,52 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="manageFormationsObligatoiresModal" style="display:none;">
+  <div class="modal-card modal-card-wide">
+    <div class="modal-head-row">
+      <div>
+        <h3>Gérer les formations obligatoires</h3>
+        <p class="modal-sub">Les 6 formations historiques restent fixes ; celles ajoutées ici s'ajoutent en plus, partagées par tous les restaurants.</p>
+      </div>
+      <button type="button" id="closeManageFormationsObligatoires" class="modal-close-btn">✕</button>
+    </div>
+    <div id="formationObligatoireManageList" class="poste-upload-list"></div>
+    <form id="addFormationObligatoireForm" style="margin-top:16px; border-top:1px dashed var(--line); padding-top:16px; display:flex; flex-direction:column; gap:6px;">
+      <label for="newFormationLabel">Ajouter une formation obligatoire</label>
+      <input type="text" id="newFormationLabel" required placeholder="Nom de la formation" autocomplete="off">
+
+      <label>Échéance</label>
+      <div style="display:flex; gap:14px; font-size:13px; margin:2px 0 4px;">
+        <label style="display:flex; align-items:center; gap:5px; font-weight:400;"><input type="radio" name="newFormationType" value="periodique" checked> Se renouvelle</label>
+        <label style="display:flex; align-items:center; gap:5px; font-weight:400;"><input type="radio" name="newFormationType" value="ponctuel"> Ponctuelle (une seule fois)</label>
+      </div>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <span style="font-size:12.5px;color:var(--ink-soft);" id="newFormationIntervalLabel">Tous les</span>
+        <input type="number" id="newFormationIntervalValue" min="1" value="6" style="width:70px;padding:9px 10px;border-radius:8px;border:1px solid var(--line);font-size:13px;">
+        <select id="newFormationIntervalUnit" style="padding:9px 10px;border-radius:8px;border:1px solid var(--line);font-size:13px;">
+          <option value="mois">mois</option>
+          <option value="jours">jours</option>
+        </select>
+      </div>
+
+      <label for="newFormationAppliesTo">S'applique à</label>
+      <select id="newFormationAppliesTo">
+        <option value="les_deux">Équipiers et équipe de gestion</option>
+        <option value="equipiers">Équipiers uniquement</option>
+        <option value="gestion">Équipe de gestion uniquement</option>
+      </select>
+
+      <label for="newFormationVerifFile">Fiche de vérification (PDF, optionnel)</label>
+      <input type="file" id="newFormationVerifFile" accept="application/pdf">
+
+      <div class="modal-error" id="addFormationObligatoireError" style="display:none;"></div>
+      <div class="modal-actions">
+        <button type="submit">Ajouter</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 </div><!-- /#appRoot -->
 
 <script>
@@ -1501,6 +1553,24 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     {key:'suivi60j',label:'Suivi à 60 jours',            faitKey:'suivi60jFait',butoirKey:'suivi60jButoir',period:'ponctuel',      oneTime:true}
   ];
 
+  // Formations obligatoires ajoutées depuis le site (en plus des 6
+  // historiques ci-dessus) : chacune a sa propre colonne "Fait"/"Butoir",
+  // retrouvée par LIBELLÉ (comme la Polyvalence), jamais par position fixe.
+  const DYNAMIC_TRAININGS = (appData.formationsObligatoires || []).map(f => ({
+    key: f.key,
+    label: f.label,
+    period: f.type === 'periodique' ? `tous les ${f.intervalValue} ${f.intervalUnit}` : 'ponctuel',
+    oneTime: f.type === 'ponctuel',
+    faitKey: f.label + ' (Fait)',
+    butoirKey: f.label + ' (Butoir)',
+    appliesTo: f.appliesTo,
+    ficheVerifUrl: f.ficheVerifUrl,
+    dynamic: true,
+  }));
+  const TRAININGS_EQUIPIERS = TRAININGS.concat(DYNAMIC_TRAININGS.filter(f => f.appliesTo === 'equipiers' || f.appliesTo === 'les_deux'));
+  const TRAININGS_GESTION = TRAININGS.filter(t => t.key !== 'suivi4s' && t.key !== 'suivi60j')
+    .concat(DYNAMIC_TRAININGS.filter(f => f.appliesTo === 'gestion' || f.appliesTo === 'les_deux'));
+
   // Fiches de vérification PDF disponibles (formations obligatoires + postes),
   // hébergées dans le dossier verifications/ à côté de cette page.
   // Pas de fiche pour "Suivi à 4 semaines" (pas une formation) ni "Plonge ReUSe" (non fournie).
@@ -1510,9 +1580,10 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     'tempering','assemblage_init','viandes','frites','frits','oeufs','petit_dej',
     'boissons','commande','presentation','salle','ouverture','fermeture','livraison','huiles'
   ]);
-  function verifLinkHtml(key, label){
-    if(!VERIF_AVAILABLE.has(key)) return '';
-    return `<a class="verif-link" href="${VERIF_DIR}${key}.pdf" target="_blank" rel="noopener" title="Ouvrir la fiche de vérification — ${label}" onclick="event.stopPropagation();">📄 Fiche de vérification</a>`;
+  function verifLinkHtml(key, label, dynamicUrl){
+    const url = dynamicUrl || (VERIF_AVAILABLE.has(key) ? VERIF_DIR + key + '.pdf' : null);
+    if(!url) return '';
+    return `<a class="verif-link" href="${url}" target="_blank" rel="noopener" title="Ouvrir la fiche de vérification — ${label}" onclick="event.stopPropagation();">📄 Fiche de vérification</a>`;
   }
 
   function parseDate(s){
@@ -1575,13 +1646,14 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
 
   // Calcule les statuts dérivés (pastilles, pire statut) d'une personne.
   // Rappelée après chaque modification pour que l'affichage se mette à jour sans recharger la page.
-  function computeDerived(e){
+  function computeDerived(e, trainingsList){
+    const list = trainingsList || TRAININGS;
     const statuses = {};
-    TRAININGS.forEach(t => { statuses[t.key] = statusForTraining(t, e); });
+    list.forEach(t => { statuses[t.key] = statusForTraining(t, e); });
     const rank = {red:0, orange:1, gray:2, done:3, green:3};
     let worst = 'green';
     let worstDays = Infinity;
-    TRAININGS.forEach(t => {
+    list.forEach(t => {
       const s = statuses[t.key];
       if(s.level === 'gray' || s.level === 'done') return;
       if(rank[s.level] < rank[worst] || (rank[s.level] === rank[worst] && s.days < worstDays)){
@@ -1622,8 +1694,8 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     return data;
   }
 
-  const employees = appData.employees.map(e => computeDerived({...e}));
-  const managers = (appData.managers || []).map(e => computeDerived({...e}));
+  const employees = appData.employees.map(e => computeDerived({...e}, TRAININGS_EQUIPIERS));
+  const managers = (appData.managers || []).map(e => computeDerived({...e}, TRAININGS_GESTION));
 
   // ---------------- Filtre par restaurant ----------------
   const RESTAURANT_STORAGE_KEY = 'crewAcademyRestaurant';
@@ -2125,12 +2197,22 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     const posteManageList = document.getElementById('posteManageList');
     const addPosteForm = document.getElementById('addPosteForm');
     const addPosteError = document.getElementById('addPosteError');
-    const managePostesBtn = document.getElementById('managePostesBtn');
+    const addFormationChoiceBtn = document.getElementById('addFormationChoiceBtn');
+    const addFormationChoiceMenu = document.getElementById('addFormationChoiceMenu');
+    const choiceFormationPosteBtn = document.getElementById('choiceFormationPosteBtn');
+    const choiceFormationObligatoireBtn = document.getElementById('choiceFormationObligatoireBtn');
 
-    // Seul le gérant ou un "Responsable formation" actif peut gérer les postes.
+    // Seul le gérant ou un "Responsable formation" actif peut ajouter/gérer
+    // les postes ou les formations obligatoires.
     if(!isGerant && sessionRole !== 'Responsable'){
-      managePostesBtn.style.display = 'none';
+      addFormationChoiceBtn.closest('div').style.display = 'none';
     }
+
+    addFormationChoiceBtn.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      addFormationChoiceMenu.style.display = addFormationChoiceMenu.style.display === 'none' ? 'block' : 'none';
+    });
+    document.addEventListener('click', () => { addFormationChoiceMenu.style.display = 'none'; });
 
     const GROUP_LABELS = {production:'Production', service:'Service', autres:'Autres'};
 
@@ -2251,7 +2333,8 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       }
     }
 
-    managePostesBtn.addEventListener('click', () => {
+    choiceFormationPosteBtn.addEventListener('click', () => {
+      addFormationChoiceMenu.style.display = 'none';
       addPosteError.style.display = 'none';
       addPosteForm.reset();
       loadAndRenderPostes();
@@ -2259,6 +2342,205 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     });
     closePostesBtn.addEventListener('click', () => { postesModal.style.display = 'none'; });
     postesModal.addEventListener('click', (e) => { if(e.target === postesModal) postesModal.style.display = 'none'; });
+
+    // ---------------- Gérer les formations obligatoires (dynamiques) ----------------
+    const formationsObligatoiresModal = document.getElementById('manageFormationsObligatoiresModal');
+    const closeFormationsObligatoiresBtn = document.getElementById('closeManageFormationsObligatoires');
+    const formationObligatoireManageList = document.getElementById('formationObligatoireManageList');
+    const addFormationObligatoireForm = document.getElementById('addFormationObligatoireForm');
+    const addFormationObligatoireError = document.getElementById('addFormationObligatoireError');
+    const newFormationIntervalLabel = document.getElementById('newFormationIntervalLabel');
+    const newFormationIntervalUnit = document.getElementById('newFormationIntervalUnit');
+
+    function renderFormationObligatoireList(list){
+      formationObligatoireManageList.innerHTML = list.length
+        ? list.map(f => {
+            const echeance = f.type === 'periodique' ? `Tous les ${f.intervalValue} ${f.intervalUnit}` : `Ponctuelle, ${f.intervalValue} ${f.intervalUnit} après l'entrée`;
+            const applique = {les_deux:'Équipiers et gestion', equipiers:'Équipiers uniquement', gestion:'Équipe de gestion uniquement'}[f.appliesTo] || f.appliesTo;
+            return `<div class="poste-upload-item">
+            <div class="poste-upload-item-head">
+              <span class="poste-name">${f.label} <span style="font-weight:400;color:var(--ink-soft);">— ${echeance} · ${applique}${f.actif ? '' : ' · inactif'}</span></span>
+              <button type="button" class="toggle-formation-obligatoire-btn" data-key="${f.key}" data-actif="${f.actif}">${f.actif ? 'Retirer' : 'Réactiver'}</button>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px; margin-top:6px; flex-wrap:wrap;">
+              ${f.ficheVerifUrl ? `<a href="${f.ficheVerifUrl}" target="_blank" rel="noopener" style="font-size:12px;">📄 Voir la fiche</a>` : '<span style="font-size:12px;color:var(--ink-soft);">Aucune fiche de vérification</span>'}
+              <button type="button" class="verif-folder-btn upload-formation-verif-btn" data-key="${f.key}">${f.ficheVerifUrl ? '🔄 Remplacer la fiche' : '📎 Ajouter une fiche'}</button>
+              <input type="file" class="formation-verif-file-input" data-key="${f.key}" accept="application/pdf" style="display:none;">
+            </div>
+            ${!f.actif ? `<button type="button" class="verif-folder-btn delete-formation-obligatoire-btn" data-key="${f.key}" data-label="${f.label.replace(/"/g,'&quot;')}" style="margin-top:6px;color:var(--red);border-color:var(--red);">🗑️ Supprimer définitivement</button>` : ''}
+          </div>`;
+          }).join('')
+        : '<p style="color:var(--ink-soft);font-size:13px;">Aucune formation obligatoire ajoutée pour l\'instant (en plus des 6 historiques).</p>';
+
+      formationObligatoireManageList.querySelectorAll('.upload-formation-verif-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          formationObligatoireManageList.querySelector(`.formation-verif-file-input[data-key="${CSS.escape(btn.dataset.key)}"]`).click();
+        });
+      });
+      formationObligatoireManageList.querySelectorAll('.formation-verif-file-input').forEach(input => {
+        input.addEventListener('change', async () => {
+          const file = input.files[0];
+          if(!file) return;
+          const key = input.dataset.key;
+          const btn = formationObligatoireManageList.querySelector(`.upload-formation-verif-btn[data-key="${CSS.escape(key)}"]`);
+          btn.disabled = true;
+          btn.textContent = 'Envoi…';
+          try{
+            const base64 = await readFileAsBase64(file);
+            const res = await fetch(APPS_SCRIPT_URL, {
+              method: 'POST',
+              headers: {'Content-Type': 'text/plain;charset=utf-8'},
+              body: JSON.stringify(authBody({ sheet: 'upload_formation_obligatoire_verification', key, fileName: file.name, mimeType: file.type, data: base64 }))
+            });
+            const data = await res.json();
+            if(!data.ok) throw new Error(data.error || "Échec de l'envoi");
+            renderFormationObligatoireList(data.formationsObligatoires || []);
+            refreshAppDataAndReinit();
+          } catch(err){
+            alert('Erreur : ' + err.message);
+            btn.disabled = false;
+            btn.textContent = '📎 Ajouter une fiche';
+          }
+        });
+      });
+
+      formationObligatoireManageList.querySelectorAll('.toggle-formation-obligatoire-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const key = btn.dataset.key;
+          const actif = btn.dataset.actif === 'true';
+          const label = btn.closest('.poste-upload-item').querySelector('.poste-name').textContent;
+          if(actif){
+            const confirmed = window.confirm(`Retirer « ${label.split(' — ')[0]} » de la liste des formations obligatoires ?\n\nElle disparaîtra du site pour tous les restaurants, mais l'historique déjà enregistré est conservé. Tu pourras la réactiver plus tard si besoin.`);
+            if(!confirmed) return;
+          }
+          btn.disabled = true;
+          try{
+            const res = await fetch(APPS_SCRIPT_URL, {
+              method: 'POST',
+              headers: {'Content-Type': 'text/plain;charset=utf-8'},
+              body: JSON.stringify(authBody({ sheet: 'toggle_formation_obligatoire_actif', key, actif: !actif }))
+            });
+            const data = await res.json();
+            if(!data.ok) throw new Error(data.error || 'Échec');
+            renderFormationObligatoireList(data.formationsObligatoires || []);
+            refreshAppDataAndReinit();
+          } catch(err){
+            alert('Erreur : ' + err.message);
+          } finally {
+            btn.disabled = false;
+          }
+        });
+      });
+
+      formationObligatoireManageList.querySelectorAll('.delete-formation-obligatoire-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const key = btn.dataset.key;
+          const label = btn.dataset.label;
+          const confirmed = window.confirm(`Supprimer définitivement « ${label} » ?\n\nContrairement à "Retirer", ceci efface aussi l'historique déjà enregistré (dates faites, échéances) sur TOUS les restaurants — action irréversible.`);
+          if(!confirmed) return;
+          btn.disabled = true;
+          try{
+            const res = await fetch(APPS_SCRIPT_URL, {
+              method: 'POST',
+              headers: {'Content-Type': 'text/plain;charset=utf-8'},
+              body: JSON.stringify(authBody({ sheet: 'delete_formation_obligatoire_definitivement', key }))
+            });
+            const data = await res.json();
+            if(!data.ok) throw new Error(data.error || 'Échec');
+            renderFormationObligatoireList(data.formationsObligatoires || []);
+            refreshAppDataAndReinit();
+          } catch(err){
+            alert('Erreur : ' + err.message);
+            btn.disabled = false;
+          }
+        });
+      });
+    }
+
+    async function loadAndRenderFormationsObligatoires(){
+      try{
+        const res = await fetch(APPS_SCRIPT_URL, {
+          method: 'POST',
+          headers: {'Content-Type': 'text/plain;charset=utf-8'},
+          body: JSON.stringify(authBody({ sheet: 'get_all_formations_obligatoires' }))
+        });
+        const data = await res.json();
+        if(!data.ok) throw new Error(data.error || 'Erreur de chargement');
+        renderFormationObligatoireList(data.formationsObligatoires || []);
+      } catch(err){
+        formationObligatoireManageList.innerHTML = '<p style="color:var(--red);font-size:13px;">Erreur : ' + err.message + '</p>';
+      }
+    }
+
+    choiceFormationObligatoireBtn.addEventListener('click', () => {
+      addFormationChoiceMenu.style.display = 'none';
+      addFormationObligatoireError.style.display = 'none';
+      addFormationObligatoireForm.reset();
+      loadAndRenderFormationsObligatoires();
+      formationsObligatoiresModal.style.display = 'flex';
+    });
+    closeFormationsObligatoiresBtn.addEventListener('click', () => { formationsObligatoiresModal.style.display = 'none'; });
+    formationsObligatoiresModal.addEventListener('click', (e) => { if(e.target === formationsObligatoiresModal) formationsObligatoiresModal.style.display = 'none'; });
+
+    // Ajuste le libellé et l'unité par défaut selon periodique/ponctuel.
+    addFormationObligatoireForm.querySelectorAll('input[name="newFormationType"]').forEach(radio => {
+      radio.addEventListener('change', () => {
+        if(radio.value === 'ponctuel' && radio.checked){
+          newFormationIntervalLabel.textContent = 'Après';
+          newFormationIntervalUnit.value = 'jours';
+        } else if(radio.value === 'periodique' && radio.checked){
+          newFormationIntervalLabel.textContent = 'Tous les';
+          newFormationIntervalUnit.value = 'mois';
+        }
+      });
+    });
+
+    addFormationObligatoireForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const label = document.getElementById('newFormationLabel').value.trim();
+      const type = addFormationObligatoireForm.querySelector('input[name="newFormationType"]:checked').value;
+      const intervalValue = Number(document.getElementById('newFormationIntervalValue').value);
+      const intervalUnit = document.getElementById('newFormationIntervalUnit').value;
+      const appliesTo = document.getElementById('newFormationAppliesTo').value;
+      const verifFileInput = document.getElementById('newFormationVerifFile');
+      const verifFile = verifFileInput.files[0] || null;
+      if(!label || !intervalValue) return;
+      addFormationObligatoireError.style.display = 'none';
+      try{
+        const res = await fetch(APPS_SCRIPT_URL, {
+          method: 'POST',
+          headers: {'Content-Type': 'text/plain;charset=utf-8'},
+          body: JSON.stringify(authBody({ sheet: 'add_formation_obligatoire', label, type, intervalValue, intervalUnit, appliesTo }))
+        });
+        const data = await res.json();
+        if(!data.ok) throw new Error(data.error || "Échec de l'ajout");
+
+        if(verifFile){
+          addFormationObligatoireError.textContent = 'Formation ajoutée — envoi de la fiche…';
+          addFormationObligatoireError.style.color = 'var(--green)';
+          addFormationObligatoireError.style.display = 'block';
+          const base64 = await readFileAsBase64(verifFile);
+          const upRes = await fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            headers: {'Content-Type': 'text/plain;charset=utf-8'},
+            body: JSON.stringify(authBody({ sheet: 'upload_formation_obligatoire_verification', key: data.key, fileName: verifFile.name, mimeType: verifFile.type, data: base64 }))
+          });
+          const upData = await upRes.json();
+          if(!upData.ok) throw new Error(upData.error || "Échec de l'envoi de la fiche");
+        }
+
+        renderFormationObligatoireList(data.formationsObligatoires || []);
+        addFormationObligatoireForm.reset();
+        addFormationObligatoireError.textContent = 'Ajoutée — mise à jour en cours…';
+        addFormationObligatoireError.style.color = 'var(--green)';
+        addFormationObligatoireError.style.display = 'block';
+        setTimeout(() => refreshAppDataAndReinit(), 1200);
+      } catch(err){
+        addFormationObligatoireError.style.color = '';
+        addFormationObligatoireError.textContent = 'Erreur : ' + err.message;
+        addFormationObligatoireError.style.display = 'block';
+      }
+    });
 
     // Lit un fichier <input type="file"> et le renvoie en base64 pur (sans
     // le préfixe "data:...;base64,"), prêt à envoyer à Apps Script.
@@ -2459,7 +2741,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
           <h4>${t.label} <span style="text-transform:none;font-weight:400;">(${t.period})</span></h4>
           <div class="detail-row"><span>Date butoir</span><span>${frDate(butoir)}</span></div>
           ${statusLine}
-          ${verifLinkHtml(t.key, t.label)}
+          ${verifLinkHtml(t.key, t.label, t.ficheVerifUrl)}
           <div class="detail-edit">
             <label>Fait le</label>
             <input type="date" class="fait-input" data-nom="${e.nom.replace(/"/g,'&quot;')}" data-field="${t.faitKey}" value="${fait}">
@@ -2545,7 +2827,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
                 targetPerson.suivi60jButoir = addDaysJS(newDate, 60);
               }
             }
-            computeDerived(targetPerson);
+            computeDerived(targetPerson, trainings);
           }
           renderStats();
           render();
@@ -2897,7 +3179,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         }
         if(cfg.hasSkills) base.skills = POSTES.map(() => false);
 
-        const newPerson = computeDerived(base);
+        const newPerson = computeDerived(base, trainings);
         list.push(newPerson);
         registerNewRestaurant(restaurant);
 
@@ -2926,7 +3208,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
   // ---- Instanciation onglet Équipiers ----
   createRosterTab({
     list: employees,
-    trainings: TRAININGS,
+    trainings: TRAININGS_EQUIPIERS,
     sheetKey: 'formations',
     addSheetKey: 'new_employee',
     deleteSheetKey: 'delete_employee',
@@ -2952,7 +3234,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
   // ---- Instanciation onglet Équipe de gestion ----
   createRosterTab({
     list: managers,
-    trainings: TRAININGS.filter(t => t.key !== 'suivi4s' && t.key !== 'suivi60j'),
+    trainings: TRAININGS_GESTION,
     sheetKey: 'gestion',
     addSheetKey: 'new_manager',
     deleteSheetKey: 'delete_manager',
