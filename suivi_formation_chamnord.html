@@ -1382,10 +1382,13 @@
     <div class="modal-head-row">
       <div>
         <h3>Gérer les formations obligatoires</h3>
-        <p class="modal-sub">Les 6 formations historiques restent fixes ; celles ajoutées ici s'ajoutent en plus, partagées par tous les restaurants.</p>
+        <p class="modal-sub">Les 6 formations historiques peuvent être retirées/réactivées (mais pas supprimées) ; celles ajoutées ici s'ajoutent en plus, partagées par tous les restaurants.</p>
       </div>
       <button type="button" id="closeManageFormationsObligatoires" class="modal-close-btn">✕</button>
     </div>
+    <p style="font-size:11.5px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:0.03em;margin:0 0 8px;">Formations historiques</p>
+    <div id="formationHistoriqueList" class="poste-upload-list"></div>
+    <p style="font-size:11.5px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:0.03em;margin:18px 0 8px;">Formations ajoutées</p>
     <div id="formationObligatoireManageList" class="poste-upload-list"></div>
     <form id="addFormationObligatoireForm" style="margin-top:16px; border-top:1px dashed var(--line); padding-top:16px; display:flex; flex-direction:column; gap:6px;">
       <label for="newFormationLabel">Ajouter une formation obligatoire</label>
@@ -1545,7 +1548,8 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     });
   }
 
-  const TRAININGS = [
+  const HISTORIQUE_ACTIVES = appData.historiqueFormationsActives || {};
+  const TRAININGS_ALL = [
     {key:'secu',    label:'Prévention & Sécurité',      faitKey:'secuFait',    butoirKey:'secuButoir',    period:'6 mois',        oneTime:false},
     {key:'hygiene', label:'Hygiène & Sécurité alim.',    faitKey:'hygieneFait', butoirKey:'hygieneButoir', period:'6 mois',        oneTime:false},
     {key:'mtsri',   label:'MTSRI',                       faitKey:'mtsriFait',   butoirKey:'mtsriButoir',   period:'tous les ans',  oneTime:false},
@@ -1553,6 +1557,9 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     {key:'suivi4s', label:'Suivi à 4 semaines',          faitKey:'suivi4sFait', butoirKey:'suivi4sButoir', period:'ponctuel',      oneTime:true},
     {key:'suivi60j',label:'Suivi à 60 jours',            faitKey:'suivi60jFait',butoirKey:'suivi60jButoir',period:'ponctuel',      oneTime:true}
   ];
+  // Retirable (réversible) depuis "Gérer les formations obligatoires" —
+  // actif par défaut tant que rien n'a été configuré côté serveur.
+  const TRAININGS = TRAININGS_ALL.filter(t => HISTORIQUE_ACTIVES[t.key] !== false);
 
   // Formations obligatoires ajoutées depuis le site (en plus des 6
   // historiques ci-dessus) : chacune a sa propre colonne "Fait"/"Butoir",
@@ -2458,6 +2465,51 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       });
     }
 
+    const formationHistoriqueList = document.getElementById('formationHistoriqueList');
+    const HISTORIQUE_LABELS = {
+      secu: 'Prévention & Sécurité', hygiene: 'Hygiène & Sécurité alim.', mtsri: 'MTSRI',
+      culture: 'Culture Service', suivi4s: 'Suivi à 4 semaines', suivi60j: 'Suivi à 60 jours',
+    };
+
+    function renderFormationHistoriqueList(actives){
+      formationHistoriqueList.innerHTML = Object.keys(HISTORIQUE_LABELS).map(key => {
+        const actif = actives[key] !== false;
+        return `<div class="poste-upload-item">
+          <div class="poste-upload-item-head">
+            <span class="poste-name">${HISTORIQUE_LABELS[key]} <span style="font-weight:400;color:var(--ink-soft);">— historique${actif ? '' : ' · inactif'}</span></span>
+            <button type="button" class="toggle-formation-historique-btn" data-key="${key}" data-actif="${actif}">${actif ? 'Retirer' : 'Réactiver'}</button>
+          </div>
+        </div>`;
+      }).join('');
+
+      formationHistoriqueList.querySelectorAll('.toggle-formation-historique-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const key = btn.dataset.key;
+          const actif = btn.dataset.actif === 'true';
+          if(actif){
+            const confirmed = window.confirm(`Retirer « ${HISTORIQUE_LABELS[key]} » de la liste des formations obligatoires ?\n\nElle disparaîtra du site pour tous les restaurants, mais l'historique déjà enregistré est conservé (contrairement aux formations ajoutées, celle-ci ne peut pas être supprimée définitivement). Tu pourras la réactiver plus tard si besoin.`);
+            if(!confirmed) return;
+          }
+          btn.disabled = true;
+          try{
+            const res = await fetch(APPS_SCRIPT_URL, {
+              method: 'POST',
+              headers: {'Content-Type': 'text/plain;charset=utf-8'},
+              body: JSON.stringify(authBody({ sheet: 'toggle_formation_historique_actif', key, actif: !actif, targetRestaurant: currentRestaurant }))
+            });
+            const data = await res.json();
+            if(!data.ok) throw new Error(data.error || 'Échec');
+            renderFormationHistoriqueList(data.historiqueFormationsActives || {});
+            refreshAppDataAndReinit();
+          } catch(err){
+            alert('Erreur : ' + err.message);
+          } finally {
+            btn.disabled = false;
+          }
+        });
+      });
+    }
+
     async function loadAndRenderFormationsObligatoires(){
       try{
         const res = await fetch(APPS_SCRIPT_URL, {
@@ -2468,6 +2520,14 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         const data = await res.json();
         if(!data.ok) throw new Error(data.error || 'Erreur de chargement');
         renderFormationObligatoireList(data.formationsObligatoires || []);
+
+        const histRes = await fetch(APPS_SCRIPT_URL, {
+          method: 'POST',
+          headers: {'Content-Type': 'text/plain;charset=utf-8'},
+          body: JSON.stringify(authBody({ sheet: 'get_historique_formations_actives' }))
+        });
+        const histData = await histRes.json();
+        renderFormationHistoriqueList(histData.ok ? (histData.historiqueFormationsActives || {}) : {});
       } catch(err){
         formationObligatoireManageList.innerHTML = '<p style="color:var(--red);font-size:13px;">Erreur : ' + err.message + '</p>';
       }
