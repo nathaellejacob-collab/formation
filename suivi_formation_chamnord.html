@@ -839,6 +839,8 @@
     gap:12px;
     padding:8px 0;
   }
+  .balance-restaurant-block{margin-bottom:16px; padding-bottom:14px; border-bottom:1px solid var(--line);}
+  .balance-restaurant-block:last-child{border-bottom:none; margin-bottom:0; padding-bottom:0;}
   .bar-row .bname{font-size:12px; font-weight:600; color:var(--ink); line-height:1.25;}
   .bar-row .btag{
     display:inline-block; font-size:9.5px; text-transform:uppercase; letter-spacing:0.04em;
@@ -3406,7 +3408,21 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       else green++; // 'green' ou 'gray' (rien de préoccupant) compté comme à jour
     });
     const polyAvg = empR.length ? empR.reduce((s,e) => s + e.polyPct, 0) / empR.length : 0;
-    return { restaurant: r, totalEmployees: empR.length, totalManagers: mgrR.length, total: all.length, red, orange, green, polyAvg };
+
+    // Taux de maîtrise Production vs Service — pour repérer un déséquilibre
+    // entre les deux familles à l'échelle du restaurant.
+    const prodIdx = POSTES.map((p,i) => p.group === 'production' ? i : -1).filter(i => i !== -1);
+    const servIdx = POSTES.map((p,i) => p.group === 'service' ? i : -1).filter(i => i !== -1);
+    function famRate(idxList){
+      if(!idxList.length || !empR.length) return 0;
+      let done = 0, total = 0;
+      empR.forEach(e => { idxList.forEach(i => { total++; if(e.skills[i]) done++; }); });
+      return total ? done/total : 0;
+    }
+    const prodAvg = famRate(prodIdx);
+    const servAvg = famRate(servIdx);
+
+    return { restaurant: r, totalEmployees: empR.length, totalManagers: mgrR.length, total: all.length, red, orange, green, polyAvg, prodAvg, servAvg };
   }
 
   function renderComparaisonCharts(){
@@ -3422,20 +3438,28 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       </div>
     `).join('');
 
-    const statusRows = rows.map(r => {
-      const total = r.red + r.orange + r.green || 1;
-      const redPct = r.red/total*100, orangePct = r.orange/total*100, greenPct = r.green/total*100;
-      return `
-        <div class="comparaison-stack-row">
-          <div class="comparaison-stack-label">${r.restaurant}</div>
-          <div class="comparaison-stack-track">
-            <div class="comparaison-stack-seg red" style="width:${redPct}%;" title="${r.red} en retard"></div>
-            <div class="comparaison-stack-seg orange" style="width:${orangePct}%;" title="${r.orange} à échéance"></div>
-            <div class="comparaison-stack-seg green" style="width:${greenPct}%;" title="${r.green} à jour"></div>
+    // Équilibre Production / Service : classé du plus déséquilibré au plus
+    // équilibré, pour repérer en un coup d'œil où l'attention est nécessaire.
+    const balanceRows = rows.slice()
+      .sort((a,b) => Math.abs(b.prodAvg - b.servAvg) - Math.abs(a.prodAvg - a.servAvg))
+      .map(r => {
+        const ecart = Math.abs(r.prodAvg - r.servAvg) * 100;
+        return `
+        <div class="balance-restaurant-block">
+          <div class="bname" style="margin-bottom:6px;">${r.restaurant} <span style="font-weight:400;color:var(--ink-soft);font-size:11.5px;">— écart ${ecart.toFixed(1).replace('.', ',')} pts</span></div>
+          <div class="bar-row">
+            <div style="width:78px;font-size:11.5px;color:var(--ink-soft);flex-shrink:0;">Production</div>
+            <div class="btrack"><div class="bfill production" style="width:${(r.prodAvg*100).toFixed(1)}%;"></div></div>
+            <div class="bval">${(r.prodAvg*100).toFixed(1).replace('.', ',')}%</div>
+          </div>
+          <div class="bar-row">
+            <div style="width:78px;font-size:11.5px;color:var(--ink-soft);flex-shrink:0;">Service</div>
+            <div class="btrack"><div class="bfill service" style="width:${(r.servAvg*100).toFixed(1)}%;"></div></div>
+            <div class="bval">${(r.servAvg*100).toFixed(1).replace('.', ',')}%</div>
           </div>
         </div>
       `;
-    }).join('');
+      }).join('');
 
     wrap.innerHTML = `
       <div class="panel-block">
@@ -3447,15 +3471,10 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       </div>
       <div class="panel-block">
         <div class="panel-head">
-          <h3>Répartition des formations par restaurant</h3>
-          <p>Part des équipiers/gestion en retard, à échéance proche, ou à jour sur leurs formations obligatoires.</p>
+          <h3>Équilibre Production / Service par restaurant</h3>
+          <p>Taux de maîtrise Production vs Service — l'objectif est que les deux barres soient proches l'une de l'autre.</p>
         </div>
-        ${statusRows || '<p style="color:var(--ink-soft);font-size:13px;">Aucune donnée.</p>'}
-        <div class="comparaison-legend">
-          <span><i class="dot red"></i> En retard</span>
-          <span><i class="dot orange"></i> Échéance sous 30 j</span>
-          <span><i class="dot green"></i> À jour</span>
-        </div>
+        ${balanceRows || '<p style="color:var(--ink-soft);font-size:13px;">Aucune donnée.</p>'}
       </div>
     `;
   }
