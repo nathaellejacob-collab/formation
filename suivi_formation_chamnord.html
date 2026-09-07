@@ -1439,21 +1439,12 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
   today.setHours(0,0,0,0);
   document.getElementById('todayLabel').textContent = today.toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
 
-  // Recharge les données fraîches depuis le serveur (postes, équipiers,
-  // gestion) et relance l'appli avec — sans jamais recharger la page ni
-  // perdre la session, contrairement à location.reload(). Réutilise le mot
-  // de passe déjà en mémoire pour re-passer par l'action de connexion.
+  // Recharge la page pour repartir sur une exécution neuve de l'appli (évite
+  // d'empiler les gestionnaires d'évènements à chaque ajout de poste/formation).
+  // La session se restaure automatiquement (tryRestoreSession), donc aucune
+  // reconnexion n'est nécessaire malgré le rechargement.
   async function refreshAppDataAndReinit(){
-    const res = await fetch(APPS_SCRIPT_URL, {
-      method: 'POST',
-      headers: {'Content-Type': 'text/plain;charset=utf-8'},
-      body: JSON.stringify(isGerant
-        ? { sheet: 'login_gerant', password: sessionPassword }
-        : { sheet: 'login_restaurant', restaurant: fixedRestaurant, password: sessionPassword })
-    });
-    const data = await res.json();
-    if(!data.ok) throw new Error(data.error || 'Erreur de rechargement des données');
-    initApp(data, isGerant, fixedRestaurant, sessionPassword, sessionFormateur, sessionRole);
+    location.reload();
   }
 
   const POSTES = appData.postes;
@@ -2215,10 +2206,14 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     const choiceFormationPosteBtn = document.getElementById('choiceFormationPosteBtn');
     const choiceFormationObligatoireBtn = document.getElementById('choiceFormationObligatoireBtn');
 
-    // Réservé au gérant uniquement — volontairement hors de portée du
-    // responsable formation, contrairement à la gestion des formateurs.
-    if(!isGerant){
+    // Le Responsable formation garde l'accès à "Formation sur poste" (comme
+    // avant la fusion des deux boutons) — seule "Formation obligatoire"
+    // reste réservée au gérant.
+    if(!isGerant && sessionRole !== 'Responsable'){
       addFormationChoiceBtn.closest('div').style.display = 'none';
+    }
+    if(!isGerant){
+      choiceFormationObligatoireBtn.style.display = 'none';
     }
 
     addFormationChoiceBtn.addEventListener('click', (ev) => {
@@ -2234,14 +2229,14 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         ? list.map(p => `<div class="poste-upload-item">
             <div class="poste-upload-item-head">
               <span class="poste-name">${p.label} <span style="font-weight:400;color:var(--ink-soft);">— ${GROUP_LABELS[p.group] || p.group}${p.actif ? '' : ' · inactif'}</span></span>
-              <button type="button" class="toggle-poste-btn" data-key="${p.key}" data-actif="${p.actif}">${p.actif ? 'Retirer' : 'Réactiver'}</button>
+              ${p.actif ? '' : `<button type="button" class="toggle-poste-btn" data-key="${p.key}" data-actif="${p.actif}">Réactiver</button>`}
             </div>
             <div style="display:flex; align-items:center; gap:8px; margin-top:6px; flex-wrap:wrap;">
               ${p.ficheVerifUrl ? `<a href="${p.ficheVerifUrl}" target="_blank" rel="noopener" style="font-size:12px;">📄 Voir la fiche</a>` : '<span style="font-size:12px;color:var(--ink-soft);">Aucune fiche de vérification</span>'}
               <button type="button" class="verif-folder-btn upload-poste-verif-btn" data-key="${p.key}">${p.ficheVerifUrl ? '🔄 Remplacer la fiche' : '📎 Ajouter une fiche'}</button>
               <input type="file" class="poste-verif-file-input" data-key="${p.key}" accept="application/pdf" style="display:none;">
             </div>
-            ${!p.actif ? `<button type="button" class="verif-folder-btn delete-poste-btn" data-key="${p.key}" data-label="${p.label.replace(/"/g,'&quot;')}" style="margin-top:6px;color:var(--red);border-color:var(--red);">🗑️ Supprimer définitivement</button>` : ''}
+            <button type="button" class="verif-folder-btn delete-poste-btn" data-key="${p.key}" data-label="${p.label.replace(/"/g,'&quot;')}" style="margin-top:6px;color:var(--red);border-color:var(--red);">🗑️ Supprimer définitivement</button>
           </div>`).join('')
         : '<p style="color:var(--ink-soft);font-size:13px;">Aucun poste enregistré pour l\'instant.</p>';
 
@@ -2309,7 +2304,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         btn.addEventListener('click', async () => {
           const key = btn.dataset.key;
           const label = btn.dataset.label;
-          const confirmed = window.confirm(`Supprimer définitivement « ${label} » ?\n\nContrairement à "Retirer", ceci efface aussi l'historique déjà enregistré pour ce poste (compétences, restrictions, taux de polyvalence passés) sur TOUS les restaurants — action irréversible.`);
+          const confirmed = window.confirm(`Supprimer définitivement « ${label} » ?\n\nCeci efface l'historique déjà enregistré pour ce poste (compétences, restrictions, taux de polyvalence passés) sur TOUS les restaurants — action irréversible.`);
           if(!confirmed) return;
           btn.disabled = true;
           try{
@@ -2373,14 +2368,14 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
             return `<div class="poste-upload-item">
             <div class="poste-upload-item-head">
               <span class="poste-name">${f.label} <span style="font-weight:400;color:var(--ink-soft);">— ${echeance} · ${applique}${f.actif ? '' : ' · inactif'}</span></span>
-              <button type="button" class="toggle-formation-obligatoire-btn" data-key="${f.key}" data-actif="${f.actif}">${f.actif ? 'Retirer' : 'Réactiver'}</button>
+              ${f.actif ? '' : `<button type="button" class="toggle-formation-obligatoire-btn" data-key="${f.key}" data-actif="${f.actif}">Réactiver</button>`}
             </div>
             <div style="display:flex; align-items:center; gap:8px; margin-top:6px; flex-wrap:wrap;">
               ${f.ficheVerifUrl ? `<a href="${f.ficheVerifUrl}" target="_blank" rel="noopener" style="font-size:12px;">📄 Voir la fiche</a>` : '<span style="font-size:12px;color:var(--ink-soft);">Aucune fiche de vérification</span>'}
               <button type="button" class="verif-folder-btn upload-formation-verif-btn" data-key="${f.key}">${f.ficheVerifUrl ? '🔄 Remplacer la fiche' : '📎 Ajouter une fiche'}</button>
               <input type="file" class="formation-verif-file-input" data-key="${f.key}" accept="application/pdf" style="display:none;">
             </div>
-            ${!f.actif ? `<button type="button" class="verif-folder-btn delete-formation-obligatoire-btn" data-key="${f.key}" data-label="${f.label.replace(/"/g,'&quot;')}" style="margin-top:6px;color:var(--red);border-color:var(--red);">🗑️ Supprimer définitivement</button>` : ''}
+            <button type="button" class="verif-folder-btn delete-formation-obligatoire-btn" data-key="${f.key}" data-label="${f.label.replace(/"/g,'&quot;')}" style="margin-top:6px;color:var(--red);border-color:var(--red);">🗑️ Supprimer définitivement</button>
           </div>`;
           }).join('')
         : '<p style="color:var(--ink-soft);font-size:13px;">Aucune formation obligatoire ajoutée pour l\'instant (en plus des 6 historiques).</p>';
@@ -2449,7 +2444,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         btn.addEventListener('click', async () => {
           const key = btn.dataset.key;
           const label = btn.dataset.label;
-          const confirmed = window.confirm(`Supprimer définitivement « ${label} » ?\n\nContrairement à "Retirer", ceci efface aussi l'historique déjà enregistré (dates faites, échéances) sur TOUS les restaurants — action irréversible.`);
+          const confirmed = window.confirm(`Supprimer définitivement « ${label} » ?\n\nCeci efface l'historique déjà enregistré (dates faites, échéances) sur TOUS les restaurants — action irréversible.`);
           if(!confirmed) return;
           btn.disabled = true;
           try{
@@ -3371,7 +3366,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       const res = await fetch(APPS_SCRIPT_URL, {
         method: 'POST',
         headers: {'Content-Type': 'text/plain;charset=utf-8'},
-        body: JSON.stringify(authBody({ sheet: 'get_journal' }))
+        body: JSON.stringify(authBody({ sheet: 'get_journal', targetRestaurant: currentRestaurant }))
       });
       const data = await res.json();
       if(!data.ok) throw new Error(data.error || 'Erreur de chargement');
@@ -3729,7 +3724,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
           const res = await fetch(APPS_SCRIPT_URL, {
             method: 'POST',
             headers: {'Content-Type': 'text/plain;charset=utf-8'},
-            body: JSON.stringify(authBody({ sheet: 'update_restriction', nom, posteLabel: poste.label, value: newVal }))
+            body: JSON.stringify(authBody({ sheet: 'update_restriction', nom, posteLabel: poste.label, value: newVal, targetRestaurant: (findPerson(nom) || {}).restaurant || currentRestaurant }))
           });
           const d = await res.json();
           if(!d.ok) throw new Error(d.error || 'Échec');
@@ -4272,11 +4267,46 @@ const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz0Dg-wg4Y4XFo7
     }
   }
   loadRestaurantNames();
+  tryRestoreSession();
 
   async function afterLogin(appData, isGerant, fixedRestaurant, sessionPassword, sessionFormateur, sessionRole){
+    try{
+      sessionStorage.setItem('crewAcademySession', JSON.stringify({ isGerant, fixedRestaurant, sessionPassword, sessionFormateur, sessionRole }));
+    } catch(e){ /* stockage indisponible (navigation privée...) : tant pis, pas bloquant */ }
     loadingState.style.display = 'none';
     appRoot.style.display = '';
     initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFormateur, sessionRole);
+  }
+
+  // Restaure une session déjà ouverte (même onglet) sans repasser par
+  // l'écran de connexion — utilisé notamment après un ajout de poste ou de
+  // formation obligatoire, qui recharge la page pour repartir sur des
+  // gestionnaires d'évènements propres plutôt que de les empiler à chaque
+  // fois via refreshAppDataAndReinit.
+  async function tryRestoreSession(){
+    let saved;
+    try{ saved = JSON.parse(sessionStorage.getItem('crewAcademySession') || 'null'); } catch(e){ saved = null; }
+    if(!saved || !saved.sessionPassword) return false;
+    authGate.style.display = 'none';
+    loadingState.style.display = 'flex';
+    try{
+      const res = await fetch(APPS_SCRIPT_URL, {
+        method: 'POST',
+        headers: {'Content-Type': 'text/plain;charset=utf-8'},
+        body: JSON.stringify(saved.isGerant
+          ? { sheet: 'login_gerant', password: saved.sessionPassword }
+          : { sheet: 'login_restaurant', restaurant: saved.fixedRestaurant, password: saved.sessionPassword })
+      });
+      const data = await res.json();
+      if(!data.ok) throw new Error(data.error || 'Session expirée');
+      await afterLogin(data, saved.isGerant, saved.fixedRestaurant, saved.sessionPassword, saved.sessionFormateur, saved.sessionRole);
+      return true;
+    } catch(err){
+      sessionStorage.removeItem('crewAcademySession');
+      authGate.style.display = '';
+      loadingState.style.display = 'none';
+      return false;
+    }
   }
 
   // ---------------- "Qui es-tu ?" (connexion restaurant uniquement) ----------------
