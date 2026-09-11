@@ -2206,14 +2206,12 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     const choiceFormationPosteBtn = document.getElementById('choiceFormationPosteBtn');
     const choiceFormationObligatoireBtn = document.getElementById('choiceFormationObligatoireBtn');
 
-    // Le Responsable formation garde l'accès à "Formation sur poste" (comme
-    // avant la fusion des deux boutons) — seule "Formation obligatoire"
-    // reste réservée au gérant.
-    if(!isGerant && sessionRole !== 'Responsable'){
-      addFormationChoiceBtn.closest('div').style.display = 'none';
-    }
+    // Réservé au gérant uniquement — le Responsable formation continue de
+    // gérer/suivre les formations au quotidien, mais n'a plus accès au
+    // bouton "Ajouter une formation" (ni "Formation sur poste", ni
+    // "Formation obligatoire").
     if(!isGerant){
-      choiceFormationObligatoireBtn.style.display = 'none';
+      addFormationChoiceBtn.closest('div').style.display = 'none';
     }
 
     addFormationChoiceBtn.addEventListener('click', (ev) => {
@@ -2746,6 +2744,8 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         div.innerHTML = `<div class="stat-num">${s.num}</div><div class="stat-label">${s.label}</div>`;
         div.addEventListener('click', () => {
           activeFilter = (activeFilter === s.key) ? 'all' : s.key;
+          sortSelect.style.display = (activeFilter !== 'all' || trainingFocus) ? '' : 'none';
+          if(activeFilter !== 'all') sortSelect.value = 'urgency';
           renderStats();
           render();
         });
@@ -2762,7 +2762,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       chipsWrap.querySelectorAll('.chip').forEach(btn => {
         btn.addEventListener('click', () => {
           trainingFocus = btn.dataset.key || null;
-          sortSelect.style.display = trainingFocus ? '' : 'none';
+          sortSelect.style.display = (trainingFocus || activeFilter !== 'all') ? '' : 'none';
           sortSelect.value = 'urgency';
           renderChips();
           renderStats();
@@ -3069,7 +3069,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         // pour ne garder que ce qui reste à traiter.
         filtered = filtered.filter(e => relevantStatus(e).level !== 'green');
       }
-      const sortMode = trainingFocus ? sortSelect.value : 'name';
+      const sortMode = (trainingFocus || activeFilter !== 'all') ? sortSelect.value : 'name';
       filtered = filtered.slice().sort((a,b) => {
         if(sortMode === 'name') return a.nom.localeCompare(b.nom, 'fr');
         const rank = {red:0, orange:1, green:2, gray:3};
