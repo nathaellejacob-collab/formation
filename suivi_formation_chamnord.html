@@ -511,6 +511,7 @@
   .pill.orange{background:var(--orange-bg); color:var(--orange); border:1px solid var(--orange-line);}
   .pill.green{background:var(--green-bg); color:var(--green); border:1px solid var(--green-line);}
   .pill.gray{background:var(--gray-bg); color:var(--gray); border:1px solid #dcdfe2;}
+  .pill-blank{color:var(--line); font-size:13px;}
 
   .expand-row td{
     background:#faf9f4;
@@ -2725,6 +2726,15 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
 
     const statsRow = document.getElementById(cfg.ids.statsRow);
     let activeFilter = 'all';
+
+    // Quand un filtre "En retard"/"Échéance sous 30 j" est actif (sans
+    // formation précise ciblée), n'affiche QUE la ou les formations de la
+    // personne qui correspondent à ce statut — masque ses autres formations
+    // même si elles sont à jour, pour rester concentré sur le problème.
+    function matchesActiveFilter(t, e){
+      if(activeFilter === 'all') return true;
+      return e.statuses[t.key].level === activeFilter;
+    }
     const openDetailNoms = new Set(); // noms dont la fiche détail reste ouverte (survit à un re-rendu après enregistrement)
 
     function renderStats(){
@@ -3115,7 +3125,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
             <div class="name-cell">${e.nom}${e.enArret ? ' <span class="arret-badge">🏥 Arrêt maladie</span>' : ''}</div>
             <div class="name-sub">${e.dateEntree ? frDate(parseDate(e.dateEntree)) : ''}${e.ancienneteMois != null ? ' · ' + e.ancienneteMois + ' mois d\'ancienneté' : ''}</div>
           </td>
-          ${(trainingFocus ? trainings.filter(t => t.key === trainingFocus) : trainings).map(t => `<td>${pillHtml(t, e.statuses[t.key])}</td>`).join('')}
+          ${(trainingFocus ? trainings.filter(t => t.key === trainingFocus) : trainings).map(t => `<td>${matchesActiveFilter(t, e) ? pillHtml(t, e.statuses[t.key]) : '<span class="pill-blank">—</span>'}</td>`).join('')}
         `;
         tr.addEventListener('click', () => {
           const existing = document.getElementById(rowId);
@@ -3154,7 +3164,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
             <div class="anc">${e.dateEntree ? frDate(parseDate(e.dateEntree)) : ''}${e.ancienneteMois != null ? ' · ' + e.ancienneteMois + ' mois' : ''}</div>
           </div>
           <div class="emp-card-grid">
-            ${(trainingFocus ? trainings.filter(t => t.key === trainingFocus) : trainings).map(t => `<div><div class="label">${t.label}</div>${pillHtml(t, e.statuses[t.key])}</div>`).join('')}
+            ${(trainingFocus ? trainings.filter(t => t.key === trainingFocus) : trainings).map(t => matchesActiveFilter(t, e) ? `<div><div class="label">${t.label}</div>${pillHtml(t, e.statuses[t.key])}</div>` : '').join('')}
           </div>
           <button class="edit-toggle-btn">Saisir une date de réalisation</button>
           <div class="card-detail" style="display:none;"></div>
