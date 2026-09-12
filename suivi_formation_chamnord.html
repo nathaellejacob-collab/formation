@@ -1194,10 +1194,6 @@
     <div class="matrix-wrap">
       <table class="matrix-table" id="matrixTable"></table>
     </div>
-    <button type="button" id="toggleRestrictionMatrixBtn" class="restriction-toggle-btn" style="margin-top:16px;">🚫 Voir/gérer les restrictions par équipier</button>
-    <div id="restrictionMatrixWrap" class="restriction-matrix-wrap matrix-wrap">
-      <table class="matrix-table" id="restrictionMatrixTable"></table>
-    </div>
   </div>
 
 </section>
@@ -1241,6 +1237,17 @@
     </div>
     <div id="planningSummary" class="planning-summary"></div>
     <div id="planningResults"></div>
+  </div>
+
+  <div class="panel-block">
+    <div class="panel-head">
+      <h3>Restrictions par équipier</h3>
+      <p>Postes qu'il ne faut jamais proposer à un équipier — pris en compte automatiquement lors de la génération du planning.</p>
+    </div>
+    <button type="button" id="toggleRestrictionMatrixBtn" class="restriction-toggle-btn">🚫 Voir/gérer les restrictions par équipier</button>
+    <div id="restrictionMatrixWrap" class="restriction-matrix-wrap matrix-wrap">
+      <table class="matrix-table" id="restrictionMatrixTable"></table>
+    </div>
   </div>
 </section>
 
@@ -1599,6 +1606,18 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
 
   function daysBetween(a,b){
     return Math.round((a - b) / (1000*60*60*24));
+  }
+
+  // Extrait la partie "prénom" d'un nom saisi au format "NOM Prénom" (le nom
+  // de famille en majuscules, comme "FERREIRA-PIOZ Louna") — utilisé pour
+  // trier les équipiers par prénom plutôt que par nom de famille. Si aucun
+  // mot en minuscules n'est trouvé (nom entièrement en majuscules), retombe
+  // sur le dernier mot du nom complet.
+  function prenomKey(nomComplet){
+    const words = String(nomComplet || '').trim().split(/\s+/);
+    const idx = words.findIndex(w => /[a-zàâäéèêëïîôöùûüÿœç]/.test(w));
+    if(idx === -1) return words[words.length - 1] || '';
+    return words.slice(idx).join(' ');
   }
 
   function frDate(d){
@@ -3081,7 +3100,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       }
       const sortMode = (trainingFocus || activeFilter !== 'all') ? sortSelect.value : 'name';
       filtered = filtered.slice().sort((a,b) => {
-        if(sortMode === 'name') return a.nom.localeCompare(b.nom, 'fr');
+        if(sortMode === 'name') return prenomKey(a.nom).localeCompare(prenomKey(b.nom), 'fr');
         const rank = {red:0, orange:1, green:2, gray:3};
         const sa = relevantStatus(a), sb = relevantStatus(b);
         if(rank[sa.level] !== rank[sb.level]) return rank[sa.level] - rank[sb.level];
@@ -3612,11 +3631,11 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     let list = restaurantEmployees().filter(e => e.nom.toLowerCase().includes(q));
 
     if(matrixSortKey !== null){
-      list = list.slice().sort((a,b) => (b.skills[matrixSortKey] - a.skills[matrixSortKey]) || a.nom.localeCompare(b.nom, 'fr'));
+      list = list.slice().sort((a,b) => (b.skills[matrixSortKey] - a.skills[matrixSortKey]) || prenomKey(a.nom).localeCompare(prenomKey(b.nom), 'fr'));
     } else {
       const mode = polySortSelect.value;
       list = list.slice().sort((a,b) => {
-        if(mode === 'name') return a.nom.localeCompare(b.nom, 'fr');
+        if(mode === 'name') return prenomKey(a.nom).localeCompare(prenomKey(b.nom), 'fr');
         if(mode === 'score_asc') return a.polyScore - b.polyScore;
         if(mode === 'score_desc') return b.polyScore - a.polyScore;
         return (a.dateEntree || '9999-99-99').localeCompare(b.dateEntree || '9999-99-99');
