@@ -1095,7 +1095,7 @@
     </div>
     <select id="sortSelect" style="display:none;">
       <option value="urgency">Trier par urgence</option>
-      <option value="name">Trier par nom</option>
+      <option value="name">Trier par prénom</option>
     </select>
     <button class="add-btn" id="addEmployeeBtn">+ Ajouter un équipier</button>
   </div>
@@ -1131,7 +1131,7 @@
     </div>
     <select id="sortSelectGestion" style="display:none;">
       <option value="urgency">Trier par urgence</option>
-      <option value="name">Trier par nom</option>
+      <option value="name">Trier par prénom</option>
     </select>
     <button class="add-btn" id="addManagerBtn">+ Ajouter un membre</button>
   </div>
@@ -1187,7 +1187,7 @@
           <option value="date_entree">Trier par date d'entrée</option>
           <option value="score_desc">Trier par polyvalence ↓</option>
           <option value="score_asc">Trier par polyvalence ↑</option>
-          <option value="name">Trier par nom</option>
+          <option value="name">Trier par prénom</option>
         </select>
       </div>
     </div>
@@ -1613,6 +1613,18 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
   // trier les équipiers par prénom plutôt que par nom de famille. Si aucun
   // mot en minuscules n'est trouvé (nom entièrement en majuscules), retombe
   // sur le dernier mot du nom complet.
+  // Inverse "NOM Prénom" (comme saisi/stocké) en "Prénom NOM" pour
+  // l'affichage uniquement — la donnée stockée et utilisée comme identifiant
+  // partout ailleurs (recherche, clics, polyvalence...) ne change jamais.
+  function displayName(nomComplet){
+    const words = String(nomComplet || '').trim().split(/\s+/);
+    const idx = words.findIndex(w => /[a-zàâäéèêëïîôöùûüÿœç]/.test(w));
+    if(idx === -1 || idx === 0) return nomComplet; // pas de nom de famille détecté avant : on ne touche à rien
+    const prenom = words.slice(idx).join(' ');
+    const nomFamille = words.slice(0, idx).join(' ');
+    return prenom + ' ' + nomFamille;
+  }
+
   function prenomKey(nomComplet){
     const words = String(nomComplet || '').trim().split(/\s+/);
     const idx = words.findIndex(w => /[a-zàâäéèêëïîôöùûüÿœç]/.test(w));
@@ -3141,7 +3153,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td>
-            <div class="name-cell">${e.nom}${e.enArret ? ' <span class="arret-badge">🏥 Arrêt maladie</span>' : ''}</div>
+            <div class="name-cell">${displayName(e.nom)}${e.enArret ? ' <span class="arret-badge">🏥 Arrêt maladie</span>' : ''}</div>
             <div class="name-sub">${e.dateEntree ? frDate(parseDate(e.dateEntree)) : ''}${e.ancienneteMois != null ? ' · ' + e.ancienneteMois + ' mois d\'ancienneté' : ''}</div>
           </td>
           ${(trainingFocus ? trainings.filter(t => t.key === trainingFocus) : trainings).map(t => `<td>${matchesActiveFilter(t, e) ? pillHtml(t, e.statuses[t.key]) : '<span class="pill-blank">—</span>'}</td>`).join('')}
@@ -3179,7 +3191,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         card.className = 'emp-card';
         card.innerHTML = `
           <div class="emp-card-head">
-            <div class="name">${e.nom}${e.enArret ? ' <span class="arret-badge">🏥 Arrêt maladie</span>' : ''}</div>
+            <div class="name">${displayName(e.nom)}${e.enArret ? ' <span class="arret-badge">🏥 Arrêt maladie</span>' : ''}</div>
             <div class="anc">${e.dateEntree ? frDate(parseDate(e.dateEntree)) : ''}${e.ancienneteMois != null ? ' · ' + e.ancienneteMois + ' mois' : ''}</div>
           </div>
           <div class="emp-card-grid">
@@ -3650,12 +3662,12 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
 
     const tbody = '<tbody>' + list.map(e => `
       <tr>
-        <td class="name-col">${e.nom}<div class="matrix-name-sub">${e.dateEntree ? frDate(parseDate(e.dateEntree)) : ''}</div></td>
+        <td class="name-col">${displayName(e.nom)}<div class="matrix-name-sub">${e.dateEntree ? frDate(parseDate(e.dateEntree)) : ''}</div></td>
         ${POSTES.map((p, idx) => `<td class="cell-td"><span class="matrix-dot clickable ${e.skills[idx] ? 'on '+p.group : ''}" data-nom="${e.nom.replace(/"/g,'&quot;')}" data-idx="${idx}" title="${p.label} — cliquer pour ${e.skills[idx] ? 'retirer' : 'valider'}"></span></td>`).join('')}
         <td>
           <div class="score-cell">${e.polyScore}/${POSTES.length} <span class="score-pct">(${(e.polyPct*100).toFixed(1).replace('.', ',')}%)</span></div>
           <div class="score-bar-mini"><i style="width:${(e.polyPct*100).toFixed(0)}%;"></i></div>
-          <button type="button" class="poste-upload-trigger" data-nom="${e.nom.replace(/"/g,'&quot;')}" title="Envoyer des fiches signées pour ${e.nom}">📤</button>
+          <button type="button" class="poste-upload-trigger" data-nom="${e.nom.replace(/"/g,'&quot;')}" title="Envoyer des fiches signées pour ${displayName(e.nom)}">📤</button>
         </td>
       </tr>
     `).join('') + '</tbody>';
@@ -3733,7 +3745,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     </tr></thead>`;
     const tbody = '<tbody>' + list.map(e => `
       <tr>
-        <td class="name-col">${e.nom}</td>
+        <td class="name-col">${displayName(e.nom)}</td>
         ${TRAINABLE_POSTES.map(p => {
           const idx = POSTES.indexOf(p);
           return `<td class="cell-td"><span class="matrix-dot clickable ${e.restrictions && e.restrictions[idx] ? 'on restricted' : ''}" data-nom="${e.nom.replace(/"/g,'&quot;')}" data-idx="${idx}" title="${p.label} — cliquer pour ${e.restrictions && e.restrictions[idx] ? 'retirer la restriction' : 'restreindre'}"></span></td>`;
@@ -3813,7 +3825,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
   }
 
   function openPosteUploadModal(emp){
-    posteUploadNomEl.textContent = 'Fiches signées — ' + emp.nom;
+    posteUploadNomEl.textContent = 'Fiches signées — ' + displayName(emp.nom);
     posteUploadList.innerHTML = POSTES
       .map((p, idx) => p.ficheVerifUrl ? posteItemHtml(emp, p, idx) : '')
       .join('');
@@ -4003,7 +4015,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         <div class="planning-proposal ${isValide ? 'validated' : ''} ${isIgnore ? 'ignored' : ''}" data-row="${p.rowIndex}">
           <span class="pp-formateur">${p.formateur}</span>
           <span class="pp-arrow">→</span>
-          <span class="pp-equipier">${p.equipier}</span>
+          <span class="pp-equipier">${displayName(p.equipier)}</span>
           <span class="pp-poste">${p.posteLabel}</span>
           ${isValide ? '<span class="pp-done-badge" title="Réalisée — poste coché maîtrisé dans Postes & Polyvalence">✓ Réalisée</span>' : ''}
           ${isIgnore ? '<span class="pp-ignored-badge">✗ Ignorée</span>' : ''}
