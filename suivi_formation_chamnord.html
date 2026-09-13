@@ -828,6 +828,12 @@
     color:var(--navy-2); font-size:11.5px; font-weight:700; padding:7px 12px; cursor:pointer;
   }
   .toggle-dispo-btn:hover{border-color:var(--amber-dark); color:var(--amber-dark);}
+  .save-dispo-btn{
+    appearance:none; border:none; border-radius:8px; background:var(--navy);
+    color:#fff; font-size:12px; font-weight:700; padding:9px 16px; cursor:pointer;
+  }
+  .save-dispo-btn:hover{background:var(--navy-2);}
+  .save-dispo-btn:disabled{opacity:0.6; cursor:default;}
   .dispo-checklist{
     margin-top:10px; padding:12px 14px; background:#faf9f4; border:1px solid var(--line);
     border-radius:10px;
@@ -1510,6 +1516,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
 
   function dispoGridHtml(nom, dispoArr){
     const dispo = dispoArr || DISPO_SLOTS.map(() => true);
+    const safeNom = nom.replace(/"/g,'&quot;');
     return `<table class="dispo-grid">
       <thead><tr><th></th>${DISPO_CRENEAUX.map(c => `<th>${c}</th>`).join('')}</tr></thead>
       <tbody>
@@ -1518,37 +1525,60 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
           ${DISPO_CRENEAUX.map(c => {
             const idx = DISPO_SLOTS.findIndex(s => s.label === j + ' ' + c);
             const checked = !!dispo[idx];
-            return `<td><input type="checkbox" class="dispo-checkbox" data-nom="${nom.replace(/"/g,'&quot;')}" data-idx="${idx}" ${checked ? 'checked' : ''}></td>`;
+            return `<td><input type="checkbox" class="dispo-checkbox" data-nom="${safeNom}" data-idx="${idx}" ${checked ? 'checked' : ''}></td>`;
           }).join('')}
         </tr>`).join('')}
       </tbody>
-    </table>`;
+    </table>
+    <div style="display:flex; align-items:center; gap:10px; margin-top:10px;">
+      <button type="button" class="save-dispo-btn" data-nom="${safeNom}">Enregistrer les disponibilités</button>
+      <span class="save-dispo-status" style="font-size:12px;"></span>
+    </div>`;
   }
 
   function wireDispoCheckboxes(container){
+    // Les cases ne s'enregistrent plus une par une (deux clics rapprochés
+    // pouvaient se marcher dessus et faire perdre l'un des deux) — elles se
+    // contentent de refléter l'état visuel ; "Enregistrer" envoie tout en un
+    // seul appel, sans risque de conflit entre deux écritures.
+    const btn = container.querySelector('.save-dispo-btn');
+    const status = container.querySelector('.save-dispo-status');
+    if(!btn) return;
+
+    // Entrée, depuis n'importe quelle case de la grille, déclenche le même
+    // enregistrement que le clic sur le bouton.
     container.querySelectorAll('.dispo-checkbox').forEach(cb => {
-      cb.addEventListener('click', async (ev) => {
-        ev.stopPropagation();
-        const nom = cb.dataset.nom;
-        const idx = Number(cb.dataset.idx);
-        const slotLabel = DISPO_SLOTS[idx].label;
-        const newVal = cb.checked;
-        cb.disabled = true;
-        try{
-          const res = await fetch(APPS_SCRIPT_URL, {
-            method: 'POST',
-            headers: {'Content-Type': 'text/plain;charset=utf-8'},
-            body: JSON.stringify(authBody({ sheet: 'update_disponibilite', nom, slotLabel, value: newVal, targetRestaurant: currentRestaurant }))
-          });
-          const d = await res.json();
-          if(!d.ok) throw new Error(d.error || 'Échec');
-        } catch(err){
-          alert('Erreur : ' + err.message);
-          cb.checked = !newVal;
-        } finally {
-          cb.disabled = false;
-        }
+      cb.addEventListener('keydown', (ev) => {
+        if(ev.key !== 'Enter') return;
+        ev.preventDefault();
+        btn.click();
       });
+    });
+    btn.addEventListener('click', async () => {
+      const nom = btn.dataset.nom;
+      const values = DISPO_SLOTS.map((s, idx) => {
+        const cb = container.querySelector(`.dispo-checkbox[data-idx="${idx}"]`);
+        return cb ? cb.checked : true;
+      });
+      btn.disabled = true;
+      btn.textContent = 'Enregistrement…';
+      if(status) status.textContent = '';
+      try{
+        const res = await fetch(APPS_SCRIPT_URL, {
+          method: 'POST',
+          headers: {'Content-Type': 'text/plain;charset=utf-8'},
+          body: JSON.stringify(authBody({ sheet: 'save_disponibilites_batch', nom, values, targetRestaurant: currentRestaurant }))
+        });
+        const d = await res.json();
+        if(!d.ok) throw new Error(d.error || 'Échec');
+        if(status){ status.textContent = '✓ Enregistré'; status.style.color = 'var(--green)'; setTimeout(() => { status.textContent = ''; }, 2500); }
+      } catch(err){
+        if(status){ status.textContent = 'Erreur : ' + err.message; status.style.color = 'var(--red)'; }
+        else alert('Erreur : ' + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Enregistrer les disponibilités';
+      }
     });
   }
 
