@@ -1514,9 +1514,10 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     return false;
   }
 
-  function dispoGridHtml(nom, dispoArr){
+  function dispoGridHtml(nom, dispoArr, restaurant){
     const dispo = dispoArr || DISPO_SLOTS.map(() => true);
     const safeNom = nom.replace(/"/g,'&quot;');
+    const safeRestaurant = (restaurant || currentRestaurant).replace(/"/g,'&quot;');
     return `<table class="dispo-grid">
       <thead><tr><th></th>${DISPO_CRENEAUX.map(c => `<th>${c}</th>`).join('')}</tr></thead>
       <tbody>
@@ -1531,7 +1532,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       </tbody>
     </table>
     <div style="display:flex; align-items:center; gap:10px; margin-top:10px;">
-      <button type="button" class="save-dispo-btn" data-nom="${safeNom}">Enregistrer les disponibilités</button>
+      <button type="button" class="save-dispo-btn" data-nom="${safeNom}" data-restaurant="${safeRestaurant}">Enregistrer les disponibilités</button>
       <span class="save-dispo-status" style="font-size:12px;"></span>
     </div>`;
   }
@@ -1556,6 +1557,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     });
     btn.addEventListener('click', async () => {
       const nom = btn.dataset.nom;
+      const restaurant = btn.dataset.restaurant || currentRestaurant;
       const values = DISPO_SLOTS.map((s, idx) => {
         const cb = container.querySelector(`.dispo-checkbox[data-idx="${idx}"]`);
         return cb ? cb.checked : true;
@@ -1567,7 +1569,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         const res = await fetch(APPS_SCRIPT_URL, {
           method: 'POST',
           headers: {'Content-Type': 'text/plain;charset=utf-8'},
-          body: JSON.stringify(authBody({ sheet: 'save_disponibilites_batch', nom, values, targetRestaurant: currentRestaurant }))
+          body: JSON.stringify(authBody({ sheet: 'save_disponibilites_batch', nom, values, targetRestaurant: restaurant }))
         });
         const d = await res.json();
         if(!d.ok) throw new Error(d.error || 'Échec');
@@ -2104,7 +2106,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
             });
             const d = await res.json();
             if(!d.ok) throw new Error(d.error || 'Erreur de chargement');
-            box.innerHTML = dispoGridHtml(nom, d.disponibilites[nom]);
+            box.innerHTML = dispoGridHtml(nom, d.disponibilites[nom], restaurant);
             wireDispoCheckboxes(box);
           } catch(err){
             box.innerHTML = '<p style="color:var(--red);font-size:12px;">Erreur : ' + err.message + '</p>';
@@ -2857,7 +2859,12 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     }
 
     function verifUploadHtml(nom, key, label, restaurant){
-      return '';
+      const safeNom = nom.replace(/"/g,'&quot;');
+      return `<div style="display:flex; align-items:center; gap:8px; margin-top:6px; flex-wrap:wrap;">
+        <button type="button" class="verif-folder-btn upload-signed-verif-btn" data-nom="${safeNom}" data-key="${key}">📎 Envoyer la fiche signée</button>
+        <input type="file" class="signed-verif-file-input" data-nom="${safeNom}" data-key="${key}" accept="application/pdf,image/*" style="display:none;">
+        <span class="signed-verif-status" data-nom="${safeNom}" data-key="${key}" style="font-size:12px;"></span>
+      </div>`;
     }
 
     function detailCardHtml(e){
@@ -3022,11 +3029,52 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
           });
           const d = await res.json();
           if(!d.ok) throw new Error(d.error || 'Erreur de chargement');
-          box.innerHTML = dispoGridHtml(nom, d.disponibilites[nom]);
+          box.innerHTML = dispoGridHtml(nom, d.disponibilites[nom], targetPerson ? targetPerson.restaurant : currentRestaurant);
           wireDispoCheckboxes(box);
         } catch(err){
           box.innerHTML = '<p style="color:var(--red);font-size:12px;">Erreur : ' + err.message + '</p>';
         }
+      });
+    }
+
+    function wireSignedVerifUpload(container, nom){
+      container.querySelectorAll('.upload-signed-verif-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const key = btn.dataset.key;
+          container.querySelector(`.signed-verif-file-input[data-nom="${CSS.escape(nom)}"][data-key="${CSS.escape(key)}"]`).click();
+        });
+      });
+      container.querySelectorAll('.signed-verif-file-input').forEach(input => {
+        input.addEventListener('change', async () => {
+          const file = input.files[0];
+          if(!file) return;
+          const key = input.dataset.key;
+          const btn = container.querySelector(`.upload-signed-verif-btn[data-nom="${CSS.escape(nom)}"][data-key="${CSS.escape(key)}"]`);
+          const status = container.querySelector(`.signed-verif-status[data-nom="${CSS.escape(nom)}"][data-key="${CSS.escape(key)}"]`);
+          if(btn){ btn.disabled = true; btn.textContent = 'Envoi…'; }
+          try{
+            const targetPerson = list.find(e => e.nom === nom);
+            const base64 = await readFileAsBase64(file);
+            const category = cfg.sheetKey === 'gestion' ? 'gestion' : 'nouveaux';
+            const res = await fetch(APPS_SCRIPT_URL, {
+              method: 'POST',
+              headers: {'Content-Type': 'text/plain;charset=utf-8'},
+              body: JSON.stringify(authBody({
+                sheet: 'upload_verification', scope: 'obligatoire', key, nom, category,
+                fileName: file.name, mimeType: file.type, data: base64,
+                targetRestaurant: targetPerson ? targetPerson.restaurant : undefined,
+              }))
+            });
+            const d = await res.json();
+            if(!d.ok) throw new Error(d.error || "Échec de l'envoi");
+            if(status){ status.textContent = '✓ Envoyée' + (d.isRenewal ? ' (renouvellement)' : ''); status.style.color = 'var(--green)'; }
+          } catch(err){
+            if(status){ status.textContent = 'Erreur : ' + err.message; status.style.color = 'var(--red)'; }
+            else alert('Erreur : ' + err.message);
+          } finally {
+            if(btn){ btn.disabled = false; btn.textContent = '📎 Envoyer la fiche signée'; }
+          }
+        });
       });
     }
 
@@ -3169,6 +3217,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         wireProfileEditForm(exp, e.nom);
         wireArretButton(exp, e.nom);
         wireDispoButton(exp, e.nom);
+        wireSignedVerifUpload(exp, e.nom);
         wireDeleteButton(exp, e.nom, () => { openDetailNoms.delete(e.nom); exp.remove(); tr.remove(); });
         exp.querySelector('.collapse-detail-btn').addEventListener('click', (ev) => {
           ev.stopPropagation();
@@ -3207,6 +3256,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         wireProfileEditForm(detailWrap, e.nom);
         wireArretButton(detailWrap, e.nom);
         wireDispoButton(detailWrap, e.nom);
+        wireSignedVerifUpload(detailWrap, e.nom);
         wireDeleteButton(detailWrap, e.nom, () => { openDetailNoms.delete(e.nom); card.remove(); });
         detailWrap.querySelector('.collapse-detail-btn').addEventListener('click', () => {
           openDetailNoms.delete(e.nom);
