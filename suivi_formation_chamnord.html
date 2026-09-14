@@ -3965,7 +3965,12 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         // Les deux filières entamées à la fois (ne devrait pas arriver) : on continue la plus avancée.
         trackPostes = (cuisine.total ? cuisine.done/cuisine.total : 0) >= (comptoir.total ? comptoir.done/comptoir.total : 0) ? cuisinePostes : comptoirPostes;
       } else if(!cuisineStarted && !comptoirStarted){
-        trackPostes = cuisinePostes; // par défaut, on démarre par la cuisine
+        // Aucune filière démarrée : on priorise celle dont le taux de
+        // polyvalence (Production vs Service) est le plus faible pour le
+        // restaurant — le besoin le plus criant passe en premier, plutôt
+        // que de toujours démarrer par la cuisine par défaut.
+        const restoStats = computeRestaurantStats(currentRestaurant);
+        trackPostes = restoStats.prodAvg <= restoStats.servAvg ? cuisinePostes : comptoirPostes;
       } else {
         trackPostes = []; // les deux filières déjà complètes
       }
