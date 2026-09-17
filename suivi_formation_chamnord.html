@@ -1094,7 +1094,7 @@
   <span class="restaurant-bar-label">🏠 Restaurant</span>
   <select id="restaurantSelect"></select>
   <button type="button" id="manageRestaurantsBtn" style="display:none;">⚙️ Gérer les restaurants</button>
-  <button type="button" id="manageFormateursBtn">👥 Gérer les formateurs</button>
+  <button type="button" id="manageFormateursBtn">👥 Gérer les profils</button>
   <div style="position:relative; display:inline-block;">
     <button type="button" id="addFormationChoiceBtn">➕ Ajouter une formation</button>
     <div id="addFormationChoiceMenu" style="display:none; position:absolute; top:100%; left:0; margin-top:4px; background:#fff; border:1px solid var(--line); border-radius:10px; box-shadow:0 8px 20px rgba(0,0,0,0.12); z-index:50; min-width:200px; overflow:hidden;">
@@ -1361,7 +1361,7 @@
   <div class="modal-card modal-card-wide">
     <div class="modal-head-row">
       <div>
-        <h3>Gérer les formateurs</h3>
+        <h3>Gérer les profils</h3>
         <p class="modal-sub" id="manageFormateursSub"></p>
       </div>
       <button type="button" id="closeManageFormateurs" class="modal-close-btn">✕</button>
@@ -2025,7 +2025,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     });
   }
 
-  // ---------------- Gérer les formateurs (restaurant lui-même OU gérant) ----------------
+  // ---------------- Gérer les profils (restaurant lui-même OU gérant) ----------------
   {
     const formateursModal = document.getElementById('manageFormateursModal');
     const closeFormateursBtn = document.getElementById('closeManageFormateurs');
@@ -4521,7 +4521,7 @@ const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz0Dg-wg4Y4XFo7
           btn.addEventListener('click', () => selectFormateur(btn.dataset.nom));
         });
       } else {
-        formateurListEl.innerHTML = `<p style="color:var(--ink-soft);font-size:13px;">Personne n'est encore enregistré comme « ${postes.join(' / ')} » pour ce restaurant. Demande au gérant de créer ton accès depuis « ⚙️ Gérer les formateurs ».</p>`;
+        formateurListEl.innerHTML = `<p style="color:var(--ink-soft);font-size:13px;">Personne n'est encore enregistré comme « ${postes.join(' / ')} » pour ce restaurant. Demande au gérant de créer ton accès depuis « ⚙️ Gérer les profils ».</p>`;
       }
     } catch(err){
       formateurListEl.innerHTML = `<p style="color:var(--red);font-size:13px;">Erreur de chargement de la liste : ${(err.message || err).toString().replace(/</g,'&lt;')}</p>`;
