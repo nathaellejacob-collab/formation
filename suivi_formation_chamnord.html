@@ -1027,6 +1027,22 @@
   </div>
 </div>
 
+<div class="auth-gate" id="postePickGate" style="display:none;">
+  <div class="auth-card">
+    <div class="auth-eyebrow">Crew Academy</div>
+    <h2>Quel est ton poste ?</h2>
+    <p>Choisis ton poste pour voir la liste correspondante.</p>
+
+    <div id="postePickList" class="auth-formateur-list">
+      <button type="button" class="auth-formateur-btn" data-poste="Directeur">Directeur</button>
+      <button type="button" class="auth-formateur-btn" data-poste="Directeur adjoint">Directeur adjoint</button>
+      <button type="button" class="auth-formateur-btn" data-poste="Manager">Manager</button>
+      <button type="button" class="auth-formateur-btn" data-poste="Responsable de zone">Responsable de zone</button>
+      <button type="button" class="auth-formateur-btn" data-poste="Formateur">Formateur</button>
+    </div>
+  </div>
+</div>
+
 <div class="auth-gate" id="whoAreYouGate" style="display:none;">
   <div class="auth-card">
     <div class="auth-eyebrow">Crew Academy</div>
@@ -1034,6 +1050,7 @@
     <p>Choisis ton nom, puis saisis ton code personnel.</p>
 
     <div id="formateurList" class="auth-formateur-list"></div>
+    <button type="button" id="postePickBack" class="auth-formateur-back" style="margin-top:10px;">← Changer de poste</button>
 
     <form id="formateurCodeForm" style="margin-top:14px; display:none; flex-direction:column; gap:10px;">
       <label id="formateurCodeLabel" for="formateurCodeInput">Ton code</label>
@@ -4373,6 +4390,8 @@ const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz0Dg-wg4Y4XFo7
   const appRoot = document.getElementById('appRoot');
 
   const whoAreYouGate = document.getElementById('whoAreYouGate');
+  const postePickGate = document.getElementById('postePickGate');
+  const postePickList = document.getElementById('postePickList');
   const formateurListEl = document.getElementById('formateurList');
   const formateurCodeForm = document.getElementById('formateurCodeForm');
   const formateurCodeLabel = document.getElementById('formateurCodeLabel');
@@ -4453,8 +4472,18 @@ const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz0Dg-wg4Y4XFo7
   let pendingLoginData = null; // {appData, restaurant, password}
   let selectedFormateurNom = null;
 
-  async function showWhoAreYou(restaurant){
+  function showPostePick(restaurant){
     authGate.style.display = 'none';
+    whoAreYouGate.style.display = 'none';
+    postePickGate.style.display = 'flex';
+    postePickList.querySelectorAll('.auth-formateur-btn').forEach(btn => {
+      btn.onclick = () => showWhoAreYou(restaurant, btn.dataset.poste);
+    });
+  }
+
+  async function showWhoAreYou(restaurant, poste){
+    authGate.style.display = 'none';
+    postePickGate.style.display = 'none';
     whoAreYouGate.style.display = 'flex';
     whoAreYouError.style.display = 'none';
     formateurCodeForm.style.display = 'none';
@@ -4468,14 +4497,14 @@ const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz0Dg-wg4Y4XFo7
         body: JSON.stringify({sheet: 'get_formateurs', restaurant})
       });
       const data = await res.json();
-      const noms = (data.formateurs || []);
+      const noms = (data.formateurs || []).filter(n => n.role === poste);
       if(noms.length){
-        formateurListEl.innerHTML = noms.map(n => `<button type="button" class="auth-formateur-btn" data-nom="${n.nom.replace(/"/g,'&quot;')}">${n.nom} <span style="font-weight:400;color:var(--ink-soft);font-size:11.5px;">— ${n.role}</span></button>`).join('');
+        formateurListEl.innerHTML = noms.map(n => `<button type="button" class="auth-formateur-btn" data-nom="${n.nom.replace(/"/g,'&quot;')}">${n.nom}</button>`).join('');
         formateurListEl.querySelectorAll('.auth-formateur-btn').forEach(btn => {
           btn.addEventListener('click', () => selectFormateur(btn.dataset.nom));
         });
       } else {
-        formateurListEl.innerHTML = '<p style="color:var(--ink-soft);font-size:13px;">Aucun accès formateur n\'est encore configuré pour ce restaurant. Demande au gérant de créer ton accès (« Responsable formation ») depuis « ⚙️ Gérer les formateurs ».</p>';
+        formateurListEl.innerHTML = `<p style="color:var(--ink-soft);font-size:13px;">Personne n'est encore enregistré comme « ${poste} » pour ce restaurant. Demande au gérant de créer ton accès depuis « ⚙️ Gérer les formateurs ».</p>`;
       }
     } catch(err){
       formateurListEl.innerHTML = `<p style="color:var(--red);font-size:13px;">Erreur de chargement de la liste : ${(err.message || err).toString().replace(/</g,'&lt;')}</p>`;
@@ -4497,6 +4526,10 @@ const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz0Dg-wg4Y4XFo7
     formateurCodeForm.style.display = 'none';
     formateurListEl.style.display = '';
     whoAreYouError.style.display = 'none';
+  });
+
+  document.getElementById('postePickBack').addEventListener('click', () => {
+    if(pendingLoginData) showPostePick(pendingLoginData.restaurant);
   });
 
   formateurCodeForm.addEventListener('submit', async (e) => {
@@ -4548,7 +4581,7 @@ const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz0Dg-wg4Y4XFo7
       const data = await res.json();
       if(!data.ok) throw new Error(data.error || 'Connexion refusée');
       pendingLoginData = { appData: data, restaurant, password };
-      await showWhoAreYou(restaurant);
+      showPostePick(restaurant);
     } catch(err){
       authError.textContent = err.message;
       authError.style.display = 'block';
