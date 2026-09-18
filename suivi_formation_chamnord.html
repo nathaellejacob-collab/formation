@@ -293,6 +293,21 @@
   .modal-error{color:var(--red); font-size:12px; margin-top:8px;}
 
   .modal-card-wide{max-width:640px; max-height:92vh; display:flex; flex-direction:column; overflow-y:auto;}
+  .guide-section-header{
+    border-radius:8px; padding:9px 14px; color:#fff; font-weight:700; font-size:14px;
+    margin:18px 0 10px 0;
+  }
+  .guide-tab-card{
+    background:#faf9f4; border:1px solid var(--line); border-radius:8px;
+    padding:11px 14px 11px 15px; margin-bottom:9px; border-left-width:5px; border-left-style:solid;
+  }
+  .guide-tab-card .guide-tab-name{font-weight:700; color:var(--navy); margin-bottom:4px; font-size:13.5px;}
+  .guide-tab-card .guide-tab-desc{font-size:12.5px; color:var(--ink); line-height:1.5;}
+  .guide-note{
+    background:#fdf1de; border:1px solid var(--amber); border-radius:8px; padding:10px 14px;
+    font-size:12.5px; color:var(--navy-2); margin:8px 0; line-height:1.5;
+  }
+  .guide-bullet{font-size:13px; line-height:1.6; margin:5px 0 5px 4px; color:var(--ink);}
   .modal-card-wide .modal-head-row{
     position:sticky; top:0; z-index:2; background:var(--panel);
     margin:-26px -26px 16px; padding:26px 26px 14px; border-bottom:1px solid var(--line);
@@ -1093,6 +1108,7 @@
 <div class="restaurant-bar" id="restaurantBar">
   <span class="restaurant-bar-label">🏠 Restaurant</span>
   <select id="restaurantSelect"></select>
+  <button type="button" id="showGuideBtn">📖 Guide d'utilisation</button>
   <button type="button" id="manageRestaurantsBtn" style="display:none;">⚙️ Gérer les restaurants</button>
   <button type="button" id="manageFormateursBtn">👥 Gérer les profils</button>
   <div style="position:relative; display:inline-block;">
@@ -1278,6 +1294,19 @@
 </main>
 
 <footer>Tableau de polyvalence Chamnord · généré pour les formateurs · cliquez une ligne pour voir le détail des dates</footer>
+
+<div class="modal-overlay" id="guideModal" style="display:none;">
+  <div class="modal-card modal-card-wide">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px;">
+      <div>
+        <h3 style="margin-bottom:2px;">Guide d'utilisation</h3>
+        <p class="modal-sub" style="margin-top:0;">Crew Academy — adapté à ton poste</p>
+      </div>
+      <button type="button" id="closeGuideBtn" style="appearance:none; border:none; background:none; font-size:20px; cursor:pointer; color:var(--ink-soft); line-height:1;">✕</button>
+    </div>
+    <div id="guideContent"></div>
+  </div>
+</div>
 
 <div class="modal-overlay" id="addEmployeeModal" style="display:none;">
   <div class="modal-card">
@@ -2034,6 +2063,71 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     const addFormateurForm = document.getElementById('addFormateurForm');
     const addFormateurError = document.getElementById('addFormateurError');
     const manageFormateursBtn = document.getElementById('manageFormateursBtn');
+
+    // ---- Guide d'utilisation intégré, adapté au poste de la personne connectée ----
+    const guideModal = document.getElementById('guideModal');
+    const guideContent = document.getElementById('guideContent');
+    const showGuideBtn = document.getElementById('showGuideBtn');
+    const closeGuideBtn = document.getElementById('closeGuideBtn');
+
+    function renderGuideContent(){
+      const peutEtrePlanifie = canBeScheduledRole(sessionRole) || isGerant;
+      const accesResponsable = isResponsableLevelRole(sessionRole) || isGerant;
+
+      const sectionHeader = (title, color) => `<div class="guide-section-header" style="background:${color};">${title}</div>`;
+      const tabCard = (color, name, desc) => `<div class="guide-tab-card" style="border-left-color:${color};"><div class="guide-tab-name">${name}</div><div class="guide-tab-desc">${desc}</div></div>`;
+      const bullet = (text) => `<div class="guide-bullet">• ${text}</div>`;
+      const note = (text) => `<div class="guide-note">${text}</div>`;
+
+      let html = '';
+
+      html += sectionHeader('1 — Se connecter', 'var(--amber-dark)');
+      html += bullet('Ouvre le site (déjà accessible sur l\'ordinateur formation et la tablette formation) et choisis « Mon restaurant »');
+      html += bullet('Sélectionne ton restaurant, puis entre le mot de passe du restaurant');
+      html += bullet('Choisis ton poste, puis clique sur ton prénom dans la liste et entre ton code personnel');
+
+      html += sectionHeader('2 — Les onglets', 'var(--navy-2)');
+      html += tabCard('var(--amber-dark)', 'Formations obligatoires', 'La liste des équipiers et l\'état de leurs formations à jour (sécurité, hygiène, MTSRI, culture service...). Couleur rouge/orange/vert selon l\'échéance. Recherche par nom, filtres « En retard »/« Échéance sous 30 j ».');
+      html += tabCard('var(--teal)', 'Postes &amp; Polyvalence', 'Le tableau des postes déjà maîtrisés par chaque équipier (Production et Service), et le taux de polyvalence global de chacun.');
+      html += tabCard('var(--plum)', 'Équipe de gestion', 'Le même principe que « Formations obligatoires », pour l\'équipe de gestion (sans le suivi à 4 semaines ni à 60 jours).');
+      html += tabCard('var(--amber-dark)', 'Planification', peutEtrePlanifie
+        ? (accesResponsable ? 'Les formations prévues ce mois-ci. Tu peux générer de nouvelles propositions et en ignorer si besoin.' : 'Les formations prévues ce mois-ci : qui doit former qui, sur quel poste. C\'est ton Responsable formation qui génère ces propositions ; toi, tu les consultes.')
+        : 'Les formations prévues ce mois-ci pour les équipiers. Tu peux générer de nouvelles propositions et en ignorer si besoin.');
+      if(accesResponsable){
+        html += tabCard('var(--teal)', 'Activité', 'Le journal des actions récentes (ajouts, suppressions, validations) sur le restaurant.');
+      }
+
+      if(peutEtrePlanifie){
+        html += sectionHeader('3 — Valider une formation ou un poste', 'var(--teal)');
+        html += bullet('Clique sur la ligne de l\'équipier concerné pour ouvrir sa fiche');
+        html += bullet('Repère la formation ou le poste concerné : si un lien « Voir la fiche » apparaît, télécharge-le directement via le site');
+        html += note('Enregistre la fiche dans le dossier habituel de l\'ordinateur/tablette formation, comme d\'habitude — puis fais-la signer par l\'équipier.');
+        html += bullet('Une fois la fiche signée : reviens sur le site et indique la date dans « Fait le » (formation obligatoire), ou coche la case du poste (Polyvalence)');
+      }
+
+      if(accesResponsable){
+        html += sectionHeader((peutEtrePlanifie ? '4' : '3') + ' — Fonctions supplémentaires de ton poste', 'var(--plum)');
+        html += bullet('« 👥 Gérer les profils » : ajoute, modifie ou désactive un formateur/profil, définis son poste (qui détermine son accès)');
+        html += bullet('Depuis « Planification » : « Générer » propose de nouvelles formations pour le mois, « Ignorer » retire une proposition sans la remplacer');
+        html += bullet('« Restrictions par équipier » (dans Planification) : indique les postes à ne jamais proposer à quelqu\'un');
+      }
+
+      const dernierNum = (peutEtrePlanifie ? 1 : 0) + (accesResponsable ? 1 : 0) + 3;
+      html += sectionHeader(dernierNum + ' — Bon à savoir', 'var(--amber-dark)');
+      html += bullet('<span style="color:var(--red);font-weight:700;">Rouge</span> = en retard &nbsp; <span style="color:var(--amber-dark);font-weight:700;">Orange</span> = échéance sous 30 jours &nbsp; <span style="color:var(--green);font-weight:700;">Vert</span> = à jour');
+      html += bullet('Utilise les filtres « En retard » / « Échéance sous 30 j » en haut de la liste pour te concentrer sur l\'urgent');
+      html += bullet('La barre de recherche permet de retrouver un équipier directement par son nom');
+      html += bullet('Un souci, une question ? Adresse-toi à ton Responsable formation ou ton Directeur/Directrice.');
+
+      guideContent.innerHTML = html;
+    }
+
+    showGuideBtn.addEventListener('click', () => {
+      renderGuideContent();
+      guideModal.style.display = 'flex';
+    });
+    closeGuideBtn.addEventListener('click', () => { guideModal.style.display = 'none'; });
+    guideModal.addEventListener('click', (ev) => { if(ev.target === guideModal) guideModal.style.display = 'none'; });
 
     // Seul le gérant ou un "Responsable formation" actif peut gérer les
     // formateurs — un simple "Formateur" ne voit même pas le bouton.
