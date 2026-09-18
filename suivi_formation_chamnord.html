@@ -943,6 +943,7 @@
     display:inline-block; font-size:10.5px; font-weight:700; color:#fff;
     background:var(--red); padding:2px 8px; border-radius:999px; vertical-align:middle;
   }
+  .arret-badge.conges-badge{background:var(--plum);}
   .score-bar-mini{width:52px; height:6px; border-radius:99px; background:#ece8dc; margin:3px auto 0; overflow:hidden;}
   .score-bar-mini i{display:block; height:100%; background:var(--ink); border-radius:99px;}
 
@@ -1049,12 +1050,13 @@
     <p>Choisis ton poste pour voir la liste correspondante.</p>
 
     <div id="postePickList" class="auth-formateur-list">
-      <button type="button" class="auth-formateur-btn" data-postes="Directeur,Directrice">Directeur / Directrice</button>
-      <button type="button" class="auth-formateur-btn" data-postes="Directeur adjoint,Directrice adjointe">Directeur adjoint / Directrice adjointe</button>
-      <button type="button" class="auth-formateur-btn" data-postes="Assistant de direction,Assistante de direction">Assistant / Assistante de direction</button>
+      <button type="button" class="auth-formateur-btn" data-postes="Directeur/Directrice">Directeur/Directrice</button>
+      <button type="button" class="auth-formateur-btn" data-postes="Directeur adjoint/Directrice adjointe">Directeur adjoint/Directrice adjointe</button>
+      <button type="button" class="auth-formateur-btn" data-postes="Assistant/Assistante de direction">Assistant/Assistante de direction</button>
       <button type="button" class="auth-formateur-btn" data-postes="Manager">Manager</button>
+      <button type="button" class="auth-formateur-btn" data-postes="ADM">ADM</button>
       <button type="button" class="auth-formateur-btn" data-postes="Responsable de zone">Responsable de zone</button>
-      <button type="button" class="auth-formateur-btn" data-postes="Formateur,Formatrice">Formateur / Formatrice</button>
+      <button type="button" class="auth-formateur-btn" data-postes="Formateur/Formatrice">Formateur/Formatrice</button>
     </div>
   </div>
 </div>
@@ -1370,6 +1372,10 @@
       </div>
       <button type="button" id="closeManageRestaurants" class="modal-close-btn">✕</button>
     </div>
+    <div style="display:flex; align-items:center; gap:8px; margin:10px 0 4px;">
+      <button type="button" id="editGerantEmailBtn" class="verif-folder-btn">✉️ Modifier mon email d'alerte hebdomadaire</button>
+    </div>
+    <p style="font-size:11.5px;color:var(--ink-soft);margin:0 0 12px;">Reçoit chaque lundi un récapitulatif des formations en retard/à échéance, tous restaurants confondus.</p>
     <div id="restaurantManageList" class="poste-upload-list"></div>
     <form id="addRestaurantForm" style="margin-top:16px; border-top:1px dashed var(--line); padding-top:16px; display:flex; flex-direction:column; gap:6px;">
       <label for="newRestaurantNom">Nom du nouveau restaurant</label>
@@ -1397,24 +1403,21 @@
     </div>
     <div id="formateurManageList" class="poste-upload-list"></div>
     <form id="addFormateurForm" style="margin-top:16px; border-top:1px dashed var(--line); padding-top:16px; display:flex; flex-direction:column; gap:6px;">
-      <label for="newFormateurNom">Ajouter un formateur</label>
+      <label for="newFormateurNom">Ajouter un employé</label>
       <input type="text" id="newFormateurNom" required placeholder="Prénom NOM" autocomplete="off">
       <label for="newFormateurCode">Code personnel</label>
       <input type="text" id="newFormateurCode" required placeholder="Ex : 4 chiffres, choisis-en un" autocomplete="off">
-      <label for="newFormateurRole">Rôle</label>
+      <label for="newFormateurRole">Poste</label>
       <select id="newFormateurRole">
-        <option value="Formateur">Formateur</option>
-        <option value="Formatrice">Formatrice</option>
-        <option value="Directeur">Directeur</option>
-        <option value="Directrice">Directrice</option>
-        <option value="Directeur adjoint">Directeur adjoint</option>
-        <option value="Directrice adjointe">Directrice adjointe</option>
-        <option value="Assistant de direction">Assistant de direction</option>
-        <option value="Assistante de direction">Assistante de direction</option>
+        <option value="Formateur/Formatrice">Formateur/Formatrice</option>
+        <option value="Directeur/Directrice">Directeur/Directrice</option>
+        <option value="Directeur adjoint/Directrice adjointe">Directeur adjoint/Directrice adjointe</option>
+        <option value="Assistant/Assistante de direction">Assistant/Assistante de direction</option>
         <option value="Manager">Manager</option>
+        <option value="ADM">ADM</option>
         <option value="Responsable de zone">Responsable de zone</option>
       </select>
-      <p style="font-size:11.5px;color:var(--ink-soft);margin-top:-4px;">Tous les postes sauf "Formateur"/"Formatrice" ont accès à l'espace responsable de la formation. Seuls Formateur/Formatrice et Responsable de zone peuvent être planifiés pour former des équipiers.</p>
+      <p style="font-size:11.5px;color:var(--ink-soft);margin-top:-4px;">Tous les postes sauf "Formateur/Formatrice" ont accès à l'espace responsable de la formation. Seuls Formateur/Formatrice et Responsable de zone peuvent être planifiés pour former des équipiers.</p>
       <div class="modal-error" id="addFormateurError" style="display:none;"></div>
       <div class="modal-actions">
         <button type="submit">Ajouter</button>
@@ -1717,7 +1720,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
   // responsable de la formation. "Responsable" est conservé pour
   // compatibilité avec les données existantes créées avant l'ajout des
   // intitulés détaillés.
-  const ROLES_SANS_ACCES_RESPONSABLE = ['Formateur', 'Formatrice'];
+  const ROLES_SANS_ACCES_RESPONSABLE = ['Formateur', 'Formatrice', 'Formateur/Formatrice'];
   function isResponsableLevelRole(role){
     const r = String(role || '').trim();
     return r !== '' && !ROLES_SANS_ACCES_RESPONSABLE.includes(r);
@@ -1727,7 +1730,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
   // ET les Responsables de zone (seule exception parmi les postes à accès
   // Responsable — Directeur/Directrice, Assistant/e de direction et Manager
   // ne forment jamais).
-  const ROLES_PLANIFIABLES = ['Formateur', 'Formatrice', 'Responsable de zone'];
+  const ROLES_PLANIFIABLES = ['Formateur', 'Formatrice', 'Formateur/Formatrice', 'Responsable de zone'];
   function canBeScheduledRole(role){
     return ROLES_PLANIFIABLES.includes(String(role || '').trim());
   }
@@ -1922,6 +1925,30 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     const manageList = document.getElementById('restaurantManageList');
     const addRestaurantForm = document.getElementById('addRestaurantForm');
     const addRestaurantError = document.getElementById('addRestaurantError');
+    const editGerantEmailBtn = document.getElementById('editGerantEmailBtn');
+
+    if(editGerantEmailBtn){
+      editGerantEmailBtn.addEventListener('click', async () => {
+        const email = window.prompt("Ton adresse email (reçoit le récapitulatif hebdomadaire tous restaurants confondus) :", '');
+        if(email === null) return; // annulé
+        editGerantEmailBtn.disabled = true;
+        try{
+          const res = await fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            headers: {'Content-Type': 'text/plain;charset=utf-8'},
+            body: JSON.stringify({sheet:'update_gerant_email', password: sessionPassword, email: email.trim()})
+          });
+          const data = await res.json();
+          if(!data.ok) throw new Error(data.error || "Échec de la mise à jour");
+          editGerantEmailBtn.textContent = '✓ Email mis à jour';
+          setTimeout(() => { editGerantEmailBtn.textContent = "✉️ Modifier mon email d'alerte hebdomadaire"; }, 2000);
+        } catch(err){
+          alert('Erreur : ' + err.message);
+        } finally {
+          editGerantEmailBtn.disabled = false;
+        }
+      });
+    }
 
     function renderManageList(){
       manageList.innerHTML = restaurants.map(r => {
@@ -3032,7 +3059,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       }).join('');
     }
 
-    function deleteSectionHtml(nom, dateEntree, enArret){
+    function deleteSectionHtml(nom, dateEntree, enArret, enConges){
       const canManage = isGerant || isResponsableLevelRole(sessionRole);
       if(!canManage) return '';
       const safeNom = nom.replace(/"/g,'&quot;');
@@ -3042,6 +3069,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
           <button type="button" class="edit-profile-btn">✏️ Modifier le profil</button>
           ${isEquipier ? `<button type="button" class="toggle-dispo-btn" data-nom="${safeNom}">🕐 Disponibilités</button>` : ''}
           <button type="button" class="arret-toggle-btn" data-nom="${safeNom}" data-actif="${!!enArret}">${enArret ? '✓ De retour (fin d\'arrêt)' : '🏥 Déclarer un arrêt maladie'}</button>
+          <button type="button" class="conges-toggle-btn" data-nom="${safeNom}" data-actif="${!!enConges}">${enConges ? '✓ De retour (fin de congés)' : '🌴 Déclarer en congés payés'}</button>
           <button class="delete-emp-btn" data-nom="${safeNom}">Supprimer ${cfg.personLabelSingular}</button>
           <span class="delete-status"></span>
         </div>
@@ -3139,6 +3167,37 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
             targetRestaurant: targetPerson ? targetPerson.restaurant : undefined
           });
           if(targetPerson) targetPerson.enArret = newVal;
+          renderStats();
+          render();
+          afterChange();
+        } catch(err){
+          alert('Erreur : ' + err.message);
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    }
+
+    function wireCongesButton(container, nom){
+      const btn = container.querySelector('.conges-toggle-btn');
+      if(!btn) return;
+      btn.addEventListener('click', async (ev) => {
+        ev.stopPropagation();
+        const current = btn.dataset.actif === 'true';
+        const newVal = !current;
+        if(newVal){
+          const confirmed = window.confirm(`Déclarer ${nom} en congés payés ? Cette personne sera écartée des propositions de planification de formation tant que les congés ne sont pas levés.`);
+          if(!confirmed) return;
+        }
+        btn.disabled = true;
+        try{
+          const targetPerson = list.find(e => e.nom === nom);
+          const category = cfg.sheetKey === 'gestion' ? 'gestion' : 'nouveaux';
+          await postUpdate('update_conges', nom, null, null, {
+            value: newVal, category,
+            targetRestaurant: targetPerson ? targetPerson.restaurant : undefined
+          });
+          if(targetPerson) targetPerson.enConges = newVal;
           renderStats();
           render();
           afterChange();
@@ -3350,12 +3409,13 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         const exp = document.createElement('tr');
         exp.className = 'expand-row';
         exp.id = rowId;
-        exp.innerHTML = `<td colspan="${colCount}"><div class="expand-inner">${detailCardHtml(e)}</div>${deleteSectionHtml(e.nom, e.dateEntree, e.enArret)}<button type="button" class="collapse-detail-btn">▲ Masquer les vérifications</button></td>`;
+        exp.innerHTML = `<td colspan="${colCount}"><div class="expand-inner">${detailCardHtml(e)}</div>${deleteSectionHtml(e.nom, e.dateEntree, e.enArret, e.enConges)}<button type="button" class="collapse-detail-btn">▲ Masquer les vérifications</button></td>`;
         tr.after(exp);
         wireSaveButtons(exp);
         wireVerifUpload(exp);
         wireProfileEditForm(exp, e.nom);
         wireArretButton(exp, e.nom);
+        wireCongesButton(exp, e.nom);
         wireDispoButton(exp, e.nom);
         wireSignedVerifUpload(exp, e.nom);
         wireDeleteButton(exp, e.nom, () => { openDetailNoms.delete(e.nom); exp.remove(); tr.remove(); });
@@ -3372,7 +3432,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td>
-            <div class="name-cell">${displayName(e.nom)}${e.enArret ? ' <span class="arret-badge">🏥 Arrêt maladie</span>' : ''}</div>
+            <div class="name-cell">${displayName(e.nom)}${e.enArret ? ' <span class="arret-badge">🏥 Arrêt maladie</span>' : ''}${e.enConges ? ' <span class="arret-badge conges-badge">🌴 Congés payés</span>' : ''}</div>
             <div class="name-sub">${e.dateEntree ? frDate(parseDate(e.dateEntree)) : ''}${e.ancienneteMois != null ? ' · ' + e.ancienneteMois + ' mois d\'ancienneté' : ''}</div>
           </td>
           ${(trainingFocus ? trainings.filter(t => t.key === trainingFocus) : trainings).map(t => `<td>${matchesActiveFilter(t, e) ? pillHtml(t, e.statuses[t.key]) : '<span class="pill-blank">—</span>'}</td>`).join('')}
@@ -3388,13 +3448,14 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       });
 
       function openCardDetail(card, editBtn, detailWrap, e){
-        detailWrap.innerHTML = `<div class="expand-inner">${detailCardHtml(e)}</div>${deleteSectionHtml(e.nom, e.dateEntree, e.enArret)}<button type="button" class="collapse-detail-btn">▲ Masquer les vérifications</button>`;
+        detailWrap.innerHTML = `<div class="expand-inner">${detailCardHtml(e)}</div>${deleteSectionHtml(e.nom, e.dateEntree, e.enArret, e.enConges)}<button type="button" class="collapse-detail-btn">▲ Masquer les vérifications</button>`;
         detailWrap.style.display = 'block';
         editBtn.textContent = 'Masquer';
         wireSaveButtons(detailWrap);
         wireVerifUpload(detailWrap);
         wireProfileEditForm(detailWrap, e.nom);
         wireArretButton(detailWrap, e.nom);
+        wireCongesButton(detailWrap, e.nom);
         wireDispoButton(detailWrap, e.nom);
         wireSignedVerifUpload(detailWrap, e.nom);
         wireDeleteButton(detailWrap, e.nom, () => { openDetailNoms.delete(e.nom); card.remove(); });
@@ -3411,7 +3472,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         card.className = 'emp-card';
         card.innerHTML = `
           <div class="emp-card-head">
-            <div class="name">${displayName(e.nom)}${e.enArret ? ' <span class="arret-badge">🏥 Arrêt maladie</span>' : ''}</div>
+            <div class="name">${displayName(e.nom)}${e.enArret ? ' <span class="arret-badge">🏥 Arrêt maladie</span>' : ''}${e.enConges ? ' <span class="arret-badge conges-badge">🌴 Congés payés</span>' : ''}</div>
             <div class="anc">${e.dateEntree ? frDate(parseDate(e.dateEntree)) : ''}${e.ancienneteMois != null ? ' · ' + e.ancienneteMois + ' mois' : ''}</div>
           </div>
           <div class="emp-card-grid">
@@ -4084,7 +4145,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     const comptoirPostes = activePostes.filter(p => trackOf(p.label) === 'comptoir');
     const untrackedPostes = activePostes.filter(p => !trackOf(p.label)); // pas d'ordre imposé
 
-    const eligible = employees.filter(e => e.restaurant === currentRestaurant && !e.enArret);
+    const eligible = employees.filter(e => e.restaurant === currentRestaurant && !e.enArret && !e.enConges);
 
     const needsByEmp = {};
     eligible.forEach(e => {
@@ -4139,6 +4200,14 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
   }
 
   function matchFormateursToNeeds(needsByEmp, formateurCompetences, startingCounts, dispoByNom){
+    // Ancienneté d'un équipier/membre gestion, pour la priorité "2 mois ou
+    // moins" ci-dessous (ne sert qu'à départager, jamais à passer devant
+    // tout le reste).
+    function ancienneteOf(nom){
+      const p = employees.find(e => e.nom === nom) || managers.find(m => m.nom === nom);
+      return p && p.ancienneteMois !== null && p.ancienneteMois !== undefined ? p.ancienneteMois : null;
+    }
+
     const usedPairs = new Set();
     const proposals = [];
     const counts = {}; // nom -> nombre de propositions déjà attribuées à ce formateur
@@ -4156,7 +4225,16 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         const candidates = Object.keys(needsByEmp)
           .map(nom => ({ nom, gaps: needsByEmp[nom] }))
           .filter(cand => !dispoByNom || hasDispoOverlap(dispoOf(f.nom), dispoOf(cand.nom))) // aucun créneau en commun : formateur et équipier ne se croisent jamais
-          .sort((a,b) => a.gaps.length - b.gaps.length); // priorité à ceux les plus proches de finir leur famille
+          .sort((a,b) => {
+            const gapDiff = a.gaps.length - b.gaps.length; // priorité à ceux les plus proches de finir leur famille
+            if(gapDiff !== 0) return gapDiff;
+            // À égalité : priorité aux équipiers ayant 2 mois ou moins d'ancienneté.
+            const aNouveau = ancienneteOf(a.nom) !== null && ancienneteOf(a.nom) <= 2;
+            const bNouveau = ancienneteOf(b.nom) !== null && ancienneteOf(b.nom) <= 2;
+            if(aNouveau && !bNouveau) return -1;
+            if(bNouveau && !aNouveau) return 1;
+            return 0;
+          });
 
         for(const cand of candidates){
           let assigned = false;
