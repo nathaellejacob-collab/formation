@@ -3968,7 +3968,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         <td class="name-col">${displayName(e.nom)}</td>
         ${TRAINABLE_POSTES.map(p => {
           const idx = POSTES.indexOf(p);
-          return `<td class="cell-td"><span class="matrix-dot clickable ${e.restrictions && e.restrictions[idx] ? 'on restricted' : ''}" data-nom="${e.nom.replace(/"/g,'&quot;')}" data-idx="${idx}" title="${p.label} — cliquer pour ${e.restrictions && e.restrictions[idx] ? 'retirer la restriction' : 'restreindre'}"></span></td>`;
+          return `<td class="cell-td"><span class="matrix-dot clickable ${e.restrictions && e.restrictions[idx] ? 'on restricted' : ''}" data-nom="${e.nom.replace(/"/g,'&quot;')}" data-restaurant="${e.restaurant.replace(/"/g,'&quot;')}" data-idx="${idx}" title="${p.label} — cliquer pour ${e.restrictions && e.restrictions[idx] ? 'retirer la restriction' : 'restreindre'}"></span></td>`;
         }).join('')}
       </tr>
     `).join('') + '</tbody>';
@@ -3977,6 +3977,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     table.querySelectorAll('.matrix-dot.clickable').forEach(dot => {
       dot.addEventListener('click', async () => {
         const nom = dot.dataset.nom;
+        const restaurant = dot.dataset.restaurant;
         const idx = Number(dot.dataset.idx);
         const poste = POSTES[idx];
         const newVal = !dot.classList.contains('on');
@@ -3985,7 +3986,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
           const res = await fetch(APPS_SCRIPT_URL, {
             method: 'POST',
             headers: {'Content-Type': 'text/plain;charset=utf-8'},
-            body: JSON.stringify(authBody({ sheet: 'update_restriction', nom, posteLabel: poste.label, value: newVal, targetRestaurant: (findPerson(nom) || {}).restaurant || currentRestaurant }))
+            body: JSON.stringify(authBody({ sheet: 'update_restriction', nom, posteLabel: poste.label, value: newVal, targetRestaurant: restaurant || currentRestaurant }))
           });
           const d = await res.json();
           if(!d.ok) throw new Error(d.error || 'Échec');
