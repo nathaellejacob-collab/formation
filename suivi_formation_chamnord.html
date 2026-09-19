@@ -639,6 +639,13 @@
   }
   .arret-toggle-btn[data-actif="true"]{background:var(--green); border-color:var(--green); color:#fff;}
   .arret-toggle-btn:disabled{opacity:0.6; cursor:default;}
+  .conges-toggle-btn{
+    appearance:none; border:1px solid var(--plum-line); border-radius:8px;
+    background:var(--plum-bg); color:var(--plum); font-size:12px; font-weight:700;
+    padding:8px 14px; cursor:pointer;
+  }
+  .conges-toggle-btn[data-actif="true"]{background:var(--green); border-color:var(--green); color:#fff;}
+  .conges-toggle-btn:disabled{opacity:0.6; cursor:default;}
   .edit-profile-save{
     appearance:none; border:none; border-radius:8px; background:var(--ink); color:#fff;
     font-size:12.5px; font-weight:700; padding:9px 16px; cursor:pointer;
@@ -1050,11 +1057,11 @@
     <p>Choisis ton poste pour voir la liste correspondante.</p>
 
     <div id="postePickList" class="auth-formateur-list">
+      <button type="button" class="auth-formateur-btn" data-postes="ADM">ADM</button>
       <button type="button" class="auth-formateur-btn" data-postes="Directeur/Directrice">Directeur/Directrice</button>
       <button type="button" class="auth-formateur-btn" data-postes="Directeur adjoint/Directrice adjointe">Directeur adjoint/Directrice adjointe</button>
       <button type="button" class="auth-formateur-btn" data-postes="Assistant/Assistante de direction">Assistant/Assistante de direction</button>
       <button type="button" class="auth-formateur-btn" data-postes="Manager">Manager</button>
-      <button type="button" class="auth-formateur-btn" data-postes="ADM">ADM</button>
       <button type="button" class="auth-formateur-btn" data-postes="Responsable de zone">Responsable de zone</button>
       <button type="button" class="auth-formateur-btn" data-postes="Formateur/Formatrice">Formateur/Formatrice</button>
     </div>
@@ -1683,10 +1690,43 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     'tempering','assemblage_init','viandes','frites','frits','oeufs','petit_dej',
     'boissons','commande','presentation','salle','ouverture','fermeture','livraison','huiles'
   ]);
-  function verifLinkHtml(key, label, dynamicUrl){
+  function logFicheDownload(nom, label, restaurant){
+    try{
+      fetch(APPS_SCRIPT_URL, {
+        method: 'POST',
+        headers: {'Content-Type': 'text/plain;charset=utf-8'},
+        body: JSON.stringify(authBody({ sheet: 'log_fiche_telechargee', nom, label, targetRestaurant: restaurant || currentRestaurant }))
+      }).catch(() => {}); // discret : jamais bloquant ni gênant si ça échoue
+    } catch(e){ /* pas grave, le téléchargement continue quoi qu'il arrive */ }
+  }
+
+  function logFicheDownload(nom, label, restaurant){
+    try{
+      fetch(APPS_SCRIPT_URL, {
+        method: 'POST',
+        headers: {'Content-Type': 'text/plain;charset=utf-8'},
+        body: JSON.stringify(authBody({ sheet: 'log_fiche_telechargee', nom, label, targetRestaurant: restaurant || currentRestaurant }))
+      }).catch(() => {}); // discret : jamais bloquant ni gênant si ça échoue
+    } catch(e){ /* pas grave, le téléchargement continue quoi qu'il arrive */ }
+  }
+
+  // Câble le déclic (au clic, sans jamais bloquer l'ouverture du lien) sur
+  // tous les liens "Voir la fiche" présents dans le conteneur donné.
+  function wireVerifLinks(container){
+    container.querySelectorAll('.verif-link[data-log-nom], .verif-link-mini[data-log-label]').forEach(a => {
+      a.addEventListener('click', () => {
+        logFicheDownload(a.dataset.logNom, a.dataset.logLabel, a.dataset.logRestaurant);
+      });
+    });
+  }
+
+  function verifLinkHtml(key, label, dynamicUrl, nom, restaurant){
     const url = dynamicUrl || (VERIF_AVAILABLE.has(key) ? VERIF_DIR + key + '.pdf' : null);
     if(!url) return '';
-    return `<a class="verif-link" href="${url}" target="_blank" rel="noopener" title="Ouvrir la fiche de vérification — ${label}" onclick="event.stopPropagation();">📄 Fiche de vérification</a>`;
+    const safeNom = (nom || '').replace(/"/g,'&quot;');
+    const safeLabel = (label || '').replace(/"/g,'&quot;');
+    const safeRestaurant = (restaurant || '').replace(/"/g,'&quot;');
+    return `<a class="verif-link" href="${url}" target="_blank" rel="noopener" title="Ouvrir la fiche de vérification — ${label}" data-log-nom="${safeNom}" data-log-label="${safeLabel}" data-log-restaurant="${safeRestaurant}" onclick="event.stopPropagation();">📄 Fiche de vérification</a>`;
   }
 
   function parseDate(s){
@@ -3047,7 +3087,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
           <h4>${t.label} <span style="text-transform:none;font-weight:400;">(${t.period})</span></h4>
           <div class="detail-row"><span>Date butoir</span><span>${frDate(butoir)}</span></div>
           ${statusLine}
-          ${verifLinkHtml(t.key, t.label, t.ficheVerifUrl)}
+          ${verifLinkHtml(t.key, t.label, t.ficheVerifUrl, e.nom, e.restaurant)}
           <div class="detail-edit">
             <label>Fait le</label>
             <input type="date" class="fait-input" data-nom="${e.nom.replace(/"/g,'&quot;')}" data-field="${t.faitKey}" value="${fait}">
@@ -3413,6 +3453,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         tr.after(exp);
         wireSaveButtons(exp);
         wireVerifUpload(exp);
+        wireVerifLinks(exp);
         wireProfileEditForm(exp, e.nom);
         wireArretButton(exp, e.nom);
         wireCongesButton(exp, e.nom);
@@ -3453,6 +3494,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         editBtn.textContent = 'Masquer';
         wireSaveButtons(detailWrap);
         wireVerifUpload(detailWrap);
+        wireVerifLinks(detailWrap);
         wireProfileEditForm(detailWrap, e.nom);
         wireArretButton(detailWrap, e.nom);
         wireCongesButton(detailWrap, e.nom);
@@ -3937,7 +3979,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
 
     const thead = `<thead><tr>
       <th class="name-col">Équipier</th>
-      ${POSTES.map((p, idx) => `<th title="${p.label}" data-idx="${idx}">${p.short}${p.ficheVerifUrl ? `<br><a class="verif-link-mini" href="${p.ficheVerifUrl}" target="_blank" rel="noopener" onclick="event.stopPropagation();" title="Fiche de vérification — ${p.label}">📄</a>` : ''}</th>`).join('')}
+      ${POSTES.map((p, idx) => `<th title="${p.label}" data-idx="${idx}">${p.short}${p.ficheVerifUrl ? `<br><a class="verif-link-mini" href="${p.ficheVerifUrl}" target="_blank" rel="noopener" data-log-nom="" data-log-label="${p.label.replace(/"/g,'&quot;')}" data-log-restaurant="${currentRestaurant.replace(/"/g,'&quot;')}" onclick="event.stopPropagation();" title="Fiche de vérification — ${p.label}">📄</a>` : ''}</th>`).join('')}
       <th class="score-col">Score</th>
     </tr></thead>`;
 
@@ -3954,6 +3996,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     `).join('') + '</tbody>';
 
     table.innerHTML = thead + tbody;
+    wireVerifLinks(table);
 
     table.querySelectorAll('.poste-upload-trigger').forEach(btn => {
       btn.addEventListener('click', (ev) => {
