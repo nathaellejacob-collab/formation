@@ -1300,6 +1300,61 @@
       <table class="matrix-table" id="restrictionMatrixTable"></table>
     </div>
   </div>
+
+  <div class="panel-block">
+    <div class="panel-head">
+      <h3>Coût de la formation</h3>
+      <p>Enregistre chaque session de formation réalisée — le coût se calcule automatiquement, comme dans le tableur.</p>
+    </div>
+    <button type="button" id="toggleCoutFormationBtn" class="restriction-toggle-btn">💶 Voir/enregistrer le coût de la formation</button>
+    <div id="coutFormationWrap" class="restriction-matrix-wrap" style="display:none;">
+
+      <form id="addCoutFormationForm" style="display:flex; flex-direction:column; gap:8px; margin:14px 0; padding:14px; background:#faf9f4; border:1px solid var(--line); border-radius:10px;">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+          <div>
+            <label for="coutDate" style="font-size:11.5px;font-weight:700;color:var(--ink-soft);">Date</label>
+            <input type="date" id="coutDate" required style="width:100%;">
+          </div>
+          <div>
+            <label for="coutFormateur" style="font-size:11.5px;font-weight:700;color:var(--ink-soft);">Formateur</label>
+            <select id="coutFormateur" required style="width:100%;"></select>
+          </div>
+          <div>
+            <label for="coutEquipier" style="font-size:11.5px;font-weight:700;color:var(--ink-soft);">Équipier formé</label>
+            <input type="text" id="coutEquipier" required placeholder="Prénom NOM" style="width:100%;">
+          </div>
+          <div>
+            <label for="coutFormation" style="font-size:11.5px;font-weight:700;color:var(--ink-soft);">Formation</label>
+            <select id="coutFormation" required style="width:100%;"></select>
+          </div>
+          <div>
+            <label for="coutTempsTablette" style="font-size:11.5px;font-weight:700;color:var(--ink-soft);">Temps formation tablette (min)</label>
+            <input type="number" id="coutTempsTablette" min="0" value="0" style="width:100%;">
+          </div>
+          <div>
+            <label for="coutTempsAccompagnement" style="font-size:11.5px;font-weight:700;color:var(--ink-soft);">Temps accompagnement formateur (min)</label>
+            <input type="number" id="coutTempsAccompagnement" min="0" value="0" style="width:100%;">
+          </div>
+        </div>
+        <div id="coutPreview" style="font-size:13px; color:var(--navy-2); background:#fdf1de; border:1px solid var(--amber); border-radius:8px; padding:8px 12px;">
+          Coût estimé : <strong>—</strong>
+        </div>
+        <div class="modal-error" id="coutFormationError" style="display:none;"></div>
+        <button type="submit" style="align-self:flex-start;">Enregistrer</button>
+      </form>
+
+      <div style="display:flex; align-items:center; gap:10px; margin:14px 0 8px;">
+        <label for="coutMonthSelect" style="font-size:12px; font-weight:700; color:var(--ink-soft);">Mois affiché :</label>
+        <select id="coutMonthSelect"></select>
+      </div>
+      <div id="coutFormationTableWrap"></div>
+
+      <div style="margin-top:18px; padding-top:14px; border-top:1px dashed var(--line);">
+        <h4 style="margin:0 0 8px; font-size:14px;">Récapitulatif annuel</h4>
+        <div id="coutAnnuelWrap"></div>
+      </div>
+    </div>
+  </div>
 </section>
 
 </main>
@@ -1385,6 +1440,10 @@
       <button type="button" id="editGerantEmailBtn" class="verif-folder-btn">✉️ Modifier mon email d'alerte hebdomadaire</button>
     </div>
     <p style="font-size:11.5px;color:var(--ink-soft);margin:0 0 12px;">Reçoit chaque lundi un récapitulatif des formations en retard/à échéance, tous restaurants confondus.</p>
+    <div style="display:flex; align-items:center; gap:8px; margin:10px 0 4px;">
+      <button type="button" id="editTauxEquipierBtn" class="verif-folder-btn">💶 Modifier le taux horaire équipier</button>
+    </div>
+    <p style="font-size:11.5px;color:var(--ink-soft);margin:0 0 12px;">Valeur unique, partagée par tous les restaurants, utilisée dans « Coût de la formation » (ex. SMIC horaire ÷ 60, en €/minute).</p>
     <div id="restaurantManageList" class="poste-upload-list"></div>
     <form id="addRestaurantForm" style="margin-top:16px; border-top:1px dashed var(--line); padding-top:16px; display:flex; flex-direction:column; gap:6px;">
       <label for="newRestaurantNom">Nom du nouveau restaurant</label>
@@ -1427,6 +1486,8 @@
         <option value="Responsable de zone">Responsable de zone</option>
       </select>
       <p style="font-size:11.5px;color:var(--ink-soft);margin-top:-4px;">Tous les postes sauf "Formateur/Formatrice" ont accès à l'espace responsable de la formation. Seuls Formateur/Formatrice et Responsable de zone peuvent être planifiés pour former des équipiers.</p>
+      <label for="newFormateurTaux">Taux horaire (€/minute, pour le coût de la formation)</label>
+      <input type="number" id="newFormateurTaux" step="0.0001" min="0" placeholder="Ex : 0.204">
       <div class="modal-error" id="addFormateurError" style="display:none;"></div>
       <div class="modal-actions">
         <button type="submit">Ajouter</button>
@@ -1968,6 +2029,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     const addRestaurantForm = document.getElementById('addRestaurantForm');
     const addRestaurantError = document.getElementById('addRestaurantError');
     const editGerantEmailBtn = document.getElementById('editGerantEmailBtn');
+    const editTauxEquipierBtn = document.getElementById('editTauxEquipierBtn');
 
     if(editGerantEmailBtn){
       editGerantEmailBtn.addEventListener('click', async () => {
@@ -1988,6 +2050,31 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
           alert('Erreur : ' + err.message);
         } finally {
           editGerantEmailBtn.disabled = false;
+        }
+      });
+    }
+
+    if(editTauxEquipierBtn){
+      editTauxEquipierBtn.addEventListener('click', async () => {
+        const taux = window.prompt("Taux horaire équipier, en €/minute (ex : 0.2003) — partagé par tous les restaurants :", '');
+        if(taux === null) return; // annulé
+        const t = Number(taux.trim().replace(',', '.'));
+        if(!t || isNaN(t) || t <= 0){ alert('Le taux doit être un nombre positif.'); return; }
+        editTauxEquipierBtn.disabled = true;
+        try{
+          const res = await fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            headers: {'Content-Type': 'text/plain;charset=utf-8'},
+            body: JSON.stringify({sheet:'update_taux_equipier', password: sessionPassword, taux: t})
+          });
+          const data = await res.json();
+          if(!data.ok) throw new Error(data.error || "Échec de la mise à jour");
+          editTauxEquipierBtn.textContent = '✓ Taux mis à jour';
+          setTimeout(() => { editTauxEquipierBtn.textContent = "💶 Modifier le taux horaire équipier"; }, 2000);
+        } catch(err){
+          alert('Erreur : ' + err.message);
+        } finally {
+          editTauxEquipierBtn.disabled = false;
         }
       });
     }
@@ -2291,15 +2378,17 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       formateurManageList.innerHTML = list.length
         ? list.map(f => {
             const neFormePas = !canBeScheduledRole(f.role);
+            const tauxDisplay = f.tauxHoraire ? `${f.tauxHoraire} €/min` : '<span style="color:var(--red);">taux non renseigné</span>';
             return `<div class="poste-upload-item">
             <div class="poste-upload-item-head">
-              <span class="poste-name">${f.nom} <span style="font-weight:400;color:var(--ink-soft);">— ${f.role}${f.actif ? '' : ' · inactif'}${neFormePas ? ' · <span style="color:var(--ink-soft);font-weight:700;">ne forme pas</span>' : ''} · code : <code style="background:#efece2;padding:2px 6px;border-radius:4px;">${(f.code || '—').replace(/</g,'&lt;')}</code></span></span>
+              <span class="poste-name">${f.nom} <span style="font-weight:400;color:var(--ink-soft);">— ${f.role}${f.actif ? '' : ' · inactif'}${neFormePas ? ' · <span style="color:var(--ink-soft);font-weight:700;">ne forme pas</span>' : ''} · code : <code style="background:#efece2;padding:2px 6px;border-radius:4px;">${(f.code || '—').replace(/</g,'&lt;')}</code> · ${tauxDisplay}</span></span>
               <button type="button" class="toggle-formateur-btn" data-nom="${f.nom.replace(/"/g,'&quot;')}" data-actif="${f.actif}">${f.actif ? 'Désactiver' : 'Réactiver'}</button>
             </div>
             <div style="display:flex; gap:6px; margin-top:6px; flex-wrap:wrap;">
               ${neFormePas ? '' : `<button type="button" class="toggle-comp-btn" data-nom="${f.nom.replace(/"/g,'&quot;')}">🎯 Postes qu'il/elle peut former</button>
               <button type="button" class="toggle-dispo-btn" data-nom="${f.nom.replace(/"/g,'&quot;')}">🕐 Disponibilités</button>`}
               <button type="button" class="verif-folder-btn edit-formateur-code-btn" data-nom="${f.nom.replace(/"/g,'&quot;')}">🔑 Modifier le code</button>
+              <button type="button" class="verif-folder-btn edit-formateur-taux-btn" data-nom="${f.nom.replace(/"/g,'&quot;')}">💶 Modifier le taux horaire</button>
               <button type="button" class="verif-folder-btn delete-formateur-btn" data-nom="${f.nom.replace(/"/g,'&quot;')}" style="color:var(--red); border-color:var(--red);">🗑️ Supprimer définitivement</button>
             </div>
             ${neFormePas ? '' : `<div class="comp-checklist" data-nom="${f.nom.replace(/"/g,'&quot;')}" style="display:none;"></div>
@@ -2366,6 +2455,31 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
               method: 'POST',
               headers: {'Content-Type': 'text/plain;charset=utf-8'},
               body: JSON.stringify(authBody({ sheet: 'update_formateur_code', targetRestaurant: restaurant, nom, code: code.trim() }))
+            });
+            const data = await res.json();
+            if(!data.ok) throw new Error(data.error || 'Échec de la mise à jour');
+            renderFormateurList(data.formateurs || []);
+          } catch(err){
+            alert('Erreur : ' + err.message);
+          } finally {
+            btn.disabled = false;
+          }
+        });
+      });
+      formateurManageList.querySelectorAll('.edit-formateur-taux-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const nom = btn.dataset.nom;
+          const taux = window.prompt(`Taux horaire de ${nom}, en €/minute (ex : 0.204) :`, '');
+          if(taux === null) return;
+          const t = Number(taux.trim().replace(',', '.'));
+          if(!t || isNaN(t) || t <= 0){ alert('Le taux doit être un nombre positif.'); return; }
+          btn.disabled = true;
+          try{
+            const restaurant = targetRestaurantForFormateurs();
+            const res = await fetch(APPS_SCRIPT_URL, {
+              method: 'POST',
+              headers: {'Content-Type': 'text/plain;charset=utf-8'},
+              body: JSON.stringify(authBody({ sheet: 'update_formateur_taux', targetRestaurant: restaurant, nom, taux: t }))
             });
             const data = await res.json();
             if(!data.ok) throw new Error(data.error || 'Échec de la mise à jour');
@@ -2457,6 +2571,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       const nom = document.getElementById('newFormateurNom').value.trim();
       const code = document.getElementById('newFormateurCode').value.trim();
       const role = document.getElementById('newFormateurRole').value;
+      const taux = document.getElementById('newFormateurTaux').value;
       if(!nom || !code) return;
       addFormateurError.style.display = 'none';
       try{
@@ -2464,7 +2579,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         const res = await fetch(APPS_SCRIPT_URL, {
           method: 'POST',
           headers: {'Content-Type': 'text/plain;charset=utf-8'},
-          body: JSON.stringify(authBody({ sheet: 'add_formateur', targetRestaurant: restaurant, nom, code, role }))
+          body: JSON.stringify(authBody({ sheet: 'add_formateur', targetRestaurant: restaurant, nom, code, role, taux }))
         });
         const data = await res.json();
         if(!data.ok) throw new Error(data.error || "Échec de l'ajout");
@@ -4132,6 +4247,216 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     });
   }
 
+  // ---------------- Coût de la formation ----------------
+  const MOIS_LABELS_FR = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+  const FORMATIONS_SPECIALES = ['INTEGRATION OPERATIONNELLE', 'SUIVI DE FORMATION'];
+  const toggleCoutFormationBtn = document.getElementById('toggleCoutFormationBtn');
+  const coutFormationWrap = document.getElementById('coutFormationWrap');
+  const addCoutFormationForm = document.getElementById('addCoutFormationForm');
+  const coutDateInput = document.getElementById('coutDate');
+  const coutFormateurSelect = document.getElementById('coutFormateur');
+  const coutEquipierInput = document.getElementById('coutEquipier');
+  const coutFormationSelect = document.getElementById('coutFormation');
+  const coutTempsTabletteInput = document.getElementById('coutTempsTablette');
+  const coutTempsAccompagnementInput = document.getElementById('coutTempsAccompagnement');
+  const coutPreview = document.getElementById('coutPreview');
+  const coutFormationError = document.getElementById('coutFormationError');
+  const coutMonthSelect = document.getElementById('coutMonthSelect');
+  const coutFormationTableWrap = document.getElementById('coutFormationTableWrap');
+  const coutAnnuelWrap = document.getElementById('coutAnnuelWrap');
+
+  let coutFormationLoaded = false;
+  let coutFormateursCache = [];
+  let coutTauxEquipier = 0.2003;
+  let coutEntriesCache = [];
+
+  function coutFormateurTaux(nom){
+    const f = coutFormateursCache.find(x => x.nom === nom);
+    return f ? f.tauxHoraire : null;
+  }
+
+  function updateCoutPreview(){
+    const t1 = Number(coutTempsTabletteInput.value) || 0;
+    const t2 = Number(coutTempsAccompagnementInput.value) || 0;
+    const tf = coutFormateurTaux(coutFormateurSelect.value);
+    if(!tf){
+      coutPreview.innerHTML = 'Coût estimé : <strong>—</strong> (taux horaire du formateur non renseigné — voir « Gérer les profils »)';
+      return;
+    }
+    const cout = (t1 + t2) * (coutTauxEquipier + tf);
+    coutPreview.innerHTML = `Coût estimé : <strong>${cout.toFixed(2)} €</strong> — (${t1}+${t2}) × (${coutTauxEquipier}+${tf})`;
+  }
+
+  function populateCoutFormateurSelect(){
+    coutFormateurSelect.innerHTML = coutFormateursCache.map(f => `<option value="${f.nom.replace(/"/g,'&quot;')}">${f.nom}${f.tauxHoraire ? '' : ' (taux non renseigné)'}</option>`).join('');
+  }
+
+  function populateCoutFormationSelect(){
+    const options = POSTES.map(p => p.label).concat(FORMATIONS_SPECIALES);
+    coutFormationSelect.innerHTML = options.map(o => `<option value="${o.replace(/"/g,'&quot;')}">${o}</option>`).join('');
+  }
+
+  async function loadCoutFormateurs(){
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'text/plain;charset=utf-8'},
+      body: JSON.stringify(authBody({ sheet: 'get_formateurs_for_cout', targetRestaurant: currentRestaurant }))
+    });
+    const data = await res.json();
+    coutFormateursCache = data.formateurs || [];
+    populateCoutFormateurSelect();
+    updateCoutPreview();
+  }
+
+  function renderCoutTable(moisKey){
+    const canDelete = isGerant || isResponsableLevelRole(sessionRole);
+    const rows = coutEntriesCache.filter(e => e.date && e.date.slice(0, 7) === moisKey);
+    if(!rows.length){
+      coutFormationTableWrap.innerHTML = '<p style="color:var(--ink-soft);font-size:13px;">Aucune entrée pour ce mois.</p>';
+      return;
+    }
+    const total = rows.reduce((s, r) => s + r.cout, 0);
+    coutFormationTableWrap.innerHTML = `
+      <div class="matrix-wrap"><table class="matrix-table">
+        <thead><tr><th>Date</th><th>Formateur</th><th>Équipier</th><th>Formation</th><th>Temps tablette</th><th>Temps accompagnement</th><th>Coût</th>${canDelete ? '<th></th>' : ''}</tr></thead>
+        <tbody>
+          ${rows.map(r => `<tr>
+            <td>${frDate(parseDate(r.date))}</td><td>${r.formateur}</td><td>${r.equipier}</td><td>${r.formation}</td>
+            <td>${r.tempsTablette} min</td><td>${r.tempsAccompagnement} min</td><td><strong>${r.cout.toFixed(2)} €</strong></td>
+            ${canDelete ? `<td><button type="button" class="delete-cout-btn" data-index="${r.index}" style="color:var(--red);border:none;background:none;cursor:pointer;">🗑️</button></td>` : ''}
+          </tr>`).join('')}
+          <tr style="font-weight:700;"><td colspan="6">TOTAL DU MOIS</td><td>${total.toFixed(2)} €</td>${canDelete ? '<td></td>' : ''}</tr>
+        </tbody>
+      </table></div>`;
+    coutFormationTableWrap.querySelectorAll('.delete-cout-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if(!window.confirm('Supprimer définitivement cette entrée ?')) return;
+        btn.disabled = true;
+        try{
+          const res = await fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            headers: {'Content-Type': 'text/plain;charset=utf-8'},
+            body: JSON.stringify(authBody({ sheet: 'delete_cout_formation', targetRestaurant: currentRestaurant, index: Number(btn.dataset.index) }))
+          });
+          const data = await res.json();
+          if(!data.ok) throw new Error(data.error || 'Échec de la suppression');
+          coutEntriesCache = data.couts || [];
+          renderCoutTable(moisKey);
+          renderCoutAnnuel();
+        } catch(err){ alert('Erreur : ' + err.message); btn.disabled = false; }
+      });
+    });
+  }
+
+  function renderCoutAnnuel(){
+    const annee = new Date().getFullYear();
+    const totalsByMonth = {};
+    coutEntriesCache.forEach(e => {
+      if(!e.date) return;
+      const [y, m] = e.date.split('-');
+      if(Number(y) !== annee) return;
+      totalsByMonth[m] = (totalsByMonth[m] || 0) + e.cout;
+    });
+    let grandTotal = 0;
+    const rows = MOIS_LABELS_FR.map((label, i) => {
+      const mm = String(i + 1).padStart(2, '0');
+      const t = totalsByMonth[mm] || 0;
+      grandTotal += t;
+      return `<tr><td>${label}</td><td>${t.toFixed(2)} €</td></tr>`;
+    }).join('');
+    coutAnnuelWrap.innerHTML = `<div class="matrix-wrap"><table class="matrix-table">
+      <thead><tr><th>Mois</th><th>Coût total</th></tr></thead>
+      <tbody>${rows}<tr style="font-weight:700;"><td>COÛT ANNUEL ${annee}</td><td>${grandTotal.toFixed(2)} €</td></tr></tbody>
+    </table></div>`;
+  }
+
+  function populateCoutMonthSelect(){
+    const moisPresents = new Set(coutEntriesCache.map(e => e.date && e.date.slice(0, 7)).filter(Boolean));
+    moisPresents.add(currentMonthKeyClient());
+    const sorted = Array.from(moisPresents).sort().reverse();
+    coutMonthSelect.innerHTML = sorted.map(m => {
+      const [y, mm] = m.split('-');
+      return `<option value="${m}">${MOIS_LABELS_FR[Number(mm)-1]} ${y}</option>`;
+    }).join('');
+  }
+
+  function currentMonthKeyClient(){
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+  }
+
+  async function loadCoutFormationData(){
+    coutFormationTableWrap.innerHTML = '<p style="color:var(--ink-soft);font-size:13px;">Chargement…</p>';
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'text/plain;charset=utf-8'},
+      body: JSON.stringify(authBody({ sheet: 'get_couts_formation', targetRestaurant: currentRestaurant }))
+    });
+    const data = await res.json();
+    coutEntriesCache = data.couts || [];
+    coutTauxEquipier = data.tauxEquipier || 0.2003;
+    populateCoutMonthSelect();
+    renderCoutTable(coutMonthSelect.value || currentMonthKeyClient());
+    renderCoutAnnuel();
+  }
+
+  if(toggleCoutFormationBtn){
+    toggleCoutFormationBtn.addEventListener('click', async () => {
+      const isOpen = coutFormationWrap.style.display === 'block';
+      coutFormationWrap.style.display = isOpen ? 'none' : 'block';
+      if(!isOpen && !coutFormationLoaded){
+        coutFormationLoaded = true;
+        populateCoutFormationSelect();
+        coutDateInput.value = new Date().toISOString().slice(0, 10);
+        await loadCoutFormateurs();
+        await loadCoutFormationData();
+      }
+    });
+  }
+
+  coutFormateurSelect && coutFormateurSelect.addEventListener('change', updateCoutPreview);
+  coutTempsTabletteInput && coutTempsTabletteInput.addEventListener('input', updateCoutPreview);
+  coutTempsAccompagnementInput && coutTempsAccompagnementInput.addEventListener('input', updateCoutPreview);
+  coutMonthSelect && coutMonthSelect.addEventListener('change', () => renderCoutTable(coutMonthSelect.value));
+
+  if(addCoutFormationForm){
+    addCoutFormationForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      coutFormationError.style.display = 'none';
+      const submitBtn = addCoutFormationForm.querySelector('button[type="submit"]');
+      submitBtn.disabled = true;
+      try{
+        const res = await fetch(APPS_SCRIPT_URL, {
+          method: 'POST',
+          headers: {'Content-Type': 'text/plain;charset=utf-8'},
+          body: JSON.stringify(authBody({
+            sheet: 'add_cout_formation', targetRestaurant: currentRestaurant,
+            date: coutDateInput.value, nomFormateurSession: coutFormateurSelect.value,
+            nomEquipier: coutEquipierInput.value.trim(), formation: coutFormationSelect.value,
+            tempsTablette: coutTempsTabletteInput.value, tempsAccompagnement: coutTempsAccompagnementInput.value,
+            tauxFormateur: coutFormateurTaux(coutFormateurSelect.value),
+          }))
+        });
+        const data = await res.json();
+        if(!data.ok) throw new Error(data.error || "Échec de l'enregistrement");
+        coutEntriesCache = data.couts || [];
+        coutEquipierInput.value = '';
+        coutTempsTabletteInput.value = '0';
+        coutTempsAccompagnementInput.value = '0';
+        updateCoutPreview();
+        populateCoutMonthSelect();
+        renderCoutTable(coutDateInput.value.slice(0, 7));
+        coutMonthSelect.value = coutDateInput.value.slice(0, 7);
+        renderCoutAnnuel();
+      } catch(err){
+        coutFormationError.textContent = err.message;
+        coutFormationError.style.display = 'block';
+      } finally {
+        submitBtn.disabled = false;
+      }
+    });
+  }
+
   polySearchInput.addEventListener('input', renderMatrix);
   polySortSelect.addEventListener('change', () => { matrixSortKey = null; renderMatrix(); });
 
@@ -4857,6 +5182,7 @@ const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz0Dg-wg4Y4XFo7
     }
   });
 })();
+
 
 
 </script>
