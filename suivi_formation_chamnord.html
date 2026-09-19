@@ -1142,9 +1142,10 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
       <input type="text" id="searchInput" placeholder="Rechercher un équipier…">
     </div>
-    <select id="sortSelect" style="display:none;">
+    <select id="sortSelect">
       <option value="urgency">Trier par urgence</option>
       <option value="name">Trier par prénom</option>
+      <option value="date_entree">Trier par date d'entrée</option>
     </select>
     <button class="add-btn" id="addEmployeeBtn">+ Ajouter un équipier</button>
   </div>
@@ -1178,9 +1179,10 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
       <input type="text" id="searchInputGestion" placeholder="Rechercher un membre de l'équipe de gestion…">
     </div>
-    <select id="sortSelectGestion" style="display:none;">
+    <select id="sortSelectGestion">
       <option value="urgency">Trier par urgence</option>
       <option value="name">Trier par prénom</option>
+      <option value="date_entree">Trier par date d'entrée</option>
     </select>
     <button class="add-btn" id="addManagerBtn">+ Ajouter un membre</button>
   </div>
@@ -2163,6 +2165,9 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       if(accesResponsable){
         html += tabCard('var(--teal)', 'Activité', 'Le journal des actions récentes (ajouts, suppressions, validations) sur le restaurant.');
       }
+      if(isGerant){
+        html += tabCard('var(--navy-2)', 'Comparaison', 'Vue d\'ensemble de tous les restaurants : taux de polyvalence, équilibre Production/Service, tableau comparatif complet (effectifs, formations en retard, taux de polyvalence).');
+      }
 
       if(peutEtrePlanifie){
         html += sectionHeader('3 — Valider une formation ou un poste', 'var(--teal)');
@@ -2179,7 +2184,14 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         html += bullet('« Restrictions par équipier » (dans Planification) : indique les postes à ne jamais proposer à quelqu\'un');
       }
 
-      const dernierNum = (peutEtrePlanifie ? 1 : 0) + (accesResponsable ? 1 : 0) + 3;
+      let dernierNum = (peutEtrePlanifie ? 1 : 0) + (accesResponsable ? 1 : 0) + 3;
+      if(isGerant){
+        html += sectionHeader(dernierNum + ' — Fonctions du gérant', 'var(--navy-2)');
+        html += bullet('Le sélecteur de restaurant en haut de page permet de passer d\'un restaurant à l\'autre — tout ce que tu fais s\'applique au restaurant actuellement sélectionné');
+        html += bullet('« ➕ Ajouter une formation » : seul le gérant peut créer un nouveau poste ou une nouvelle formation obligatoire (les modifier, les retirer, les supprimer définitivement) — les autres postes peuvent les suivre et les valider, mais pas en créer de nouvelles');
+        html += bullet('« ⚙️ Gérer les restaurants » : ajoute ou supprime un restaurant, modifie son email de contact (alertes hebdomadaires), et renseigne ton propre email pour recevoir le récapitulatif tous restaurants confondus chaque lundi');
+        dernierNum++;
+      }
       html += sectionHeader(dernierNum + ' — Bon à savoir', 'var(--amber-dark)');
       html += bullet('<span style="color:var(--red);font-weight:700;">Rouge</span> = en retard &nbsp; <span style="color:var(--amber-dark);font-weight:700;">Orange</span> = échéance sous 30 jours &nbsp; <span style="color:var(--green);font-weight:700;">Vert</span> = à jour');
       html += bullet('Utilise les filtres « En retard » / « Échéance sous 30 j » en haut de la liste pour te concentrer sur l\'urgent');
@@ -3024,8 +3036,6 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         div.innerHTML = `<div class="stat-num">${s.num}</div><div class="stat-label">${s.label}</div>`;
         div.addEventListener('click', () => {
           activeFilter = (activeFilter === s.key) ? 'all' : s.key;
-          sortSelect.style.display = (activeFilter !== 'all' || trainingFocus) ? '' : 'none';
-          if(activeFilter !== 'all') sortSelect.value = 'urgency';
           renderStats();
           render();
         });
@@ -3042,8 +3052,6 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       chipsWrap.querySelectorAll('.chip').forEach(btn => {
         btn.addEventListener('click', () => {
           trainingFocus = btn.dataset.key || null;
-          sortSelect.style.display = (trainingFocus || activeFilter !== 'all') ? '' : 'none';
-          sortSelect.value = 'urgency';
           renderChips();
           renderStats();
           render();
@@ -3427,9 +3435,10 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         // pour ne garder que ce qui reste à traiter.
         filtered = filtered.filter(e => relevantStatus(e).level !== 'green');
       }
-      const sortMode = (trainingFocus || activeFilter !== 'all') ? sortSelect.value : 'name';
+      const sortMode = sortSelect.value;
       filtered = filtered.slice().sort((a,b) => {
         if(sortMode === 'name') return prenomKey(a.nom).localeCompare(prenomKey(b.nom), 'fr');
+        if(sortMode === 'date_entree') return (a.dateEntree || '9999-99-99').localeCompare(b.dateEntree || '9999-99-99');
         const rank = {red:0, orange:1, green:2, gray:3};
         const sa = relevantStatus(a), sb = relevantStatus(b);
         if(rank[sa.level] !== rank[sb.level]) return rank[sa.level] - rank[sb.level];
@@ -3538,7 +3547,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
 
     searchInput.addEventListener('input', render);
     sortSelect.addEventListener('change', render);
-    sortSelect.value = 'urgency';
+    sortSelect.value = 'name';
 
     // ---------------- Ajout d'une nouvelle personne ----------------
     const addBtn = document.getElementById(cfg.ids.addBtn);
