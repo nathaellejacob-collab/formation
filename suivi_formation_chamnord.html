@@ -1125,6 +1125,7 @@
     <button class="tab-btn" id="tabComparaisonBtn" data-tab="comparaison" style="display:none;">Comparaison</button>
     <button class="tab-btn" data-tab="planification">Planification</button>
     <button class="tab-btn" data-tab="cout-formation">Coût de la formation</button>
+    <button class="tab-btn" data-tab="integration">Suivi intégration opérationnel</button>
     <button class="tab-btn" data-tab="activite">Activité</button>
   </nav>
 </header>
@@ -1291,7 +1292,7 @@
 </section>
 
 <section id="tab-planification" style="display:none;">
-  <div class="panel-block" style="border-left:4px solid var(--navy-2);">
+  <div class="panel-block">
     <div class="panel-head">
       <h3>🗓️ Planification mensuelle des formations</h3>
       <p>Propose automatiquement 2 formations initiales par formateur, en respectant qui peut former quoi et les besoins réels des équipiers. Une proposition devient validée automatiquement dès que le poste est coché maîtrisé dans « Postes &amp; Polyvalence » — inutile de la valider ici. « Ignorer » retire simplement une proposition qui n'aurait pas dû être faite ; reclique « Générer » ensuite pour compléter automatiquement les formateurs qui n'ont plus leurs 2 propositions.</p>
@@ -1305,7 +1306,7 @@
     <div id="planningResults"></div>
   </div>
 
-  <div class="panel-block" style="border-left:4px solid var(--red);">
+  <div class="panel-block">
     <div class="panel-head">
       <h3>🚫 Restrictions par équipier</h3>
       <p>Postes qu'il ne faut jamais proposer à un équipier — pris en compte automatiquement lors de la génération du planning.</p>
@@ -1318,15 +1319,7 @@
 </section>
 
 <section id="tab-cout-formation" style="display:none;">
-  <div class="poly-kpis" id="coutKpis" style="grid-template-columns:repeat(3,1fr);"></div>
-
-  <div class="panel-block" style="border-left:4px solid var(--amber-dark);">
-    <div class="panel-head">
-      <h3>📊 Coût par formation ce mois-ci</h3>
-      <p>Du plus coûteux au moins coûteux, sur le mois actuellement affiché dans l'historique ci-dessous.</p>
-    </div>
-    <div id="coutParFormationBars"></div>
-  </div>
+  <div class="poly-kpis" id="coutKpis" style="grid-template-columns:repeat(2,1fr);"></div>
 
   <div class="panel-block" style="border-left:4px solid var(--amber-dark);">
     <div class="panel-head">
@@ -1380,7 +1373,7 @@
     <div id="coutFormationTableWrap"></div>
   </div>
 
-  <div class="panel-block">
+  <div class="panel-block" style="border-left:4px solid var(--plum);">
     <div class="panel-head">
       <h3>Plus d'options</h3>
     </div>
@@ -1403,6 +1396,20 @@
       <p style="font-size:11.5px;color:var(--ink-soft);margin-top:0;">Liste ouverte de fiches PDF, ajoutées par le gérant uniquement — pas triées par poste.</p>
       <div id="tempsTabletteRefWrap"></div>
     </div>
+  </div>
+</section>
+
+<section id="tab-integration" style="display:none;">
+  <div class="panel-block">
+    <div class="panel-head">
+      <h3>🧭 Suivi intégration opérationnelle</h3>
+      <p>Les équipiers entrés dans le mois sélectionné apparaissent automatiquement. Indique qui a réalisé l'intégration — le Responsable formation peut corriger à tout moment.</p>
+    </div>
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+      <label for="integrationMonthSelect" style="font-size:12px; font-weight:700; color:var(--ink-soft);">Mois affiché :</label>
+      <select id="integrationMonthSelect"></select>
+    </div>
+    <div id="integrationTableWrap"></div>
   </div>
 </section>
 
@@ -3802,6 +3809,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
   const tabActivite = document.getElementById('tab-activite');
   const tabPlanification = document.getElementById('tab-planification');
   const tabCoutFormation = document.getElementById('tab-cout-formation');
+  const tabIntegration = document.getElementById('tab-integration');
   const statsWrap = document.getElementById('statsWrap');
   const statsRowEl = document.getElementById('statsRow');
   const statsRowGestionEl = document.getElementById('statsRowGestion');
@@ -3819,11 +3827,12 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
   }
 
   let coutFormationLoadedOnce = false;
+  let integrationLoadedOnce = false;
 
   tabBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       tabBtns.forEach(b => b.classList.toggle('active', b === btn));
-      const tab = btn.dataset.tab; // 'formations' | 'gestion' | 'polyvalence' | 'comparaison' | 'activite' | 'planification' | 'cout-formation'
+      const tab = btn.dataset.tab; // 'formations' | 'gestion' | 'polyvalence' | 'comparaison' | 'activite' | 'planification' | 'cout-formation' | 'integration'
       tabFormations.style.display = tab === 'formations' ? '' : 'none';
       tabGestion.style.display = tab === 'gestion' ? '' : 'none';
       tabPolyvalence.style.display = tab === 'polyvalence' ? '' : 'none';
@@ -3831,12 +3840,17 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       tabActivite.style.display = tab === 'activite' ? '' : 'none';
       tabPlanification.style.display = tab === 'planification' ? '' : 'none';
       tabCoutFormation.style.display = tab === 'cout-formation' ? '' : 'none';
-      statsWrap.style.display = (tab === 'polyvalence' || tab === 'comparaison' || tab === 'activite' || tab === 'planification' || tab === 'cout-formation') ? 'none' : '';
+      tabIntegration.style.display = tab === 'integration' ? '' : 'none';
+      statsWrap.style.display = (tab === 'polyvalence' || tab === 'comparaison' || tab === 'activite' || tab === 'planification' || tab === 'cout-formation' || tab === 'integration') ? 'none' : '';
       statsRowEl.style.display = tab === 'formations' ? '' : 'none';
       statsRowGestionEl.style.display = tab === 'gestion' ? '' : 'none';
       if(tab === 'comparaison'){ renderComparaisonCharts(); renderComparaison(); }
       if(tab === 'activite'){ renderActivite(); }
       if(tab === 'planification'){ loadPersistedPlanning(); }
+      if(tab === 'integration' && !integrationLoadedOnce){
+        integrationLoadedOnce = true;
+        initIntegrationTab();
+      }
       if(tab === 'cout-formation' && !coutFormationLoadedOnce){
         coutFormationLoadedOnce = true;
         initCoutFormationTab();
@@ -4405,7 +4419,6 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
           if(!data.ok) throw new Error(data.error || 'Échec de la suppression');
           coutEntriesCache = data.couts || [];
           renderCoutTable(moisKey);
-          renderCoutParFormationBars();
           renderCoutAnnuel();
           renderCoutStats();
         } catch(err){ alert('Erreur : ' + err.message); btn.disabled = false; }
@@ -4467,7 +4480,6 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     coutTauxEquipier = data.tauxEquipier || 0.2003;
     populateCoutMonthSelect();
     renderCoutTable(coutMonthSelect.value || currentMonthKeyClient());
-    renderCoutParFormationBars();
     renderCoutAnnuel();
     renderCoutStats();
   }
@@ -4476,7 +4488,6 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     const moisActuel = currentMonthKeyClient();
     const rowsMois = coutEntriesCache.filter(e => e.date && e.date.slice(0, 7) === moisActuel);
     const totalMois = rowsMois.reduce((s, r) => s + r.cout, 0);
-    const moyenne = rowsMois.length ? totalMois / rowsMois.length : 0;
 
     const [y, m] = moisActuel.split('-').map(Number);
     const dPrec = new Date(y, m - 2, 1);
@@ -4496,9 +4507,6 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       { cls:'production', label:'Formations enregistrées', big: String(rowsMois.length),
         sub: rowsMoisDernier.length + ' le mois dernier',
         pct: pctBar(rowsMois.length, rowsMoisDernier.length) },
-      { cls:'service', label:'Coût moyen par formation', big: rowsMois.length ? moyenne.toFixed(2) + ' €' : '—',
-        sub: rowsMois.length + ' formation' + (rowsMois.length > 1 ? 's' : '') + ' ce mois-ci',
-        pct: rowsMois.length ? 1 : 0 },
     ];
 
     document.getElementById('coutKpis').innerHTML = cards.map(c => `
@@ -4509,30 +4517,6 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
           <div class="kpi-sub">${c.sub}</div>
         </div></div>
         <div class="kpi-track"><div class="kpi-fill" style="width:${(c.pct*100).toFixed(0)}%;"></div></div>
-      </div>
-    `).join('');
-  }
-
-  function renderCoutParFormationBars(){
-    const moisAffiche = coutMonthSelect.value || currentMonthKeyClient();
-    const rows = coutEntriesCache.filter(e => e.date && e.date.slice(0, 7) === moisAffiche);
-    const wrap = document.getElementById('coutParFormationBars');
-    if(!wrap) return;
-    if(!rows.length){
-      wrap.innerHTML = '<p style="color:var(--ink-soft);font-size:13px;">Aucune donnée pour ce mois.</p>';
-      return;
-    }
-    const totals = {};
-    rows.forEach(r => { totals[r.formation] = (totals[r.formation] || 0) + r.cout; });
-    const maxVal = Math.max(...Object.values(totals));
-    const sorted = Object.entries(totals).sort((a, b) => b[1] - a[1]);
-    wrap.innerHTML = sorted.map(([label, val]) => `
-      <div class="bar-row">
-        <div><div class="bname">${label}</div></div>
-        <div style="background:#ece8dc; border-radius:99px; height:10px; overflow:hidden;">
-          <div style="height:100%; border-radius:99px; background:var(--amber-dark); width:${maxVal > 0 ? (val/maxVal*100).toFixed(1) : 0}%;"></div>
-        </div>
-        <div style="text-align:right; font-weight:700; font-size:12.5px;">${val.toFixed(2)} €</div>
       </div>
     `).join('');
   }
@@ -4667,6 +4651,86 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     await loadCoutFormationData();
   }
 
+  // ---------------- Suivi intégration opérationnelle ----------------
+  const integrationMonthSelect = document.getElementById('integrationMonthSelect');
+  const integrationTableWrap = document.getElementById('integrationTableWrap');
+  let integrationFormateursCache = [];
+  let integrationRecordsCache = [];
+
+  function populateIntegrationMonthSelect(){
+    const moisPresents = new Set(restaurantEmployees().map(e => e.dateEntree && e.dateEntree.slice(0, 7)).filter(Boolean));
+    moisPresents.add(currentMonthKeyClient());
+    const sorted = Array.from(moisPresents).sort().reverse();
+    integrationMonthSelect.innerHTML = sorted.map(m => {
+      const [y, mm] = m.split('-');
+      return `<option value="${m}">${MOIS_LABELS_FR[Number(mm)-1]} ${y}</option>`;
+    }).join('');
+  }
+
+  function renderIntegrationTable(moisKey){
+    const equipiers = restaurantEmployees().filter(e => e.dateEntree && e.dateEntree.slice(0, 7) === moisKey);
+    if(!equipiers.length){
+      integrationTableWrap.innerHTML = '<p style="color:var(--ink-soft);font-size:13px;">Aucun nouvel équipier intégré ce mois-ci.</p>';
+      return;
+    }
+    integrationTableWrap.innerHTML = `<div class="matrix-wrap"><table class="matrix-table">
+      <thead><tr><th>Équipier</th><th>Date d'entrée</th><th>Formateur ayant réalisé l'intégration</th></tr></thead>
+      <tbody>${equipiers.map(e => {
+        const record = integrationRecordsCache.find(r => r.nom === e.nom && r.mois === moisKey);
+        const safeNom = e.nom.replace(/"/g,'&quot;');
+        const options = ['<option value="">— Choisir —</option>'].concat(
+          integrationFormateursCache.map(f => `<option value="${f.nom.replace(/"/g,'&quot;')}" ${record && record.formateur === f.nom ? 'selected' : ''}>${f.nom}</option>`)
+        ).join('');
+        return `<tr>
+          <td>${displayName(e.nom)}</td>
+          <td>${frDate(parseDate(e.dateEntree))}</td>
+          <td><select class="integration-formateur-select" data-nom="${safeNom}">${options}</select></td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table></div>`;
+    integrationTableWrap.querySelectorAll('.integration-formateur-select').forEach(select => {
+      select.addEventListener('change', async () => {
+        const nom = select.dataset.nom;
+        select.disabled = true;
+        try{
+          const res = await fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            headers: {'Content-Type': 'text/plain;charset=utf-8'},
+            body: JSON.stringify(authBody({
+              sheet: 'update_integration_suivi', targetRestaurant: currentRestaurant,
+              nom, mois: moisKey, integrationFormateur: select.value,
+              dateRealisation: new Date().toISOString().slice(0, 10),
+            }))
+          });
+          const data = await res.json();
+          if(!data.ok) throw new Error(data.error || "Échec de l'enregistrement");
+          integrationRecordsCache = data.records || [];
+        } catch(err){
+          alert('Erreur : ' + err.message);
+        } finally {
+          select.disabled = false;
+        }
+      });
+    });
+  }
+
+  async function loadIntegrationData(){
+    const [resFormateurs, resRecords] = await Promise.all([
+      fetch(APPS_SCRIPT_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(authBody({ sheet:'get_formateurs_for_cout', targetRestaurant: currentRestaurant })) }),
+      fetch(APPS_SCRIPT_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(authBody({ sheet:'get_integration_suivi', targetRestaurant: currentRestaurant })) }),
+    ]);
+    integrationFormateursCache = (await resFormateurs.json()).formateurs || [];
+    integrationRecordsCache = (await resRecords.json()).records || [];
+  }
+
+  async function initIntegrationTab(){
+    populateIntegrationMonthSelect();
+    await loadIntegrationData();
+    renderIntegrationTable(integrationMonthSelect.value || currentMonthKeyClient());
+  }
+
+  integrationMonthSelect && integrationMonthSelect.addEventListener('change', () => renderIntegrationTable(integrationMonthSelect.value));
+
   // Sections secondaires repliées par défaut — chargées seulement à
   // l'ouverture, comme les restrictions par équipier dans Planification.
   const toggleCoutAnnuelBtn = document.getElementById('toggleCoutAnnuelBtn');
@@ -4702,7 +4766,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
   coutFormateurSelect && coutFormateurSelect.addEventListener('change', updateCoutPreview);
   coutTempsTabletteInput && coutTempsTabletteInput.addEventListener('input', updateCoutPreview);
   coutTempsAccompagnementInput && coutTempsAccompagnementInput.addEventListener('input', updateCoutPreview);
-  coutMonthSelect && coutMonthSelect.addEventListener('change', () => { renderCoutTable(coutMonthSelect.value); renderCoutParFormationBars(); });
+  coutMonthSelect && coutMonthSelect.addEventListener('change', () => renderCoutTable(coutMonthSelect.value));
 
   if(addCoutFormationForm){
     addCoutFormationForm.addEventListener('submit', async (e) => {
@@ -4734,7 +4798,6 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         populateCoutMonthSelect();
         coutMonthSelect.value = moisAffiche;
         renderCoutTable(moisAffiche);
-        renderCoutParFormationBars();
         renderCoutAnnuel();
         renderCoutStats();
       } catch(err){
