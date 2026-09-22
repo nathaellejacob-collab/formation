@@ -3164,11 +3164,28 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       chipsWrap.querySelectorAll('.chip').forEach(btn => {
         btn.addEventListener('click', () => {
           trainingFocus = btn.dataset.key || null;
+          updateUrgencySortAvailability();
           renderChips();
           renderStats();
           render();
         });
       });
+    }
+
+    // "Trier par urgence" n'a de sens que lorsqu'une formation précise est
+    // ciblée (sinon "urgence" mélange plusieurs formations différentes) —
+    // masquée et désactivée tant qu'aucune n'est sélectionnée.
+    function updateUrgencySortAvailability(){
+      const urgencyOption = sortSelect.querySelector('option[value="urgency"]');
+      if(!urgencyOption) return;
+      if(trainingFocus === null){
+        urgencyOption.disabled = true;
+        urgencyOption.hidden = true;
+        if(sortSelect.value === 'urgency') sortSelect.value = 'name';
+      } else {
+        urgencyOption.disabled = false;
+        urgencyOption.hidden = false;
+      }
     }
 
     function pillHtml(t, s){
@@ -3612,6 +3629,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     searchInput.addEventListener('input', render);
     sortSelect.addEventListener('change', render);
     sortSelect.value = 'name';
+    updateUrgencySortAvailability();
 
     // ---------------- Ajout d'une nouvelle personne ----------------
     const addBtn = document.getElementById(cfg.ids.addBtn);
