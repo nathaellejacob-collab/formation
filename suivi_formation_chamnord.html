@@ -1306,14 +1306,6 @@
 <section id="tab-cout-formation" style="display:none;">
   <div class="panel-block">
     <div class="panel-head">
-      <h3>Taux horaires</h3>
-      <p>Utilisés pour calculer automatiquement le coût de chaque formation. Modifiables uniquement par le gérant.</p>
-    </div>
-    <div id="tauxHorairePaliersWrap"></div>
-  </div>
-
-  <div class="panel-block">
-    <div class="panel-head">
       <h3>Enregistrer une formation</h3>
       <p>Aucun champ n'est pré-rempli — choisis et saisis toi-même chaque information.</p>
     </div>
@@ -1365,18 +1357,26 @@
   </div>
 
   <div class="panel-block">
-    <div class="panel-head">
-      <h3>Récapitulatif annuel</h3>
+    <button type="button" id="toggleCoutAnnuelBtn" class="restriction-toggle-btn">📊 Voir le récapitulatif annuel</button>
+    <div id="coutAnnuelSection" style="display:none; margin-top:12px;">
+      <div id="coutAnnuelWrap"></div>
     </div>
-    <div id="coutAnnuelWrap"></div>
   </div>
 
   <div class="panel-block">
-    <div class="panel-head">
-      <h3>Temps de formation tablette (référence)</h3>
-      <p>Fiche PDF de référence par formation — ajoutée/remplacée par le gérant uniquement.</p>
+    <button type="button" id="toggleTauxHorairesBtn" class="restriction-toggle-btn">⚙️ Voir/modifier les taux horaires</button>
+    <div id="tauxHorairesSection" style="display:none; margin-top:12px;">
+      <p style="font-size:11.5px;color:var(--ink-soft);margin-top:-4px;">Utilisés pour calculer automatiquement le coût de chaque formation. Modifiables uniquement par le gérant.</p>
+      <div id="tauxHorairePaliersWrap"></div>
     </div>
-    <div id="tempsTabletteRefWrap"></div>
+  </div>
+
+  <div class="panel-block">
+    <button type="button" id="toggleTempsTabletteBtn" class="restriction-toggle-btn">📎 Voir les fiches temps de formation tablette</button>
+    <div id="tempsTabletteSection" style="display:none; margin-top:12px;">
+      <p style="font-size:11.5px;color:var(--ink-soft);margin-top:-4px;">Liste ouverte de fiches PDF, ajoutées par le gérant uniquement — pas triées par poste.</p>
+      <div id="tempsTabletteRefWrap"></div>
+    </div>
   </div>
 </section>
 
@@ -4454,7 +4454,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     renderCoutAnnuel();
   }
 
-  // ---- Temps de formation tablette (plusieurs fiches PDF par formation), modifiable par le gérant ----
+  // ---- Temps de formation tablette (liste ouverte de fiches PDF), modifiable par le gérant ----
   async function loadTempsTabletteRef(){
     const res = await fetch(APPS_SCRIPT_URL, {
       method: 'POST',
@@ -4462,70 +4462,49 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       body: JSON.stringify(authBody({ sheet: 'get_temps_tablette_ref', targetRestaurant: currentRestaurant }))
     });
     const data = await res.json();
-    renderTempsTabletteRef(data.fiches || {});
+    renderTempsTabletteRef(data.fiches || []);
   }
 
-  function renderTempsTabletteRef(fichesByFormation){
-    const formations = POSTES.map(p => p.label).concat(FORMATIONS_SPECIALES);
-    const rows = formations.map(label => {
-      const fiches = fichesByFormation[label] || [];
-      const safeLabel = label.replace(/"/g,'&quot;');
-      const listHtml = fiches.length
-        ? '<ul style="margin:0;padding-left:18px;">' + fiches.map(f => `<li style="margin-bottom:3px;">
-            <a href="${f.url}" target="_blank" rel="noopener">📄 ${f.fileName || 'Voir la fiche'}</a>
-            ${isGerant ? `<button type="button" class="delete-temps-tablette-fiche-btn" data-file-id="${f.fileId}" data-formation="${safeLabel}" style="border:none;background:none;color:var(--red);cursor:pointer;margin-left:4px;" title="Supprimer">🗑️</button>` : ''}
-          </li>`).join('') + '</ul>'
-        : '<span style="color:var(--ink-soft);">Aucune fiche</span>';
-      if(isGerant){
-        return `<tr><td>${label}</td><td>
-          ${listHtml}
-          <button type="button" class="verif-folder-btn upload-temps-tablette-btn" data-formation="${safeLabel}" style="margin-top:6px;">📎 Ajouter une ou plusieurs fiches</button>
-          <input type="file" class="temps-tablette-file-input" data-formation="${safeLabel}" accept="application/pdf" multiple style="display:none;">
-        </td></tr>`;
-      }
-      return `<tr><td>${label}</td><td>${listHtml}</td></tr>`;
-    }).join('');
-    tempsTabletteRefWrap.innerHTML = `<div class="matrix-wrap"><table class="matrix-table">
-      <thead><tr><th>Formation</th><th>Fiches</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table></div>`;
+  function renderTempsTabletteRef(fiches){
+    const listHtml = fiches.length
+      ? '<ul style="margin:0;padding-left:18px;">' + fiches.map(f => `<li style="margin-bottom:5px;">
+          <a href="${f.url}" target="_blank" rel="noopener">📄 ${f.fileName || 'Voir la fiche'}</a>
+          ${isGerant ? `<button type="button" class="delete-temps-tablette-fiche-btn" data-file-id="${f.fileId}" style="border:none;background:none;color:var(--red);cursor:pointer;margin-left:4px;" title="Supprimer">🗑️</button>` : ''}
+        </li>`).join('') + '</ul>'
+      : '<p style="color:var(--ink-soft);font-size:13px;">Aucune fiche pour le moment.</p>';
+    tempsTabletteRefWrap.innerHTML = listHtml +
+      (isGerant ? `<button type="button" id="uploadTempsTabletteBtn" class="verif-folder-btn" style="margin-top:8px;">📎 Ajouter une ou plusieurs fiches</button>
+        <input type="file" id="tempsTabletteFileInput" accept="application/pdf" multiple style="display:none;">` : '');
     if(isGerant){
-      tempsTabletteRefWrap.querySelectorAll('.upload-temps-tablette-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-          tempsTabletteRefWrap.querySelector(`.temps-tablette-file-input[data-formation="${CSS.escape(btn.dataset.formation)}"]`).click();
-        });
-      });
-      tempsTabletteRefWrap.querySelectorAll('.temps-tablette-file-input').forEach(input => {
-        input.addEventListener('change', async () => {
-          const files = Array.from(input.files || []);
-          if(!files.length) return;
-          const formation = input.dataset.formation;
-          const btn = tempsTabletteRefWrap.querySelector(`.upload-temps-tablette-btn[data-formation="${CSS.escape(formation)}"]`);
-          if(btn){ btn.disabled = true; }
-          try{
-            // Envoyées une par une (l'action ajoute, jamais ne remplace) —
-            // toutes les fiches sélectionnées sont conservées.
-            for(let i = 0; i < files.length; i++){
-              if(btn) btn.textContent = `Envoi ${i+1}/${files.length}…`;
-              const base64 = await readFileAsBase64(files[i]);
-              const res = await fetch(APPS_SCRIPT_URL, {
-                method: 'POST',
-                headers: {'Content-Type': 'text/plain;charset=utf-8'},
-                body: JSON.stringify({ sheet:'upload_temps_tablette_fiche', password: sessionPassword, formation, fileName: files[i].name, mimeType: files[i].type, data: base64 })
-              });
-              const data = await res.json();
-              if(!data.ok) throw new Error(data.error || "Échec de l'envoi de " + files[i].name);
-              renderTempsTabletteRef(data.fiches || {});
-            }
-          } catch(err){
-            alert('Erreur : ' + err.message);
-            renderTempsTabletteRef((await (await fetch(APPS_SCRIPT_URL, {
-              method: 'POST', headers: {'Content-Type': 'text/plain;charset=utf-8'},
-              body: JSON.stringify(authBody({ sheet: 'get_temps_tablette_ref', targetRestaurant: currentRestaurant }))
-            })).json()).fiches || {});
+      const uploadBtn = document.getElementById('uploadTempsTabletteBtn');
+      const fileInput = document.getElementById('tempsTabletteFileInput');
+      uploadBtn.addEventListener('click', () => fileInput.click());
+      fileInput.addEventListener('change', async () => {
+        const files = Array.from(fileInput.files || []);
+        if(!files.length) return;
+        uploadBtn.disabled = true;
+        try{
+          // Envoyées une par une (l'action ajoute, jamais ne remplace) —
+          // toutes les fiches sélectionnées sont conservées.
+          for(let i = 0; i < files.length; i++){
+            uploadBtn.textContent = `Envoi ${i+1}/${files.length}…`;
+            const base64 = await readFileAsBase64(files[i]);
+            const res = await fetch(APPS_SCRIPT_URL, {
+              method: 'POST',
+              headers: {'Content-Type': 'text/plain;charset=utf-8'},
+              body: JSON.stringify({ sheet:'upload_temps_tablette_fiche', password: sessionPassword, fileName: files[i].name, mimeType: files[i].type, data: base64 })
+            });
+            const data = await res.json();
+            if(!data.ok) throw new Error(data.error || "Échec de l'envoi de " + files[i].name);
+            renderTempsTabletteRef(data.fiches || []);
           }
-        });
+        } catch(err){
+          alert('Erreur : ' + err.message);
+          await loadTempsTabletteRef();
+        }
       });
+    }
+    if(isGerant){
       tempsTabletteRefWrap.querySelectorAll('.delete-temps-tablette-fiche-btn').forEach(btn => {
         btn.addEventListener('click', async () => {
           if(!window.confirm('Supprimer définitivement cette fiche ?')) return;
@@ -4534,18 +4513,20 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
             const res = await fetch(APPS_SCRIPT_URL, {
               method: 'POST',
               headers: {'Content-Type': 'text/plain;charset=utf-8'},
-              body: JSON.stringify({ sheet:'delete_temps_tablette_fiche', password: sessionPassword, fileId: btn.dataset.fileId, formation: btn.dataset.formation })
+              body: JSON.stringify({ sheet:'delete_temps_tablette_fiche', password: sessionPassword, fileId: btn.dataset.fileId })
             });
             const data = await res.json();
             if(!data.ok) throw new Error(data.error || 'Échec de la suppression');
-            renderTempsTabletteRef(data.fiches || {});
+            renderTempsTabletteRef(data.fiches || []);
           } catch(err){ alert('Erreur : ' + err.message); btn.disabled = false; }
         });
       });
     }
   }
 
+
   const tauxHorairePaliersWrap = document.getElementById('tauxHorairePaliersWrap');
+  const ROLES_TAUX_HORAIRE = ['Directeur/Directrice', 'Directeur adjoint/Directrice adjointe', 'Assistant/Assistante de direction', 'Manager', 'ADM', 'Responsable de zone', 'Formateur/Formatrice'];
 
   async function loadTauxHorairePaliers(){
     const res = await fetch(APPS_SCRIPT_URL, {
@@ -4554,28 +4535,27 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       body: JSON.stringify(authBody({ sheet: 'get_taux_paliers', targetRestaurant: currentRestaurant }))
     });
     const data = await res.json();
-    renderTauxHorairePaliers(data.paliers || { direction: 0.25, responsableZone: 0.225, formateur: 0.204 });
+    renderTauxHorairePaliers(data.paliers || {});
   }
 
   function renderTauxHorairePaliers(paliers){
-    const rows = [
-      { key: 'direction', label: 'Directeur/Directrice à Manager/ADM', value: paliers.direction },
-      { key: 'responsableZone', label: 'Responsable de zone', value: paliers.responsableZone },
-      { key: 'formateur', label: 'Formateur/Formatrice', value: paliers.formateur },
-    ];
     tauxHorairePaliersWrap.innerHTML = `<div class="matrix-wrap"><table class="matrix-table">
       <thead><tr><th>Poste</th><th>Taux horaire (€/min)</th></tr></thead>
-      <tbody>${rows.map(r => `<tr><td>${r.label}</td><td>
-        ${isGerant ? `<input type="number" min="0" step="0.001" class="taux-palier-input" data-palier="${r.key}" value="${r.value}" style="width:90px;">
-          <button type="button" class="verif-folder-btn save-taux-palier-btn" data-palier="${r.key}" style="margin-left:6px;">Enregistrer</button>`
-        : `${r.value} €/min`}
-      </td></tr>`).join('')}</tbody>
+      <tbody>${ROLES_TAUX_HORAIRE.map(role => {
+        const safeRole = role.replace(/"/g,'&quot;');
+        const value = paliers[role];
+        return `<tr><td>${role}</td><td>
+          ${isGerant ? `<input type="number" min="0" step="0.001" class="taux-palier-input" data-palier="${safeRole}" value="${value}" style="width:90px;">
+            <button type="button" class="verif-folder-btn save-taux-palier-btn" data-palier="${safeRole}" style="margin-left:6px;">Enregistrer</button>`
+          : `${value} €/min`}
+        </td></tr>`;
+      }).join('')}</tbody>
     </table></div>`;
     if(isGerant){
       tauxHorairePaliersWrap.querySelectorAll('.save-taux-palier-btn').forEach(btn => {
         btn.addEventListener('click', async () => {
           const palier = btn.dataset.palier;
-          const input = tauxHorairePaliersWrap.querySelector(`.taux-palier-input[data-palier="${palier}"]`);
+          const input = tauxHorairePaliersWrap.querySelector(`.taux-palier-input[data-palier="${CSS.escape(palier)}"]`);
           const taux = input.value;
           if(!taux || Number(taux) <= 0){ alert('Le taux doit être un nombre positif.'); return; }
           btn.disabled = true;
@@ -4600,11 +4580,38 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
   async function initCoutFormationTab(){
     populateCoutFormationSelect();
     coutDateInput.value = new Date().toISOString().slice(0, 10);
-    await loadTauxHorairePaliers();
     await loadCoutFormateurs();
     await loadCoutFormationData();
-    await loadTempsTabletteRef();
   }
+
+  // Sections secondaires repliées par défaut — chargées seulement à
+  // l'ouverture, comme les restrictions par équipier dans Planification.
+  const toggleCoutAnnuelBtn = document.getElementById('toggleCoutAnnuelBtn');
+  const coutAnnuelSection = document.getElementById('coutAnnuelSection');
+  let coutAnnuelLoaded = false;
+  toggleCoutAnnuelBtn && toggleCoutAnnuelBtn.addEventListener('click', () => {
+    const isOpen = coutAnnuelSection.style.display === 'block';
+    coutAnnuelSection.style.display = isOpen ? 'none' : 'block';
+    if(!isOpen && !coutAnnuelLoaded){ coutAnnuelLoaded = true; renderCoutAnnuel(); }
+  });
+
+  const toggleTauxHorairesBtn = document.getElementById('toggleTauxHorairesBtn');
+  const tauxHorairesSection = document.getElementById('tauxHorairesSection');
+  let tauxHorairesLoaded = false;
+  toggleTauxHorairesBtn && toggleTauxHorairesBtn.addEventListener('click', async () => {
+    const isOpen = tauxHorairesSection.style.display === 'block';
+    tauxHorairesSection.style.display = isOpen ? 'none' : 'block';
+    if(!isOpen && !tauxHorairesLoaded){ tauxHorairesLoaded = true; await loadTauxHorairePaliers(); }
+  });
+
+  const toggleTempsTabletteBtn = document.getElementById('toggleTempsTabletteBtn');
+  const tempsTabletteSection = document.getElementById('tempsTabletteSection');
+  let tempsTabletteLoaded = false;
+  toggleTempsTabletteBtn && toggleTempsTabletteBtn.addEventListener('click', async () => {
+    const isOpen = tempsTabletteSection.style.display === 'block';
+    tempsTabletteSection.style.display = isOpen ? 'none' : 'block';
+    if(!isOpen && !tempsTabletteLoaded){ tempsTabletteLoaded = true; await loadTempsTabletteRef(); }
+  });
 
   coutFormateurSelect && coutFormateurSelect.addEventListener('change', updateCoutPreview);
   coutTempsTabletteInput && coutTempsTabletteInput.addEventListener('input', updateCoutPreview);
