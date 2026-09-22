@@ -1126,6 +1126,7 @@
     <button class="tab-btn" data-tab="planification">Planification</button>
     <button class="tab-btn" data-tab="cout-formation">Coût de la formation</button>
     <button class="tab-btn" data-tab="integration">Suivi intégration opérationnel</button>
+    <button class="tab-btn" data-tab="alternant">Alternant</button>
     <button class="tab-btn" data-tab="activite">Activité</button>
   </nav>
 </header>
@@ -1410,6 +1411,55 @@
       <select id="integrationMonthSelect"></select>
     </div>
     <div id="integrationTableWrap"></div>
+  </div>
+</section>
+
+<section id="tab-alternant" style="display:none;">
+  <div class="panel-block" style="border-left:4px solid var(--teal);">
+    <div class="panel-head">
+      <h3>⏰ Périodes opérationnelles du restaurant</h3>
+      <p>Horaires habituels, renseignés une seule fois — utilisés pour générer automatiquement le planning de chaque alternant. Modifiable par le Responsable formation.</p>
+    </div>
+    <div id="periodesOpWrap"></div>
+  </div>
+
+  <div class="panel-block" style="border-left:4px solid var(--plum);">
+    <div class="panel-head">
+      <h3>🎓 Alternants</h3>
+      <p>Un parcours automatique de 4 mois (2 mois Cuisine puis 2 mois Comptoir) est généré à partir des jours d'école et des horaires de travail renseignés.</p>
+    </div>
+    <div id="alternantsListWrap"></div>
+    <button type="button" id="showAddAlternantFormBtn" class="verif-folder-btn" style="margin-top:10px;">➕ Ajouter un alternant</button>
+    <form id="addAlternantForm" style="display:none; margin-top:14px; padding:14px; background:#faf9f4; border:1px solid var(--line); border-radius:10px; flex-direction:column; gap:10px;">
+      <div>
+        <label for="altNom" style="font-size:11.5px;font-weight:700;color:var(--ink-soft);">Nom de l'alternant</label>
+        <input type="text" id="altNom" required placeholder="Prénom NOM" style="width:100%;">
+      </div>
+      <div>
+        <label for="altDateDebut" style="font-size:11.5px;font-weight:700;color:var(--ink-soft);">Date de début du parcours</label>
+        <input type="date" id="altDateDebut" required style="width:100%;">
+      </div>
+      <div id="altWeekGrid"></div>
+      <div class="modal-error" id="addAlternantError" style="display:none;"></div>
+      <div style="display:flex; gap:8px;">
+        <button type="submit">Créer le parcours</button>
+        <button type="button" id="cancelAddAlternantBtn" class="verif-folder-btn">Annuler</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="panel-block" id="alternantPlanningBlock" style="display:none; border-left:4px solid var(--amber-dark);">
+    <div class="panel-head">
+      <h3 id="alternantPlanningTitle">📅 Planning</h3>
+      <p>Le Responsable formation peut corriger un créneau à tout moment — la correction est conservée même après une régénération.</p>
+    </div>
+    <div style="display:flex; gap:10px; align-items:center; margin-bottom:12px; flex-wrap:wrap;">
+      <label for="alternantMonthSelect" style="font-size:12px; font-weight:700; color:var(--ink-soft);">Mois affiché :</label>
+      <select id="alternantMonthSelect"></select>
+      <button type="button" id="regenererPlanningBtn" class="verif-folder-btn">🔄 Régénérer le planning</button>
+      <button type="button" id="deleteAlternantBtn" class="verif-folder-btn" style="color:var(--red); border-color:var(--red);">🗑️ Supprimer cet alternant</button>
+    </div>
+    <div id="alternantPlanningTableWrap"></div>
   </div>
 </section>
 
@@ -3810,6 +3860,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
   const tabPlanification = document.getElementById('tab-planification');
   const tabCoutFormation = document.getElementById('tab-cout-formation');
   const tabIntegration = document.getElementById('tab-integration');
+  const tabAlternant = document.getElementById('tab-alternant');
   const statsWrap = document.getElementById('statsWrap');
   const statsRowEl = document.getElementById('statsRow');
   const statsRowGestionEl = document.getElementById('statsRowGestion');
@@ -3828,11 +3879,12 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
 
   let coutFormationLoadedOnce = false;
   let integrationLoadedOnce = false;
+  let alternantLoadedOnce = false;
 
   tabBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       tabBtns.forEach(b => b.classList.toggle('active', b === btn));
-      const tab = btn.dataset.tab; // 'formations' | 'gestion' | 'polyvalence' | 'comparaison' | 'activite' | 'planification' | 'cout-formation' | 'integration'
+      const tab = btn.dataset.tab; // 'formations' | 'gestion' | 'polyvalence' | 'comparaison' | 'activite' | 'planification' | 'cout-formation' | 'integration' | 'alternant'
       tabFormations.style.display = tab === 'formations' ? '' : 'none';
       tabGestion.style.display = tab === 'gestion' ? '' : 'none';
       tabPolyvalence.style.display = tab === 'polyvalence' ? '' : 'none';
@@ -3841,7 +3893,8 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       tabPlanification.style.display = tab === 'planification' ? '' : 'none';
       tabCoutFormation.style.display = tab === 'cout-formation' ? '' : 'none';
       tabIntegration.style.display = tab === 'integration' ? '' : 'none';
-      statsWrap.style.display = (tab === 'polyvalence' || tab === 'comparaison' || tab === 'activite' || tab === 'planification' || tab === 'cout-formation' || tab === 'integration') ? 'none' : '';
+      tabAlternant.style.display = tab === 'alternant' ? '' : 'none';
+      statsWrap.style.display = (tab === 'polyvalence' || tab === 'comparaison' || tab === 'activite' || tab === 'planification' || tab === 'cout-formation' || tab === 'integration' || tab === 'alternant') ? 'none' : '';
       statsRowEl.style.display = tab === 'formations' ? '' : 'none';
       statsRowGestionEl.style.display = tab === 'gestion' ? '' : 'none';
       if(tab === 'comparaison'){ renderComparaisonCharts(); renderComparaison(); }
@@ -3850,6 +3903,10 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       if(tab === 'integration' && !integrationLoadedOnce){
         integrationLoadedOnce = true;
         initIntegrationTab();
+      }
+      if(tab === 'alternant' && !alternantLoadedOnce){
+        alternantLoadedOnce = true;
+        initAlternantTab();
       }
       if(tab === 'cout-formation' && !coutFormationLoadedOnce){
         coutFormationLoadedOnce = true;
@@ -4730,6 +4787,287 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
   }
 
   integrationMonthSelect && integrationMonthSelect.addEventListener('change', () => renderIntegrationTable(integrationMonthSelect.value));
+
+  // ---------------- Alternant ----------------
+  const JOURS_SEMAINE_FR = ['lundi','mardi','mercredi','jeudi','vendredi','samedi','dimanche'];
+  const PERIODES_OP_TYPES_CLIENT = ['Ouverture','Livraison','Rush midi','Rush soir','Fermeture','Préparation'];
+  const TYPE_ICONS_ALT = {ecole:'🏫', formation:'📘', suivi:'✅', poste:'🔁', verification:'🏁'};
+
+  const periodesOpWrap = document.getElementById('periodesOpWrap');
+  const alternantsListWrap = document.getElementById('alternantsListWrap');
+  const showAddAlternantFormBtn = document.getElementById('showAddAlternantFormBtn');
+  const addAlternantForm = document.getElementById('addAlternantForm');
+  const cancelAddAlternantBtn = document.getElementById('cancelAddAlternantBtn');
+  const altWeekGrid = document.getElementById('altWeekGrid');
+  const addAlternantError = document.getElementById('addAlternantError');
+  const alternantPlanningBlock = document.getElementById('alternantPlanningBlock');
+  const alternantPlanningTitle = document.getElementById('alternantPlanningTitle');
+  const alternantMonthSelect = document.getElementById('alternantMonthSelect');
+  const alternantPlanningTableWrap = document.getElementById('alternantPlanningTableWrap');
+  const regenererPlanningBtn = document.getElementById('regenererPlanningBtn');
+  const deleteAlternantBtn = document.getElementById('deleteAlternantBtn');
+
+  let alternantsCache = [];
+  let alternantPlanningCache = [];
+  let currentAlternantNom = null;
+  const canManageAlternant = isGerant || isResponsableLevelRole(sessionRole);
+
+  async function loadPeriodesOp(){
+    const res = await fetch(APPS_SCRIPT_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(authBody({ sheet:'get_periodes_operationnelles', targetRestaurant: currentRestaurant })) });
+    const data = await res.json();
+    renderPeriodesOp(data.periodes || {});
+  }
+
+  function renderPeriodesOp(periodes){
+    periodesOpWrap.innerHTML = `<div class="matrix-wrap"><table class="matrix-table">
+      <thead><tr><th>Période</th><th>Début</th><th>Fin</th>${canManageAlternant ? '<th></th>' : ''}</tr></thead>
+      <tbody>${PERIODES_OP_TYPES_CLIENT.map(type => {
+        const p = periodes[type] || { debut:'', fin:'' };
+        if(canManageAlternant){
+          return `<tr><td>${type}</td>
+            <td><input type="time" class="periode-op-input" data-type="${type}" data-field="debut" value="${p.debut}"></td>
+            <td><input type="time" class="periode-op-input" data-type="${type}" data-field="fin" value="${p.fin}"></td>
+            <td><button type="button" class="verif-folder-btn save-periode-op-btn" data-type="${type}">Enregistrer</button></td>
+          </tr>`;
+        }
+        return `<tr><td>${type}</td><td>${p.debut || '—'}</td><td>${p.fin || '—'}</td></tr>`;
+      }).join('')}</tbody>
+    </table></div>`;
+    if(canManageAlternant){
+      periodesOpWrap.querySelectorAll('.save-periode-op-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const type = btn.dataset.type;
+          const debut = periodesOpWrap.querySelector(`.periode-op-input[data-type="${CSS.escape(type)}"][data-field="debut"]`).value;
+          const fin = periodesOpWrap.querySelector(`.periode-op-input[data-type="${CSS.escape(type)}"][data-field="fin"]`).value;
+          if(!debut || !fin){ alert('Renseigne les deux heures.'); return; }
+          btn.disabled = true;
+          try{
+            const res = await fetch(APPS_SCRIPT_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(authBody({ sheet:'update_periode_operationnelle', targetRestaurant: currentRestaurant, type, debut, fin })) });
+            const data = await res.json();
+            if(!data.ok) throw new Error(data.error || "Échec de l'enregistrement");
+            renderPeriodesOp(data.periodes || {});
+          } catch(err){ alert('Erreur : ' + err.message); btn.disabled = false; }
+        });
+      });
+    }
+  }
+
+  async function loadAlternants(){
+    const res = await fetch(APPS_SCRIPT_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(authBody({ sheet:'get_alternants', targetRestaurant: currentRestaurant })) });
+    const data = await res.json();
+    alternantsCache = data.alternants || [];
+    renderAlternantsList();
+  }
+
+  function renderAlternantsList(){
+    if(!alternantsCache.length){
+      alternantsListWrap.innerHTML = '<p style="color:var(--ink-soft);font-size:13px;">Aucun alternant enregistré pour le moment.</p>';
+      return;
+    }
+    alternantsListWrap.innerHTML = alternantsCache.map(a => `
+      <div class="poste-upload-item">
+        <div class="poste-upload-item-head">
+          <span class="poste-name">${a.nom} <span style="font-weight:400;color:var(--ink-soft);">— parcours débuté le ${frDate(parseDate(a.dateDebut))}</span></span>
+          <button type="button" class="voir-planning-alternant-btn" data-nom="${a.nom.replace(/"/g,'&quot;')}">📅 Voir le planning</button>
+        </div>
+      </div>
+    `).join('');
+    alternantsListWrap.querySelectorAll('.voir-planning-alternant-btn').forEach(btn => {
+      btn.addEventListener('click', () => openAlternantPlanning(btn.dataset.nom));
+    });
+  }
+
+  function renderAltWeekGrid(){
+    altWeekGrid.innerHTML = JOURS_SEMAINE_FR.map(jour => `
+      <div style="display:grid; grid-template-columns:100px 120px 1fr; gap:8px; align-items:center; margin-bottom:6px;">
+        <div style="font-size:12.5px;font-weight:700;text-transform:capitalize;">${jour}</div>
+        <select class="alt-jour-type" data-jour="${jour}">
+          <option value="repos">Repos</option>
+          <option value="ecole">École</option>
+          <option value="travail">Travail</option>
+        </select>
+        <div class="alt-jour-horaires" data-jour="${jour}" style="display:none; gap:6px; align-items:center;">
+          <input type="time" class="alt-jour-debut" data-jour="${jour}" style="width:110px;">
+          <span>à</span>
+          <input type="time" class="alt-jour-fin" data-jour="${jour}" style="width:110px;">
+        </div>
+      </div>
+    `).join('');
+    altWeekGrid.querySelectorAll('.alt-jour-type').forEach(sel => {
+      sel.addEventListener('change', () => {
+        const jour = sel.dataset.jour;
+        const horaires = altWeekGrid.querySelector(`.alt-jour-horaires[data-jour="${CSS.escape(jour)}"]`);
+        horaires.style.display = sel.value === 'travail' ? 'flex' : 'none';
+      });
+    });
+  }
+
+  showAddAlternantFormBtn && showAddAlternantFormBtn.addEventListener('click', () => {
+    addAlternantForm.style.display = addAlternantForm.style.display === 'none' ? 'flex' : 'none';
+  });
+  cancelAddAlternantBtn && cancelAddAlternantBtn.addEventListener('click', () => { addAlternantForm.style.display = 'none'; addAlternantForm.reset(); });
+
+  addAlternantForm && addAlternantForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    addAlternantError.style.display = 'none';
+    const planningHebdo = {};
+    let valid = true;
+    JOURS_SEMAINE_FR.forEach(jour => {
+      const type = altWeekGrid.querySelector(`.alt-jour-type[data-jour="${CSS.escape(jour)}"]`).value;
+      if(type === 'travail'){
+        const debut = altWeekGrid.querySelector(`.alt-jour-debut[data-jour="${CSS.escape(jour)}"]`).value;
+        const fin = altWeekGrid.querySelector(`.alt-jour-fin[data-jour="${CSS.escape(jour)}"]`).value;
+        if(!debut || !fin) valid = false;
+        planningHebdo[jour] = { type:'travail', debut, fin };
+      } else {
+        planningHebdo[jour] = { type };
+      }
+    });
+    if(!valid){ addAlternantError.textContent = 'Renseigne les horaires pour chaque jour travaillé.'; addAlternantError.style.display = 'block'; return; }
+    const nom = document.getElementById('altNom').value.trim();
+    const dateDebut = document.getElementById('altDateDebut').value;
+    if(!nom || !dateDebut) return;
+    const submitBtn = addAlternantForm.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+    try{
+      const res = await fetch(APPS_SCRIPT_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(authBody({ sheet:'add_alternant', targetRestaurant: currentRestaurant, nom, dateDebut, planningHebdo })) });
+      const data = await res.json();
+      if(!data.ok) throw new Error(data.error || "Échec de la création");
+      alternantsCache = data.alternants || [];
+      renderAlternantsList();
+      addAlternantForm.reset();
+      addAlternantForm.style.display = 'none';
+      await openAlternantPlanning(nom);
+    } catch(err){
+      addAlternantError.textContent = err.message;
+      addAlternantError.style.display = 'block';
+    } finally {
+      submitBtn.disabled = false;
+    }
+  });
+
+  async function openAlternantPlanning(nom){
+    currentAlternantNom = nom;
+    alternantPlanningTitle.textContent = '📅 Planning — ' + nom;
+    alternantPlanningBlock.style.display = '';
+    if(deleteAlternantBtn) deleteAlternantBtn.style.display = canManageAlternant ? '' : 'none';
+    if(regenererPlanningBtn) regenererPlanningBtn.style.display = canManageAlternant ? '' : 'none';
+    await loadAlternantPlanning();
+    alternantPlanningBlock.scrollIntoView({ behavior:'smooth', block:'start' });
+  }
+
+  async function loadAlternantPlanning(){
+    const res = await fetch(APPS_SCRIPT_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(authBody({ sheet:'get_planning_alternant', targetRestaurant: currentRestaurant, nom: currentAlternantNom })) });
+    const data = await res.json();
+    alternantPlanningCache = data.planning || [];
+    populateAlternantMonthSelect();
+    renderAlternantPlanningTable(alternantMonthSelect.value);
+  }
+
+  function populateAlternantMonthSelect(){
+    const mois = new Set(alternantPlanningCache.map(b => b.date.slice(0, 7)));
+    const sorted = Array.from(mois).sort();
+    alternantMonthSelect.innerHTML = sorted.map(m => {
+      const [y, mm] = m.split('-');
+      return `<option value="${m}">${MOIS_LABELS_FR[Number(mm)-1]} ${y}</option>`;
+    }).join('');
+  }
+
+  function alternantPillClass(type){
+    if(type === 'verification') return 'red';
+    if(type === 'formation') return 'green';
+    if(type === 'suivi') return 'plum';
+    if(type === 'ecole') return 'plum';
+    return 'gray';
+  }
+
+  function renderAlternantPlanningTable(moisKey){
+    const blocs = alternantPlanningCache.filter(b => b.date.slice(0, 7) === moisKey);
+    const parDate = {};
+    blocs.forEach(b => { (parDate[b.date] = parDate[b.date] || []).push(b); });
+    const dates = Object.keys(parDate).sort();
+    if(!dates.length){
+      alternantPlanningTableWrap.innerHTML = '<p style="color:var(--ink-soft);font-size:13px;">Aucun créneau pour ce mois.</p>';
+      return;
+    }
+    alternantPlanningTableWrap.innerHTML = dates.map(date => {
+      const items = parDate[date];
+      const isEcole = items.length === 1 && items[0].type === 'ecole';
+      return `<div style="margin-bottom:10px; padding:10px 14px; background:#faf9f4; border:1px solid var(--line); border-radius:8px;">
+        <div style="font-weight:700; font-size:12.5px; margin-bottom:6px; text-transform:capitalize;">${frDate(parseDate(date))} — ${items[0].jour}</div>
+        ${isEcole
+          ? `<span class="action-pill plum">🏫 École</span>`
+          : items.map(b => `<div style="display:flex; align-items:center; gap:8px; margin-bottom:4px; font-size:12.5px; flex-wrap:wrap;">
+              <span style="color:var(--ink-soft); min-width:95px;">${b.heureDebut}–${b.heureFin}</span>
+              ${b.tag ? `<span class="action-pill amber">${b.tag}</span>` : ''}
+              <span class="action-pill ${alternantPillClass(b.type)}">${TYPE_ICONS_ALT[b.type] || ''} ${b.libelle}</span>
+              ${b.modifieManuel ? '<span title="Modifié manuellement" style="font-size:11px;color:var(--ink-soft);">✏️ modifié</span>' : ''}
+              ${canManageAlternant ? `<button type="button" class="edit-bloc-alternant-btn" data-date="${date}" data-debut="${b.heureDebut}" style="border:none;background:none;cursor:pointer;" title="Corriger">✏️</button>` : ''}
+            </div>`).join('')
+        }
+      </div>`;
+    }).join('');
+    if(canManageAlternant){
+      alternantPlanningTableWrap.querySelectorAll('.edit-bloc-alternant-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const date = btn.dataset.date, debut = btn.dataset.debut;
+          const bloc = alternantPlanningCache.find(b => b.date === date && b.heureDebut === debut);
+          if(!bloc) return;
+          const nouveauLibelle = window.prompt('Nouveau libellé pour ce créneau :', bloc.libelle);
+          if(nouveauLibelle === null) return;
+          const nouvelleFin = window.prompt('Heure de fin (HH:MM) :', bloc.heureFin);
+          if(nouvelleFin === null) return;
+          try{
+            const res = await fetch(APPS_SCRIPT_URL, {
+              method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+              body: JSON.stringify(authBody({ sheet:'update_bloc_alternant', targetRestaurant: currentRestaurant, nom: currentAlternantNom, date, heureDebut: debut, heureFin: nouvelleFin, libelle: nouveauLibelle }))
+            });
+            const data = await res.json();
+            if(!data.ok) throw new Error(data.error || "Échec de la correction");
+            alternantPlanningCache = data.planning || [];
+            renderAlternantPlanningTable(moisKey);
+          } catch(err){ alert('Erreur : ' + err.message); }
+        });
+      });
+    }
+  }
+
+  alternantMonthSelect && alternantMonthSelect.addEventListener('change', () => renderAlternantPlanningTable(alternantMonthSelect.value));
+
+  regenererPlanningBtn && regenererPlanningBtn.addEventListener('click', async () => {
+    if(!window.confirm('Régénérer le planning ? Les créneaux déjà corrigés manuellement seront conservés, les autres seront recalculés.')) return;
+    regenererPlanningBtn.disabled = true;
+    try{
+      const res = await fetch(APPS_SCRIPT_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(authBody({ sheet:'generer_planning_alternant', targetRestaurant: currentRestaurant, nom: currentAlternantNom })) });
+      const data = await res.json();
+      if(!data.ok) throw new Error(data.error || 'Échec de la génération');
+      alternantPlanningCache = data.planning || [];
+      populateAlternantMonthSelect();
+      renderAlternantPlanningTable(alternantMonthSelect.value);
+    } catch(err){ alert('Erreur : ' + err.message); }
+    finally { regenererPlanningBtn.disabled = false; }
+  });
+
+  deleteAlternantBtn && deleteAlternantBtn.addEventListener('click', async () => {
+    if(!window.confirm(`Supprimer définitivement le profil de ${currentAlternantNom} ? (le planning déjà généré reste consultable)`)) return;
+    try{
+      const res = await fetch(APPS_SCRIPT_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(authBody({ sheet:'delete_alternant', targetRestaurant: currentRestaurant, nom: currentAlternantNom })) });
+      const data = await res.json();
+      if(!data.ok) throw new Error(data.error || 'Échec de la suppression');
+      alternantsCache = data.alternants || [];
+      renderAlternantsList();
+      alternantPlanningBlock.style.display = 'none';
+    } catch(err){ alert('Erreur : ' + err.message); }
+  });
+
+  async function initAlternantTab(){
+    if(!canManageAlternant){
+      showAddAlternantFormBtn && (showAddAlternantFormBtn.style.display = 'none');
+    }
+    renderAltWeekGrid();
+    await loadPeriodesOp();
+    await loadAlternants();
+  }
 
   // Sections secondaires repliées par défaut — chargées seulement à
   // l'ouverture, comme les restrictions par équipier dans Planification.
