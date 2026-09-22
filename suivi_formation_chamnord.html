@@ -206,6 +206,12 @@
   .stat-card.orange .stat-num{color:var(--orange);}
   .stat-card.green .stat-num{color:var(--green);}
   .stat-card.all .stat-num{color:var(--ink);}
+  .stat-card.amber-stat .stat-num{color:var(--amber-dark);}
+  .stat-card.teal-stat .stat-num{color:var(--teal);}
+  .cout-pill{
+    display:inline-block; font-size:12.5px; font-weight:800; color:var(--amber-dark);
+    background:#fdf1de; border:1px solid var(--amber); padding:3px 10px; border-radius:999px;
+  }
 
   /* ---------- MAIN ---------- */
   main{
@@ -1304,9 +1310,24 @@
 </section>
 
 <section id="tab-cout-formation" style="display:none;">
+  <div class="stats-row" id="coutStatsRow" style="display:grid; grid-template-columns:repeat(3, 1fr); gap:14px; margin-bottom:18px;">
+    <div class="stat-card amber-stat">
+      <div class="stat-num" id="coutStatMoisNum">—</div>
+      <div class="stat-label">Coût ce mois-ci</div>
+    </div>
+    <div class="stat-card all">
+      <div class="stat-num" id="coutStatCountNum">—</div>
+      <div class="stat-label">Formations enregistrées ce mois-ci</div>
+    </div>
+    <div class="stat-card teal-stat">
+      <div class="stat-num" id="coutStatMoyenNum">—</div>
+      <div class="stat-label">Coût moyen par formation</div>
+    </div>
+  </div>
+
   <div class="panel-block">
     <div class="panel-head">
-      <h3>Enregistrer une formation</h3>
+      <h3>💶 Enregistrer une formation</h3>
       <p>Aucun champ n'est pré-rempli — choisis et saisis toi-même chaque information.</p>
     </div>
     <form id="addCoutFormationForm" style="display:flex; flex-direction:column; gap:8px;">
@@ -1346,7 +1367,7 @@
 
   <div class="panel-block">
     <div class="panel-head">
-      <h3>Historique</h3>
+      <h3>📋 Historique</h3>
       <p>Le Responsable formation peut corriger ou supprimer une entrée en cas d'erreur de saisie.</p>
     </div>
     <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
@@ -1366,16 +1387,16 @@
       <button type="button" id="toggleTempsTabletteBtn" class="restriction-toggle-btn">📎 Fiches temps de formation tablette</button>
     </div>
     <div id="coutAnnuelSection" style="display:none; margin-top:14px; padding:14px; background:var(--green-bg); border:1px solid var(--green-line); border-radius:10px;">
-      <h4 style="margin:0 0 8px; font-size:14px; color:var(--green);">Récapitulatif annuel</h4>
+      <h4 style="margin:0 0 8px; font-size:14px; color:var(--green);">📊 Récapitulatif annuel</h4>
       <div id="coutAnnuelWrap"></div>
     </div>
     <div id="tauxHorairesSection" style="display:none; margin-top:14px; padding:14px; background:var(--plum-bg); border:1px solid var(--plum-line); border-radius:10px;">
-      <h4 style="margin:0 0 4px; font-size:14px; color:var(--plum);">Taux horaires</h4>
+      <h4 style="margin:0 0 4px; font-size:14px; color:var(--plum);">⚙️ Taux horaires</h4>
       <p style="font-size:11.5px;color:var(--ink-soft);margin-top:0;">Utilisés pour calculer automatiquement le coût de chaque formation. Modifiables uniquement par le gérant.</p>
       <div id="tauxHorairePaliersWrap"></div>
     </div>
     <div id="tempsTabletteSection" style="display:none; margin-top:14px; padding:14px; background:var(--teal-bg); border:1px solid var(--teal-line); border-radius:10px;">
-      <h4 style="margin:0 0 4px; font-size:14px; color:var(--teal);">Temps de formation tablette (référence)</h4>
+      <h4 style="margin:0 0 4px; font-size:14px; color:var(--teal);">📎 Temps de formation tablette (référence)</h4>
       <p style="font-size:11.5px;color:var(--ink-soft);margin-top:0;">Liste ouverte de fiches PDF, ajoutées par le gérant uniquement — pas triées par poste.</p>
       <div id="tempsTabletteRefWrap"></div>
     </div>
@@ -4339,13 +4360,13 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         <tbody>
           ${rows.map(r => `<tr>
             <td>${dash(r.date ? frDate(parseDate(r.date)) : null)}</td><td>${dash(r.formateur)}</td><td>${dash(r.equipier)}</td><td>${dash(r.formation)}</td>
-            <td>${r.tempsTablette ? r.tempsTablette + ' min' : '—'}</td><td>${r.tempsAccompagnement ? r.tempsAccompagnement + ' min' : '—'}</td><td><strong>${r.cout ? r.cout.toFixed(2) + ' €' : '—'}</strong></td>
+            <td>${r.tempsTablette ? r.tempsTablette + ' min' : '—'}</td><td>${r.tempsAccompagnement ? r.tempsAccompagnement + ' min' : '—'}</td><td>${r.cout ? `<span class="cout-pill">${r.cout.toFixed(2)} €</span>` : '—'}</td>
             ${canManage ? `<td style="white-space:nowrap;">
               <button type="button" class="edit-cout-btn" data-index="${r.index}" style="border:none;background:none;cursor:pointer;" title="Corriger">✏️</button>
               <button type="button" class="delete-cout-btn" data-index="${r.index}" style="color:var(--red);border:none;background:none;cursor:pointer;" title="Supprimer">🗑️</button>
             </td>` : ''}
           </tr>`).join('')}
-          <tr style="font-weight:700;"><td colspan="6">TOTAL DU MOIS</td><td>${total.toFixed(2)} €</td>${canManage ? '<td></td>' : ''}</tr>
+          <tr style="font-weight:700;"><td colspan="6">TOTAL DU MOIS</td><td><span class="cout-pill" style="font-size:13.5px;">${total.toFixed(2)} €</span></td>${canManage ? '<td></td>' : ''}</tr>
         </tbody>
       </table></div>`;
     coutFormationTableWrap.querySelectorAll('.edit-cout-btn').forEach(btn => {
@@ -4369,6 +4390,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
           coutEntriesCache = data.couts || [];
           renderCoutTable(moisKey);
           renderCoutAnnuel();
+          renderCoutStats();
         } catch(err){ alert('Erreur : ' + err.message); btn.disabled = false; }
       });
     });
@@ -4429,6 +4451,17 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     populateCoutMonthSelect();
     renderCoutTable(coutMonthSelect.value || currentMonthKeyClient());
     renderCoutAnnuel();
+    renderCoutStats();
+  }
+
+  function renderCoutStats(){
+    const moisActuel = currentMonthKeyClient();
+    const rowsMois = coutEntriesCache.filter(e => e.date && e.date.slice(0, 7) === moisActuel);
+    const totalMois = rowsMois.reduce((s, r) => s + r.cout, 0);
+    const moyenne = rowsMois.length ? totalMois / rowsMois.length : 0;
+    document.getElementById('coutStatMoisNum').textContent = totalMois.toFixed(2) + ' €';
+    document.getElementById('coutStatCountNum').textContent = rowsMois.length;
+    document.getElementById('coutStatMoyenNum').textContent = rowsMois.length ? moyenne.toFixed(2) + ' €' : '—';
   }
 
   // ---- Temps de formation tablette (liste ouverte de fiches PDF), modifiable par le gérant ----
@@ -4629,6 +4662,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         coutMonthSelect.value = moisAffiche;
         renderCoutTable(moisAffiche);
         renderCoutAnnuel();
+        renderCoutStats();
       } catch(err){
         coutFormationError.textContent = err.message;
         coutFormationError.style.display = 'block';
