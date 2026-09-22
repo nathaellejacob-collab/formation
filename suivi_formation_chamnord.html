@@ -1365,17 +1365,17 @@
       <button type="button" id="toggleTauxHorairesBtn" class="restriction-toggle-btn">⚙️ Taux horaires</button>
       <button type="button" id="toggleTempsTabletteBtn" class="restriction-toggle-btn">📎 Fiches temps de formation tablette</button>
     </div>
-    <div id="coutAnnuelSection" style="display:none; margin-top:14px; padding-top:14px; border-top:1px dashed var(--line);">
-      <h4 style="margin:0 0 8px; font-size:14px;">Récapitulatif annuel</h4>
+    <div id="coutAnnuelSection" style="display:none; margin-top:14px; padding:14px; background:var(--green-bg); border:1px solid var(--green-line); border-radius:10px;">
+      <h4 style="margin:0 0 8px; font-size:14px; color:var(--green);">Récapitulatif annuel</h4>
       <div id="coutAnnuelWrap"></div>
     </div>
-    <div id="tauxHorairesSection" style="display:none; margin-top:14px; padding-top:14px; border-top:1px dashed var(--line);">
-      <h4 style="margin:0 0 4px; font-size:14px;">Taux horaires</h4>
+    <div id="tauxHorairesSection" style="display:none; margin-top:14px; padding:14px; background:var(--plum-bg); border:1px solid var(--plum-line); border-radius:10px;">
+      <h4 style="margin:0 0 4px; font-size:14px; color:var(--plum);">Taux horaires</h4>
       <p style="font-size:11.5px;color:var(--ink-soft);margin-top:0;">Utilisés pour calculer automatiquement le coût de chaque formation. Modifiables uniquement par le gérant.</p>
       <div id="tauxHorairePaliersWrap"></div>
     </div>
-    <div id="tempsTabletteSection" style="display:none; margin-top:14px; padding-top:14px; border-top:1px dashed var(--line);">
-      <h4 style="margin:0 0 4px; font-size:14px;">Temps de formation tablette (référence)</h4>
+    <div id="tempsTabletteSection" style="display:none; margin-top:14px; padding:14px; background:var(--teal-bg); border:1px solid var(--teal-line); border-radius:10px;">
+      <h4 style="margin:0 0 4px; font-size:14px; color:var(--teal);">Temps de formation tablette (référence)</h4>
       <p style="font-size:11.5px;color:var(--ink-soft);margin-top:0;">Liste ouverte de fiches PDF, ajoutées par le gérant uniquement — pas triées par poste.</p>
       <div id="tempsTabletteRefWrap"></div>
     </div>
@@ -4370,8 +4370,13 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       const mm = String(i + 1).padStart(2, '0');
       const t = totalsByMonth[mm] || 0;
       grandTotal += t;
+      if(t === 0) return null; // n'affiche que les mois avec des données
       return `<tr><td>${label}</td><td>${t.toFixed(2)} €</td></tr>`;
-    }).join('');
+    }).filter(Boolean).join('');
+    if(!rows){
+      coutAnnuelWrap.innerHTML = `<p style="color:var(--ink-soft);font-size:13px;">Aucune donnée pour ${annee} pour le moment.</p>`;
+      return;
+    }
     coutAnnuelWrap.innerHTML = `<div class="matrix-wrap"><table class="matrix-table">
       <thead><tr><th>Mois</th><th>Coût total</th></tr></thead>
       <tbody>${rows}<tr style="font-weight:700;"><td>COÛT ANNUEL ${annee}</td><td>${grandTotal.toFixed(2)} €</td></tr></tbody>
@@ -4486,7 +4491,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     const res = await fetch(APPS_SCRIPT_URL, {
       method: 'POST',
       headers: {'Content-Type': 'text/plain;charset=utf-8'},
-      body: JSON.stringify(authBody({ sheet: 'get_taux_paliers', targetRestaurant: currentRestaurant }))
+      body: JSON.stringify({ sheet:'get_taux_paliers', password: sessionPassword })
     });
     const data = await res.json();
     renderTauxHorairePaliers(data.paliers || {});
@@ -4551,6 +4556,9 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
 
   const toggleTauxHorairesBtn = document.getElementById('toggleTauxHorairesBtn');
   const tauxHorairesSection = document.getElementById('tauxHorairesSection');
+  if(toggleTauxHorairesBtn && !isGerant){
+    toggleTauxHorairesBtn.style.display = 'none';
+  }
   let tauxHorairesLoaded = false;
   toggleTauxHorairesBtn && toggleTauxHorairesBtn.addEventListener('click', async () => {
     const isOpen = tauxHorairesSection.style.display === 'block';
