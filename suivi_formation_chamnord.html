@@ -3186,12 +3186,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     }
 
     function verifUploadHtml(nom, key, label, restaurant){
-      const safeNom = nom.replace(/"/g,'&quot;');
-      return `<div style="display:flex; align-items:center; gap:8px; margin-top:6px; flex-wrap:wrap;">
-        <button type="button" class="verif-folder-btn upload-signed-verif-btn" data-nom="${safeNom}" data-key="${key}">📎 Envoyer la fiche signée</button>
-        <input type="file" class="signed-verif-file-input" data-nom="${safeNom}" data-key="${key}" accept="application/pdf,image/*" style="display:none;">
-        <span class="signed-verif-status" data-nom="${safeNom}" data-key="${key}" style="font-size:12px;"></span>
-      </div>`;
+      return '';
     }
 
     function detailCardHtml(e){
@@ -3396,47 +3391,6 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       });
     }
 
-    function wireSignedVerifUpload(container, nom){
-      container.querySelectorAll('.upload-signed-verif-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const key = btn.dataset.key;
-          container.querySelector(`.signed-verif-file-input[data-nom="${CSS.escape(nom)}"][data-key="${CSS.escape(key)}"]`).click();
-        });
-      });
-      container.querySelectorAll('.signed-verif-file-input').forEach(input => {
-        input.addEventListener('change', async () => {
-          const file = input.files[0];
-          if(!file) return;
-          const key = input.dataset.key;
-          const btn = container.querySelector(`.upload-signed-verif-btn[data-nom="${CSS.escape(nom)}"][data-key="${CSS.escape(key)}"]`);
-          const status = container.querySelector(`.signed-verif-status[data-nom="${CSS.escape(nom)}"][data-key="${CSS.escape(key)}"]`);
-          if(btn){ btn.disabled = true; btn.textContent = 'Envoi…'; }
-          try{
-            const targetPerson = list.find(e => e.nom === nom);
-            const base64 = await readFileAsBase64(file);
-            const category = cfg.sheetKey === 'gestion' ? 'gestion' : 'nouveaux';
-            const res = await fetch(APPS_SCRIPT_URL, {
-              method: 'POST',
-              headers: {'Content-Type': 'text/plain;charset=utf-8'},
-              body: JSON.stringify(authBody({
-                sheet: 'upload_verification', scope: 'obligatoire', key, nom, category,
-                fileName: file.name, mimeType: file.type, data: base64,
-                targetRestaurant: targetPerson ? targetPerson.restaurant : undefined,
-              }))
-            });
-            const d = await res.json();
-            if(!d.ok) throw new Error(d.error || "Échec de l'envoi");
-            if(status){ status.textContent = '✓ Envoyée' + (d.isRenewal ? ' (renouvellement)' : ''); status.style.color = 'var(--green)'; }
-          } catch(err){
-            if(status){ status.textContent = 'Erreur : ' + err.message; status.style.color = 'var(--red)'; }
-            else alert('Erreur : ' + err.message);
-          } finally {
-            if(btn){ btn.disabled = false; btn.textContent = '📎 Envoyer la fiche signée'; }
-          }
-        });
-      });
-    }
-
     function wireDeleteButton(container, nom, onDeleted){
       const btn = container.querySelector('.delete-emp-btn');
       if(!btn) return;
@@ -3579,7 +3533,6 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         wireArretButton(exp, e.nom);
         wireCongesButton(exp, e.nom);
         wireDispoButton(exp, e.nom);
-        wireSignedVerifUpload(exp, e.nom);
         wireDeleteButton(exp, e.nom, () => { openDetailNoms.delete(e.nom); exp.remove(); tr.remove(); });
         exp.querySelector('.collapse-detail-btn').addEventListener('click', (ev) => {
           ev.stopPropagation();
@@ -3620,7 +3573,6 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         wireArretButton(detailWrap, e.nom);
         wireCongesButton(detailWrap, e.nom);
         wireDispoButton(detailWrap, e.nom);
-        wireSignedVerifUpload(detailWrap, e.nom);
         wireDeleteButton(detailWrap, e.nom, () => { openDetailNoms.delete(e.nom); card.remove(); });
         detailWrap.querySelector('.collapse-detail-btn').addEventListener('click', () => {
           openDetailNoms.delete(e.nom);
