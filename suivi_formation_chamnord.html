@@ -4716,7 +4716,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
 
   async function loadIntegrationData(){
     const [resFormateurs, resRecords] = await Promise.all([
-      fetch(APPS_SCRIPT_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(authBody({ sheet:'get_formateurs_for_cout', targetRestaurant: currentRestaurant })) }),
+      fetch(APPS_SCRIPT_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(authBody({ sheet:'get_formateurs_for_integration', targetRestaurant: currentRestaurant })) }),
       fetch(APPS_SCRIPT_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(authBody({ sheet:'get_integration_suivi', targetRestaurant: currentRestaurant })) }),
     ]);
     integrationFormateursCache = (await resFormateurs.json()).formateurs || [];
