@@ -4926,12 +4926,15 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
   }
 
   function populateAlternantMonthSelect(){
-    const mois = new Set(alternantPlanningCache.map(j => j.date.slice(0, 7)));
+    const mois = new Set(alternantPlanningCache.map(j => j.date.slice(0, 7)).filter(Boolean));
     const sorted = Array.from(mois).sort();
     alternantMonthSelect.innerHTML = sorted.map(m => {
       const [y, mm] = m.split('-');
       return `<option value="${m}">${MOIS_LABELS_FR[Number(mm)-1]} ${y}</option>`;
     }).join('');
+    // Sélectionne explicitement le premier mois — ne compte jamais sur le
+    // comportement par défaut du navigateur juste après avoir rempli les options.
+    if(sorted.length) alternantMonthSelect.value = sorted[0];
   }
 
   const STATUT_LABELS_ALT = { travail:'Travail', ecole:'École', repos:'Repos' };
@@ -4959,9 +4962,9 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
 
   // Rendu façon tableur : un vrai tableau, une ligne par jour, une ligne de
   // total à la fin de chaque semaine — plus proche du fichier Excel
-  // d'origine qu'un empilement de cartes.
+  // d'origine qu'un empilement de cartes. Filtré par mois affiché.
   function renderAlternantPlanningTable(moisKey){
-    const jours = alternantPlanningCache.filter(j => j.date.slice(0, 7) === moisKey).sort((a,b) => a.date.localeCompare(b.date));
+    const jours = alternantPlanningCache.filter(j => j.date && j.date.slice(0, 7) === moisKey).sort((a,b) => a.date.localeCompare(b.date));
     if(!jours.length){
       alternantPlanningTableWrap.innerHTML = '<p style="color:var(--ink-soft);font-size:13px;">Aucun jour pour ce mois.</p>';
       return;
