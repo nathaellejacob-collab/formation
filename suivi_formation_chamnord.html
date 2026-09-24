@@ -4970,16 +4970,15 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     const semaines = alt ? groupByWeek(jours, alt.dateDebut) : [jours];
 
     const thead = `<thead><tr>
-      <th>Date</th><th>Jour</th><th>Statut</th><th>Début</th><th>Fin</th><th>Pauses</th><th>Heures</th><th>Formation</th><th>Formateur</th>${canManageAlternant ? '<th></th>' : ''}
+      <th>Date</th><th>Jour</th><th>Statut</th><th>Quart 1</th><th>Quart 2</th><th>Pauses</th><th>Heures</th><th>Formation</th><th>Formateur</th>${canManageAlternant ? '<th></th>' : ''}
     </tr></thead>`;
 
-    const tbody = semaines.map((semaine, si) => {
+    const tbody = semaines.map((semaine) => {
       const totalSemaine = semaine.reduce((s, j) => s + (j.heures || 0), 0);
       const atteint35 = totalSemaine >= 35;
       const nbCols = canManageAlternant ? 10 : 9;
       const headerRow = `<tr class="alt-semaine-header-row" style="background:#faf9f4;">
-        <td colspan="${nbCols - (canManageAlternant ? 1 : 0)}" style="font-weight:700; font-size:11.5px; color:var(--ink-soft);">Semaine du ${frDate(parseDate(semaine[0].date))}</td>
-        ${canManageAlternant ? `<td><button type="button" class="edit-semaine-alternant-btn" data-semaine="${si}" style="border:none;background:none;cursor:pointer;" title="Modifier cette semaine">✏️</button></td>` : ''}
+        <td colspan="${nbCols}" style="font-weight:700; font-size:11.5px; color:var(--ink-soft);">Semaine du ${frDate(parseDate(semaine[0].date))}</td>
       </tr>`;
       const joursRows = semaine.map(j => renderJourRow(j, depuisDate)).join('');
       const totalRow = `<tr style="font-weight:700;">
@@ -4987,39 +4986,115 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         <td><span class="action-pill ${atteint35 ? 'green' : 'red'}">${totalSemaine} h / 35 h${atteint35 ? ' ✓' : ''}</span></td>
         <td colspan="${canManageAlternant ? 3 : 2}"></td>
       </tr>`;
-      const editPanelRow = `<tr class="edit-semaine-alternant-panel-row" data-semaine="${si}" style="display:none;"><td colspan="${nbCols}"><div class="edit-semaine-alternant-panel" data-semaine="${si}"></div></td></tr>`;
-      return headerRow + editPanelRow + joursRows + totalRow;
+      return headerRow + joursRows + totalRow;
     }).join('');
 
     alternantPlanningTableWrap.innerHTML = `<div class="matrix-wrap"><table class="matrix-table">${thead}<tbody>${tbody}</tbody></table></div>`;
 
     if(canManageAlternant){
+      wireInlineEditableRows(depuisDate);
       alternantPlanningTableWrap.querySelectorAll('.edit-jour-alternant-btn').forEach(btn => {
         btn.addEventListener('click', () => toggleEditJourPanel(btn.dataset.date, depuisDate));
-      });
-      alternantPlanningTableWrap.querySelectorAll('.edit-semaine-alternant-btn').forEach(btn => {
-        btn.addEventListener('click', () => toggleEditSemainePanel(Number(btn.dataset.semaine), semaines[Number(btn.dataset.semaine)], depuisDate));
       });
     }
   }
 
+  // Jour "Repos" (rien encore configuré) : la ligne est directement
+  // modifiable dans le tableau, sans passer par le crayon — dès qu'un
+  // statut Travail/École est choisi, les champs horaires apparaissent dans
+  // la même ligne, prêts à être enregistrés d'un clic sur ✓.
   function renderJourRow(j, depuisDate){
-    const estTravail = j.statut === 'travail';
+    if(j.statut === 'repos' && canManageAlternant){
+      return `<tr data-date="${j.date}" class="alt-jour-editable-row">
+        <td style="white-space:nowrap;">${frDate(parseDate(j.date))}</td>
+        <td style="text-transform:capitalize;">${j.jour}</td>
+        <td>
+          <select class="inline-jour-statut" data-date="${j.date}">
+            <option value="repos" selected>Repos</option>
+            <option value="ecole">École</option>
+            <option value="travail">Travail</option>
+          </select>
+        </td>
+        <td colspan="2">
+          <span class="inline-jour-horaires" data-date="${j.date}" style="display:none; gap:4px; align-items:center; flex-wrap:wrap;">
+            <input type="time" class="inline-jour-debut1" data-date="${j.date}" style="width:92px;">
+            <span>à</span>
+            <input type="time" class="inline-jour-fin1" data-date="${j.date}" style="width:92px;">
+            <button type="button" class="inline-add-quart2-btn" data-date="${j.date}" style="border:none;background:none;color:var(--navy-2);cursor:pointer;font-size:11px;font-weight:700;">+2ᵉ</button>
+            <span class="inline-jour-quart2" data-date="${j.date}" style="display:none; gap:4px; align-items:center;">
+              <input type="time" class="inline-jour-debut2" data-date="${j.date}" style="width:92px;">
+              <span>à</span>
+              <input type="time" class="inline-jour-fin2" data-date="${j.date}" style="width:92px;">
+            </span>
+          </span>
+        </td>
+        <td><input type="number" class="inline-jour-pauses" data-date="${j.date}" min="0" max="4" value="0" style="width:44px; display:none;" title="Pauses de 30 min"></td>
+        <td style="color:var(--ink-soft);">—</td>
+        <td colspan="2" style="color:var(--ink-soft); font-size:11.5px;">— (une fois enregistré)</td>
+        <td><button type="button" class="inline-save-jour-btn" data-date="${j.date}" style="border:none;background:none;color:var(--green);cursor:pointer;font-weight:700;font-size:15px;" title="Enregistrer">✓</button></td>
+      </tr>`;
+    }
+    const peutAvoirHoraires = j.statut === 'travail' || j.statut === 'ecole';
+    const quart1 = (peutAvoirHoraires && j.heureDebut1 && j.heureFin1) ? `${j.heureDebut1}–${j.heureFin1}` : '—';
+    const quart2 = (peutAvoirHoraires && j.heureDebut2 && j.heureFin2) ? `${j.heureDebut2}–${j.heureFin2}` : '—';
     return `<tr data-date="${j.date}">
       <td style="white-space:nowrap;">${frDate(parseDate(j.date))}</td>
       <td style="text-transform:capitalize;">${j.jour}</td>
       <td><span class="action-pill ${alternantStatutPillClass(j.statut)}">${STATUT_LABELS_ALT[j.statut] || j.statut}</span></td>
-      <td>${estTravail ? j.heureDebut : '—'}</td>
-      <td>${estTravail ? j.heureFin : '—'}</td>
-      <td>${estTravail ? (j.nbPauses || 0) : '—'}</td>
+      <td>${quart1}</td>
+      <td>${quart2}</td>
+      <td>${j.statut === 'travail' ? (j.nbPauses || 0) : '—'}</td>
       <td><span class="cout-pill">${j.heures} h</span></td>
       <td>${j.formation ? `${TYPE_ICONS_ALT.formation} ${j.formation}` : '—'}${j.modifieManuel ? ' <span title="Modifié manuellement" style="font-size:11px;">✏️</span>' : ''}</td>
       <td>${j.formateur || '—'}</td>
-      ${canManageAlternant ? `<td><button type="button" class="edit-jour-alternant-btn" data-date="${j.date}" style="border:none;background:none;cursor:pointer;" title="Corriger la formation/formateur">✏️</button></td>` : ''}
+      ${canManageAlternant ? `<td><button type="button" class="edit-jour-alternant-btn" data-date="${j.date}" style="border:none;background:none;cursor:pointer;" title="Corriger ce jour">✏️</button></td>` : ''}
     </tr>
     <tr class="edit-jour-alternant-panel-row" data-date="${j.date}" style="display:none;"><td colspan="${canManageAlternant ? 10 : 9}"><div class="edit-jour-alternant-panel" data-date="${j.date}"></div></td></tr>`;
   }
 
+  function wireInlineEditableRows(depuisDate){
+    alternantPlanningTableWrap.querySelectorAll('.inline-jour-statut').forEach(sel => {
+      sel.addEventListener('change', () => {
+        const date = sel.dataset.date;
+        const peutAvoirHoraires = sel.value === 'travail' || sel.value === 'ecole';
+        alternantPlanningTableWrap.querySelector(`.inline-jour-horaires[data-date="${date}"]`).style.display = peutAvoirHoraires ? 'flex' : 'none';
+        alternantPlanningTableWrap.querySelector(`.inline-jour-pauses[data-date="${date}"]`).style.display = sel.value === 'travail' ? 'inline-block' : 'none';
+      });
+    });
+    alternantPlanningTableWrap.querySelectorAll('.inline-add-quart2-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const date = btn.dataset.date;
+        btn.style.display = 'none';
+        alternantPlanningTableWrap.querySelector(`.inline-jour-quart2[data-date="${date}"]`).style.display = 'flex';
+      });
+    });
+    alternantPlanningTableWrap.querySelectorAll('.inline-save-jour-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const date = btn.dataset.date;
+        const statut = alternantPlanningTableWrap.querySelector(`.inline-jour-statut[data-date="${date}"]`).value;
+        const heureDebut1 = alternantPlanningTableWrap.querySelector(`.inline-jour-debut1[data-date="${date}"]`).value;
+        const heureFin1 = alternantPlanningTableWrap.querySelector(`.inline-jour-fin1[data-date="${date}"]`).value;
+        const heureDebut2 = alternantPlanningTableWrap.querySelector(`.inline-jour-debut2[data-date="${date}"]`).value;
+        const heureFin2 = alternantPlanningTableWrap.querySelector(`.inline-jour-fin2[data-date="${date}"]`).value;
+        const nbPauses = Number(alternantPlanningTableWrap.querySelector(`.inline-jour-pauses[data-date="${date}"]`).value) || 0;
+        btn.disabled = true;
+        try{
+          const res = await fetch(APPS_SCRIPT_URL, {
+            method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+            body: JSON.stringify(authBody({ sheet:'update_bloc_alternant', targetRestaurant: currentRestaurant, nom: currentAlternantNom, date, statut, heureDebut1, heureFin1, heureDebut2, heureFin2, nbPauses, formation:'', integrationFormateur:'' }))
+          });
+          const data = await res.json();
+          if(!data.ok) throw new Error(data.error || "Échec de l'enregistrement");
+          alternantPlanningCache = data.planning || [];
+          renderAlternantPlanningTable(depuisDate);
+        } catch(err){ alert('Erreur : ' + err.message); btn.disabled = false; }
+      });
+    });
+  }
+
+  // Jour déjà configuré : le crayon ouvre un panneau de correction complet
+  // (statut, horaires, pauses, formation, formateur) — jamais pour la
+  // saisie initiale, réservée au tableau lui-même.
   function toggleEditJourPanel(date, depuisDate){
     const row = alternantPlanningTableWrap.querySelector(`.edit-jour-alternant-panel-row[data-date="${date}"]`);
     const panel = alternantPlanningTableWrap.querySelector(`.edit-jour-alternant-panel[data-date="${date}"]`);
@@ -5029,15 +5104,56 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     if(isOpen) return;
     const j = alternantPlanningCache.find(x => x.date === date);
     if(!j) return;
+    const aQuart2 = !!(j.heureDebut2 || j.heureFin2);
     panel.innerHTML = `
       <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; padding:8px 0;">
+        <select class="correction-statut">
+          <option value="repos" ${j.statut==='repos'?'selected':''}>Repos</option>
+          <option value="ecole" ${j.statut==='ecole'?'selected':''}>École</option>
+          <option value="travail" ${j.statut==='travail'?'selected':''}>Travail</option>
+        </select>
+        <span class="correction-horaires" style="display:${(j.statut==='travail'||j.statut==='ecole')?'inline-flex':'none'}; gap:6px; align-items:center; flex-wrap:wrap;">
+          <input type="time" class="correction-debut1" value="${j.heureDebut1||''}" style="width:100px;">
+          <span>à</span>
+          <input type="time" class="correction-fin1" value="${j.heureFin1||''}" style="width:100px;">
+          <button type="button" class="correction-add-quart2-btn" style="display:${aQuart2?'none':'inline-block'}; border:none;background:none;color:var(--navy-2);cursor:pointer;font-size:11.5px;font-weight:700;">+ 2ᵉ quart</button>
+          <span class="correction-quart2" style="display:${aQuart2?'inline-flex':'none'}; gap:6px; align-items:center;">
+            <span style="font-size:11.5px;color:var(--ink-soft);">puis</span>
+            <input type="time" class="correction-debut2" value="${j.heureDebut2||''}" style="width:100px;">
+            <span>à</span>
+            <input type="time" class="correction-fin2" value="${j.heureFin2||''}" style="width:100px;">
+          </span>
+          <span class="correction-pauses-wrap" style="display:${j.statut==='travail'?'inline-flex':'none'}; gap:4px; align-items:center;">
+            <input type="number" class="correction-pauses" min="0" max="4" value="${j.nbPauses||0}" style="width:50px;" title="Nombre de pauses de 30 min">
+            <span style="font-size:11px;color:var(--ink-soft);">pause(s) 30 min</span>
+          </span>
+        </span>
+      </div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; padding-bottom:8px;">
         <input type="text" class="edit-jour-formation" value="${(j.formation||'').replace(/"/g,'&quot;')}" placeholder="Formation à faire" style="flex:1; min-width:200px;">
         <select class="edit-jour-formateur"><option value="">— Formateur —</option>${alternantFormateursCache.map(f => `<option value="${f.nom.replace(/"/g,'&quot;')}" ${f.nom===j.formateur?'selected':''}>${f.nom}</option>`).join('')}</select>
+      </div>
+      <div style="display:flex; gap:8px;">
         <button type="button" class="verif-folder-btn save-jour-alternant-btn">Enregistrer</button>
         <button type="button" class="verif-folder-btn cancel-jour-alternant-btn">Annuler</button>
       </div>`;
+    panel.querySelector('.correction-statut').addEventListener('change', (e) => {
+      const peutAvoirHoraires = e.target.value === 'travail' || e.target.value === 'ecole';
+      panel.querySelector('.correction-horaires').style.display = peutAvoirHoraires ? 'inline-flex' : 'none';
+      panel.querySelector('.correction-pauses-wrap').style.display = e.target.value === 'travail' ? 'inline-flex' : 'none';
+    });
+    panel.querySelector('.correction-add-quart2-btn').addEventListener('click', (e) => {
+      e.target.style.display = 'none';
+      panel.querySelector('.correction-quart2').style.display = 'inline-flex';
+    });
     panel.querySelector('.cancel-jour-alternant-btn').addEventListener('click', () => { row.style.display = 'none'; });
     panel.querySelector('.save-jour-alternant-btn').addEventListener('click', async () => {
+      const statut = panel.querySelector('.correction-statut').value;
+      const heureDebut1 = panel.querySelector('.correction-debut1').value;
+      const heureFin1 = panel.querySelector('.correction-fin1').value;
+      const heureDebut2 = panel.querySelector('.correction-debut2').value;
+      const heureFin2 = panel.querySelector('.correction-fin2').value;
+      const nbPauses = Number(panel.querySelector('.correction-pauses').value) || 0;
       const formation = panel.querySelector('.edit-jour-formation').value.trim();
       const formateur = panel.querySelector('.edit-jour-formateur').value;
       const saveBtn = panel.querySelector('.save-jour-alternant-btn');
@@ -5045,72 +5161,10 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       try{
         const res = await fetch(APPS_SCRIPT_URL, {
           method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
-          body: JSON.stringify(authBody({ sheet:'update_bloc_alternant', targetRestaurant: currentRestaurant, nom: currentAlternantNom, date, statut: j.statut, heureDebut: j.heureDebut, heureFin: j.heureFin, nbPauses: j.nbPauses, formation, integrationFormateur: formateur }))
+          body: JSON.stringify(authBody({ sheet:'update_bloc_alternant', targetRestaurant: currentRestaurant, nom: currentAlternantNom, date, statut, heureDebut1, heureFin1, heureDebut2, heureFin2, nbPauses, formation, integrationFormateur: formateur }))
         });
         const data = await res.json();
         if(!data.ok) throw new Error(data.error || "Échec de la correction");
-        alternantPlanningCache = data.planning || [];
-        renderAlternantPlanningTable(depuisDate);
-      } catch(err){ alert('Erreur : ' + err.message); saveBtn.disabled = false; }
-    });
-    row.style.display = 'table-row';
-  }
-
-  // Édition groupée d'une semaine entière (statut/horaires/pauses pour
-  // chaque jour) en un seul enregistrement — ne touche jamais à la
-  // formation ni au formateur déjà renseignés sur ces jours.
-  function toggleEditSemainePanel(semaineIdx, semaineJours, depuisDate){
-    const row = alternantPlanningTableWrap.querySelector(`.edit-semaine-alternant-panel-row[data-semaine="${semaineIdx}"]`);
-    const panel = alternantPlanningTableWrap.querySelector(`.edit-semaine-alternant-panel[data-semaine="${semaineIdx}"]`);
-    if(!row || !panel) return;
-    const isOpen = row.style.display === 'table-row';
-    alternantPlanningTableWrap.querySelectorAll('.edit-semaine-alternant-panel-row').forEach(r => r.style.display = 'none');
-    if(isOpen) return;
-    panel.innerHTML = semaineJours.map(j => `
-      <div style="display:grid; grid-template-columns:150px 110px 1fr; gap:8px; align-items:center; margin-bottom:6px;">
-        <div style="font-size:12.5px;font-weight:700;text-transform:capitalize;">${frDate(parseDate(j.date))} — ${j.jour}</div>
-        <select class="semaine-jour-statut" data-date="${j.date}">
-          <option value="repos" ${j.statut==='repos'?'selected':''}>Repos</option>
-          <option value="ecole" ${j.statut==='ecole'?'selected':''}>École</option>
-          <option value="travail" ${j.statut==='travail'?'selected':''}>Travail</option>
-        </select>
-        <div class="semaine-jour-horaires" data-date="${j.date}" style="display:${j.statut==='travail'?'flex':'none'}; gap:6px; align-items:center; flex-wrap:wrap;">
-          <input type="time" class="semaine-jour-debut" data-date="${j.date}" value="${j.heureDebut||''}" style="width:100px;">
-          <span>à</span>
-          <input type="time" class="semaine-jour-fin" data-date="${j.date}" value="${j.heureFin||''}" style="width:100px;">
-          <input type="number" class="semaine-jour-pauses" data-date="${j.date}" min="0" max="4" value="${j.nbPauses||0}" style="width:50px;" title="Nombre de pauses de 30 min">
-          <span style="font-size:11px;color:var(--ink-soft);">pause(s)</span>
-        </div>
-      </div>
-    `).join('') + `
-      <div style="display:flex; gap:8px; margin-top:8px;">
-        <button type="button" class="verif-folder-btn save-semaine-alternant-btn">Enregistrer la semaine</button>
-        <button type="button" class="verif-folder-btn cancel-semaine-alternant-btn">Annuler</button>
-      </div>`;
-    panel.querySelectorAll('.semaine-jour-statut').forEach(sel => {
-      sel.addEventListener('change', () => {
-        const date = sel.dataset.date;
-        panel.querySelector(`.semaine-jour-horaires[data-date="${date}"]`).style.display = sel.value === 'travail' ? 'flex' : 'none';
-      });
-    });
-    panel.querySelector('.cancel-semaine-alternant-btn').addEventListener('click', () => { row.style.display = 'none'; });
-    panel.querySelector('.save-semaine-alternant-btn').addEventListener('click', async () => {
-      const jours = semaineJours.map(j => ({
-        date: j.date,
-        statut: panel.querySelector(`.semaine-jour-statut[data-date="${j.date}"]`).value,
-        heureDebut: panel.querySelector(`.semaine-jour-debut[data-date="${j.date}"]`).value,
-        heureFin: panel.querySelector(`.semaine-jour-fin[data-date="${j.date}"]`).value,
-        nbPauses: Number(panel.querySelector(`.semaine-jour-pauses[data-date="${j.date}"]`).value) || 0,
-      }));
-      const saveBtn = panel.querySelector('.save-semaine-alternant-btn');
-      saveBtn.disabled = true;
-      try{
-        const res = await fetch(APPS_SCRIPT_URL, {
-          method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
-          body: JSON.stringify(authBody({ sheet:'update_semaine_alternant', targetRestaurant: currentRestaurant, nom: currentAlternantNom, jours }))
-        });
-        const data = await res.json();
-        if(!data.ok) throw new Error(data.error || "Échec de l'enregistrement");
         alternantPlanningCache = data.planning || [];
         renderAlternantPlanningTable(depuisDate);
       } catch(err){ alert('Erreur : ' + err.message); saveBtn.disabled = false; }
