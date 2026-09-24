@@ -1457,8 +1457,8 @@
       <p>Le Responsable formation peut corriger un créneau à tout moment — la correction est conservée même après une régénération.</p>
     </div>
     <div style="display:flex; gap:10px; align-items:center; margin-bottom:12px; flex-wrap:wrap;">
-      <label for="alternantMonthSelect" style="font-size:12px; font-weight:700; color:var(--ink-soft);">Mois affiché :</label>
-      <select id="alternantMonthSelect"></select>
+      <label for="alternantDateSelect" style="font-size:12px; font-weight:700; color:var(--ink-soft);">Afficher à partir du :</label>
+      <input type="date" id="alternantDateSelect">
       <button type="button" id="regenererPlanningBtn" class="verif-folder-btn">🔄 Recalculer les formations</button>
       <button type="button" id="deleteAlternantBtn" class="verif-folder-btn" style="color:var(--red); border-color:var(--red);">🗑️ Supprimer cet alternant</button>
     </div>
@@ -4805,7 +4805,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
   const addAlternantError = document.getElementById('addAlternantError');
   const alternantPlanningBlock = document.getElementById('alternantPlanningBlock');
   const alternantPlanningTitle = document.getElementById('alternantPlanningTitle');
-  const alternantMonthSelect = document.getElementById('alternantMonthSelect');
+  const alternantDateSelect = document.getElementById('alternantDateSelect');
   const alternantPlanningTableWrap = document.getElementById('alternantPlanningTableWrap');
   const regenererPlanningBtn = document.getElementById('regenererPlanningBtn');
   const deleteAlternantBtn = document.getElementById('deleteAlternantBtn');
@@ -4924,24 +4924,14 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     const res = await fetch(APPS_SCRIPT_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(authBody({ sheet:'get_planning_alternant', targetRestaurant: currentRestaurant, nom: currentAlternantNom })) });
     const data = await res.json();
     alternantPlanningCache = data.planning || [];
-    populateAlternantMonthSelect();
-    renderAlternantPlanningTable(alternantMonthSelect.value);
-  }
-
-  function populateAlternantMonthSelect(){
-    // Ne propose que les mois où au moins un jour a une formation renseignée
-    // — un mois entièrement vide (repos non encore configuré) n'apparaît pas.
-    const mois = new Set(
-      alternantPlanningCache.filter(j => j.formation && j.formation.trim()).map(j => j.date.slice(0, 7)).filter(Boolean)
-    );
-    const sorted = Array.from(mois).sort();
-    alternantMonthSelect.innerHTML = sorted.map(m => {
-      const [y, mm] = m.split('-');
-      return `<option value="${m}">${MOIS_LABELS_FR[Number(mm)-1]} ${y}</option>`;
-    }).join('');
-    // Sélectionne explicitement le premier mois — ne compte jamais sur le
-    // comportement par défaut du navigateur juste après avoir rempli les options.
-    if(sorted.length) alternantMonthSelect.value = sorted[0];
+    // Par défaut, la date de début du parcours — ou la date d'aujourd'hui si
+    // elle tombe dans le parcours, pour retrouver directement la semaine en cours.
+    const alt = alternantsCache.find(a => a.nom === currentAlternantNom);
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const joursDisponibles = alternantPlanningCache.map(j => j.date).filter(Boolean).sort();
+    const defaut = (alt && joursDisponibles.includes(todayStr)) ? todayStr : (alt ? alt.dateDebut : (joursDisponibles[0] || ''));
+    alternantDateSelect.value = defaut;
+    renderAlternantPlanningTable(alternantDateSelect.value);
   }
 
   const STATUT_LABELS_ALT = { travail:'Travail', ecole:'École', repos:'Repos' };
@@ -4970,10 +4960,10 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
   // Rendu façon tableur : un vrai tableau, une ligne par jour, une ligne de
   // total à la fin de chaque semaine — plus proche du fichier Excel
   // d'origine qu'un empilement de cartes. Filtré par mois affiché.
-  function renderAlternantPlanningTable(moisKey){
-    const jours = alternantPlanningCache.filter(j => j.date && j.date.slice(0, 7) === moisKey).sort((a,b) => a.date.localeCompare(b.date));
+  function renderAlternantPlanningTable(depuisDate){
+    const jours = alternantPlanningCache.filter(j => j.date && (!depuisDate || j.date >= depuisDate)).sort((a,b) => a.date.localeCompare(b.date));
     if(!jours.length){
-      alternantPlanningTableWrap.innerHTML = '<p style="color:var(--ink-soft);font-size:13px;">Aucun jour pour ce mois.</p>';
+      alternantPlanningTableWrap.innerHTML = '<p style="color:var(--ink-soft);font-size:13px;">Aucun jour à partir de cette date.</p>';
       return;
     }
     const alt = alternantsCache.find(a => a.nom === currentAlternantNom);
@@ -4991,7 +4981,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         <td colspan="${nbCols - (canManageAlternant ? 1 : 0)}" style="font-weight:700; font-size:11.5px; color:var(--ink-soft);">Semaine du ${frDate(parseDate(semaine[0].date))}</td>
         ${canManageAlternant ? `<td><button type="button" class="edit-semaine-alternant-btn" data-semaine="${si}" style="border:none;background:none;cursor:pointer;" title="Modifier cette semaine">✏️</button></td>` : ''}
       </tr>`;
-      const joursRows = semaine.map(j => renderJourRow(j, moisKey)).join('');
+      const joursRows = semaine.map(j => renderJourRow(j, depuisDate)).join('');
       const totalRow = `<tr style="font-weight:700;">
         <td colspan="6">TOTAL SEMAINE</td>
         <td><span class="action-pill ${atteint35 ? 'green' : 'red'}">${totalSemaine} h / 35 h${atteint35 ? ' ✓' : ''}</span></td>
@@ -5005,15 +4995,15 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
 
     if(canManageAlternant){
       alternantPlanningTableWrap.querySelectorAll('.edit-jour-alternant-btn').forEach(btn => {
-        btn.addEventListener('click', () => toggleEditJourPanel(btn.dataset.date, moisKey));
+        btn.addEventListener('click', () => toggleEditJourPanel(btn.dataset.date, depuisDate));
       });
       alternantPlanningTableWrap.querySelectorAll('.edit-semaine-alternant-btn').forEach(btn => {
-        btn.addEventListener('click', () => toggleEditSemainePanel(Number(btn.dataset.semaine), semaines[Number(btn.dataset.semaine)], moisKey));
+        btn.addEventListener('click', () => toggleEditSemainePanel(Number(btn.dataset.semaine), semaines[Number(btn.dataset.semaine)], depuisDate));
       });
     }
   }
 
-  function renderJourRow(j, moisKey){
+  function renderJourRow(j, depuisDate){
     const estTravail = j.statut === 'travail';
     return `<tr data-date="${j.date}">
       <td style="white-space:nowrap;">${frDate(parseDate(j.date))}</td>
@@ -5030,7 +5020,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     <tr class="edit-jour-alternant-panel-row" data-date="${j.date}" style="display:none;"><td colspan="${canManageAlternant ? 10 : 9}"><div class="edit-jour-alternant-panel" data-date="${j.date}"></div></td></tr>`;
   }
 
-  function toggleEditJourPanel(date, moisKey){
+  function toggleEditJourPanel(date, depuisDate){
     const row = alternantPlanningTableWrap.querySelector(`.edit-jour-alternant-panel-row[data-date="${date}"]`);
     const panel = alternantPlanningTableWrap.querySelector(`.edit-jour-alternant-panel[data-date="${date}"]`);
     if(!row || !panel) return;
@@ -5060,7 +5050,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         const data = await res.json();
         if(!data.ok) throw new Error(data.error || "Échec de la correction");
         alternantPlanningCache = data.planning || [];
-        renderAlternantPlanningTable(moisKey);
+        renderAlternantPlanningTable(depuisDate);
       } catch(err){ alert('Erreur : ' + err.message); saveBtn.disabled = false; }
     });
     row.style.display = 'table-row';
@@ -5069,7 +5059,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
   // Édition groupée d'une semaine entière (statut/horaires/pauses pour
   // chaque jour) en un seul enregistrement — ne touche jamais à la
   // formation ni au formateur déjà renseignés sur ces jours.
-  function toggleEditSemainePanel(semaineIdx, semaineJours, moisKey){
+  function toggleEditSemainePanel(semaineIdx, semaineJours, depuisDate){
     const row = alternantPlanningTableWrap.querySelector(`.edit-semaine-alternant-panel-row[data-semaine="${semaineIdx}"]`);
     const panel = alternantPlanningTableWrap.querySelector(`.edit-semaine-alternant-panel[data-semaine="${semaineIdx}"]`);
     if(!row || !panel) return;
@@ -5122,13 +5112,13 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         const data = await res.json();
         if(!data.ok) throw new Error(data.error || "Échec de l'enregistrement");
         alternantPlanningCache = data.planning || [];
-        renderAlternantPlanningTable(moisKey);
+        renderAlternantPlanningTable(depuisDate);
       } catch(err){ alert('Erreur : ' + err.message); saveBtn.disabled = false; }
     });
     row.style.display = 'table-row';
   }
 
-  alternantMonthSelect && alternantMonthSelect.addEventListener('change', () => renderAlternantPlanningTable(alternantMonthSelect.value));
+  alternantDateSelect && alternantDateSelect.addEventListener('change', () => renderAlternantPlanningTable(alternantDateSelect.value));
 
   regenererPlanningBtn && regenererPlanningBtn.addEventListener('click', async () => {
     if(!window.confirm('Recalculer les formations ? Le statut, les horaires et les pauses de chaque jour ne sont jamais modifiés — seule la formation prévue est recalculée à partir des jours actuellement travaillés.')) return;
@@ -5138,8 +5128,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       const data = await res.json();
       if(!data.ok) throw new Error(data.error || 'Échec de la génération');
       alternantPlanningCache = data.planning || [];
-      populateAlternantMonthSelect();
-      renderAlternantPlanningTable(alternantMonthSelect.value);
+      renderAlternantPlanningTable(alternantDateSelect.value);
     } catch(err){ alert('Erreur : ' + err.message); }
     finally { regenererPlanningBtn.disabled = false; }
   });
