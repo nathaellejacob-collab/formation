@@ -5046,7 +5046,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       <td>${quart2}</td>
       <td>${(j.statut === 'travail' || j.statut === 'ecole') ? (j.nbPauses || 0) : '—'}</td>
       <td><span class="cout-pill">${j.heures} h</span></td>
-      <td>${j.formation ? `${TYPE_ICONS_ALT.formation} ${j.formation}` : '—'}${j.modifieManuel ? ' <span title="Modifié manuellement" style="font-size:11px;">✏️</span>' : ''}</td>
+      <td>${j.formation ? j.formation.split(' + ').map(f => `<span class="action-pill amber" style="display:inline-block;margin:1px 3px 1px 0;">${TYPE_ICONS_ALT.formation} ${f}</span>`).join('') : '—'}${j.modifieManuel ? ' <span title="Modifié manuellement" style="font-size:11px;">✏️</span>' : ''}</td>
       <td>${j.formateur || '—'}</td>
       ${canManageAlternant ? `<td><button type="button" class="edit-jour-alternant-btn" data-date="${j.date}" style="border:none;background:none;cursor:pointer;" title="Corriger ce jour">✏️</button></td>` : ''}
     </tr>
