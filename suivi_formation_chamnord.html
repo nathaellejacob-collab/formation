@@ -1415,15 +1415,18 @@
 </section>
 
 <section id="tab-alternant" style="display:none;">
-  <div class="panel-block" style="border-left:4px solid var(--teal);">
+  <div class="panel-block">
     <div class="panel-head">
       <h3>⏰ Périodes opérationnelles du restaurant</h3>
       <p>Horaires habituels, renseignés une seule fois — utilisés pour générer automatiquement le planning de chaque alternant. Modifiable par le Responsable formation.</p>
     </div>
-    <div id="periodesOpWrap"></div>
+    <button type="button" id="togglePeriodesOpBtn" class="restriction-toggle-btn">⏰ Voir/modifier les périodes opérationnelles</button>
+    <div id="periodesOpSection" style="display:none; margin-top:12px;">
+      <div id="periodesOpWrap"></div>
+    </div>
   </div>
 
-  <div class="panel-block" style="border-left:4px solid var(--plum);">
+  <div class="panel-block">
     <div class="panel-head">
       <h3>🎓 Alternants</h3>
       <p>Chaque jour du parcours (4 mois : 2 Cuisine puis 2 Comptoir) démarre "à définir" — configure ensuite école/travail/repos semaine par semaine, aucun rythme fixe n'est présupposé.</p>
@@ -4790,7 +4793,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
 
   // ---------------- Alternant ----------------
   const JOURS_SEMAINE_FR = ['lundi','mardi','mercredi','jeudi','vendredi','samedi','dimanche'];
-  const PERIODES_OP_TYPES_CLIENT = ['Ouverture','Livraison','Rush midi','Rush soir','Fermeture','Préparation'];
+  const PERIODES_OP_TYPES_CLIENT = ['Livraison','Ouverture','Rush midi','Préparation','Rush soir','Fermeture'];
   const TYPE_ICONS_ALT = {ecole:'🏫', formation:'📘', suivi:'✅', poste:'🔁', verification:'🏁'};
 
   const periodesOpWrap = document.getElementById('periodesOpWrap');
@@ -5155,11 +5158,19 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     if(!canManageAlternant){
       showAddAlternantFormBtn && (showAddAlternantFormBtn.style.display = 'none');
     }
-    await loadPeriodesOp();
     await loadAlternants();
     const resF = await fetch(APPS_SCRIPT_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(authBody({ sheet:'get_formateurs_for_integration', targetRestaurant: currentRestaurant })) });
     alternantFormateursCache = (await resF.json()).formateurs || [];
   }
+
+  const togglePeriodesOpBtn = document.getElementById('togglePeriodesOpBtn');
+  const periodesOpSection = document.getElementById('periodesOpSection');
+  let periodesOpLoaded = false;
+  togglePeriodesOpBtn && togglePeriodesOpBtn.addEventListener('click', async () => {
+    const isOpen = periodesOpSection.style.display === 'block';
+    periodesOpSection.style.display = isOpen ? 'none' : 'block';
+    if(!isOpen && !periodesOpLoaded){ periodesOpLoaded = true; await loadPeriodesOp(); }
+  });
 
   // Sections secondaires repliées par défaut — chargées seulement à
   // l'ouverture, comme les restrictions par équipier dans Planification.
