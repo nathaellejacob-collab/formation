@@ -5004,7 +5004,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
   // statut Travail/École est choisi, les champs horaires apparaissent dans
   // la même ligne, prêts à être enregistrés d'un clic sur ✓.
   function renderJourRow(j, depuisDate){
-    if(j.statut === 'repos' && canManageAlternant){
+    if(j.statut === 'repos' && !j.modifieManuel && canManageAlternant){
       return `<tr data-date="${j.date}" class="alt-jour-editable-row">
         <td style="white-space:nowrap;">${frDate(parseDate(j.date))}</td>
         <td style="text-transform:capitalize;">${j.jour}</td>
