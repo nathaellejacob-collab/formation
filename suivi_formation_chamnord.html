@@ -4929,7 +4929,11 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
   }
 
   function populateAlternantMonthSelect(){
-    const mois = new Set(alternantPlanningCache.map(j => j.date.slice(0, 7)).filter(Boolean));
+    // Ne propose que les mois où au moins un jour a une formation renseignée
+    // — un mois entièrement vide (repos non encore configuré) n'apparaît pas.
+    const mois = new Set(
+      alternantPlanningCache.filter(j => j.formation && j.formation.trim()).map(j => j.date.slice(0, 7)).filter(Boolean)
+    );
     const sorted = Array.from(mois).sort();
     alternantMonthSelect.innerHTML = sorted.map(m => {
       const [y, mm] = m.split('-');
