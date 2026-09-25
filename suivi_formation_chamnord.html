@@ -5242,11 +5242,13 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
   const toggleCorrespondanceBtn = document.getElementById('toggleCorrespondanceBtn');
   const correspondanceSection = document.getElementById('correspondanceSection');
   const correspondanceWrap = document.getElementById('correspondanceWrap');
-  let correspondanceLoaded = false;
   toggleCorrespondanceBtn && toggleCorrespondanceBtn.addEventListener('click', async () => {
     const isOpen = correspondanceSection.style.display === 'block';
     correspondanceSection.style.display = isOpen ? 'none' : 'block';
-    if(!isOpen && !correspondanceLoaded){ correspondanceLoaded = true; await loadCorrespondance(); }
+    // Toujours rechargée à l'ouverture (pas mise en cache) — sinon une
+    // formation tout juste ajoutée dans "Parcours" n'apparaîtrait pas tant
+    // que la page n'est pas rafraîchie.
+    if(!isOpen){ await loadCorrespondance(); }
   });
 
   const toggleParcoursBtn = document.getElementById('toggleParcoursBtn');
