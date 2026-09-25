@@ -5437,7 +5437,10 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
           ).join('');
           return `<tr><td>${etape}</td>
             <td><select class="correspondance-poste-select" data-etape="${etape.replace(/"/g,'&quot;')}">${options}</select></td>
-            <td><button type="button" class="verif-folder-btn save-correspondance-btn" data-etape="${etape.replace(/"/g,'&quot;')}">Enregistrer</button></td>
+            <td style="white-space:nowrap;">
+              <button type="button" class="verif-folder-btn save-correspondance-btn" data-etape="${etape.replace(/"/g,'&quot;')}">Enregistrer</button>
+              ${actuel ? `<button type="button" class="delete-correspondance-btn" data-etape="${etape.replace(/"/g,'&quot;')}" style="border:none;background:none;color:var(--red);cursor:pointer;margin-left:4px;" title="Retirer cette correspondance">🗑️</button>` : ''}
+            </td>
           </tr>`;
         }
         return `<tr><td>${etape}</td><td>${actuel || '—'}</td></tr>`;
@@ -5453,8 +5456,20 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
             const res = await fetch(APPS_SCRIPT_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(authBody({ sheet:'update_correspondance_alternant', targetRestaurant: currentRestaurant, libelleParcours: etape, posteReel })) });
             const data = await res.json();
             if(!data.ok) throw new Error(data.error || "Échec de l'enregistrement");
-            btn.textContent = '✓ Enregistré';
-            setTimeout(() => { btn.textContent = 'Enregistrer'; btn.disabled = false; }, 1500);
+            renderCorrespondance(data.correspondance || {}, etapes, postes);
+          } catch(err){ alert('Erreur : ' + err.message); btn.disabled = false; }
+        });
+      });
+      correspondanceWrap.querySelectorAll('.delete-correspondance-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const etape = btn.dataset.etape;
+          if(!window.confirm(`Retirer la correspondance de « ${etape} » ? Ce poste ne sera plus reconnu comme déjà maîtrisé.`)) return;
+          btn.disabled = true;
+          try{
+            const res = await fetch(APPS_SCRIPT_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(authBody({ sheet:'update_correspondance_alternant', targetRestaurant: currentRestaurant, libelleParcours: etape, posteReel: '' })) });
+            const data = await res.json();
+            if(!data.ok) throw new Error(data.error || 'Échec de la suppression');
+            renderCorrespondance(data.correspondance || {}, etapes, postes);
           } catch(err){ alert('Erreur : ' + err.message); btn.disabled = false; }
         });
       });
