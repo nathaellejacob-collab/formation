@@ -5007,7 +5007,6 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     alternantPlanningTableWrap.innerHTML = `<div class="matrix-wrap"><table class="matrix-table">${thead}<tbody>${tbody}</tbody></table></div>`;
 
     if(canManageAlternant){
-      wireInlineEditableRows(depuisDate);
       alternantPlanningTableWrap.querySelectorAll('.edit-jour-alternant-btn').forEach(btn => {
         btn.addEventListener('click', () => toggleEditJourPanel(btn.dataset.date, depuisDate));
       });
@@ -5036,37 +5035,6 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
   // statut Travail/École est choisi, les champs horaires apparaissent dans
   // la même ligne, prêts à être enregistrés d'un clic sur ✓.
   function renderJourRow(j, depuisDate){
-    if(j.statut === 'repos' && !j.modifieManuel && canManageAlternant){
-      return `<tr data-date="${j.date}" class="alt-jour-editable-row">
-        <td style="white-space:nowrap;">${frDate(parseDate(j.date))}</td>
-        <td style="text-transform:capitalize;">${j.jour}</td>
-        <td>
-          <select class="inline-jour-statut" data-date="${j.date}">
-            <option value="repos" selected>Repos</option>
-            <option value="ecole">École</option>
-            <option value="travail">Travail</option>
-          </select>
-        </td>
-        <td colspan="2">
-          <span class="inline-jour-horaires" data-date="${j.date}" style="display:none; gap:4px; align-items:center; flex-wrap:wrap;">
-            <input type="time" class="inline-jour-debut1" data-date="${j.date}" style="width:92px;">
-            <span>à</span>
-            <input type="time" class="inline-jour-fin1" data-date="${j.date}" style="width:92px;">
-            <button type="button" class="inline-add-quart2-btn" data-date="${j.date}" style="border:none;background:none;color:var(--navy-2);cursor:pointer;font-size:11px;font-weight:700;">+2ᵉ</button>
-            <span class="inline-jour-quart2" data-date="${j.date}" style="display:none; gap:4px; align-items:center;">
-              <input type="time" class="inline-jour-debut2" data-date="${j.date}" style="width:92px;">
-              <span>à</span>
-              <input type="time" class="inline-jour-fin2" data-date="${j.date}" style="width:92px;">
-            </span>
-          </span>
-        </td>
-        <td><input type="number" class="inline-jour-pauses" data-date="${j.date}" min="0" max="4" value="0" style="width:44px; display:none;" title="Pauses de 30 min"></td>
-        <td style="color:var(--ink-soft);">—</td>
-        <td style="color:var(--ink-soft); font-size:11.5px;">— (une fois enregistré)</td>
-        <td><select class="inline-jour-formateur" data-date="${j.date}" style="max-width:130px;"><option value="">— Formateur —</option>${alternantFormateursCache.map(f => `<option value="${f.nom.replace(/"/g,'&quot;')}">${f.nom}</option>`).join('')}</select></td>
-        <td><button type="button" class="inline-save-jour-btn" data-date="${j.date}" style="border:none;background:none;color:var(--green);cursor:pointer;font-weight:700;font-size:15px;" title="Enregistrer">✓</button></td>
-      </tr>`;
-    }
     const peutAvoirHoraires = j.statut === 'travail' || j.statut === 'ecole';
     const quart1 = (peutAvoirHoraires && j.heureDebut1 && j.heureFin1) ? `${j.heureDebut1}–${j.heureFin1}` : '—';
     const quart2 = (peutAvoirHoraires && j.heureDebut2 && j.heureFin2) ? `${j.heureDebut2}–${j.heureFin2}` : '—';
@@ -5080,55 +5048,15 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       <td><span class="cout-pill">${j.heures} h</span></td>
       <td>${j.formation ? j.formation.split(' + ').map(f => `<span class="action-pill amber" style="display:inline-block;margin:1px 3px 1px 0;">${TYPE_ICONS_ALT.formation} ${f}</span>`).join('') : '—'}${j.modifieManuel ? ' <span title="Modifié manuellement" style="font-size:11px;">✏️</span>' : ''}</td>
       <td>${j.formateur || '—'}</td>
-      ${canManageAlternant ? `<td><button type="button" class="edit-jour-alternant-btn" data-date="${j.date}" style="border:none;background:none;cursor:pointer;" title="Corriger ce jour">✏️</button></td>` : ''}
+      ${canManageAlternant ? `<td><button type="button" class="edit-jour-alternant-btn" data-date="${j.date}" style="border:none;background:none;cursor:pointer;" title="Modifier ce jour">✏️</button></td>` : ''}
     </tr>
     <tr class="edit-jour-alternant-panel-row" data-date="${j.date}" style="display:none;"><td colspan="${canManageAlternant ? 10 : 9}"><div class="edit-jour-alternant-panel" data-date="${j.date}"></div></td></tr>`;
   }
 
-  function wireInlineEditableRows(depuisDate){
-    alternantPlanningTableWrap.querySelectorAll('.inline-jour-statut').forEach(sel => {
-      sel.addEventListener('change', () => {
-        const date = sel.dataset.date;
-        const peutAvoirHoraires = sel.value === 'travail' || sel.value === 'ecole';
-        alternantPlanningTableWrap.querySelector(`.inline-jour-horaires[data-date="${date}"]`).style.display = peutAvoirHoraires ? 'flex' : 'none';
-        alternantPlanningTableWrap.querySelector(`.inline-jour-pauses[data-date="${date}"]`).style.display = (sel.value === 'travail' || sel.value === 'ecole') ? 'inline-block' : 'none';
-      });
-    });
-    alternantPlanningTableWrap.querySelectorAll('.inline-add-quart2-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const date = btn.dataset.date;
-        btn.style.display = 'none';
-        alternantPlanningTableWrap.querySelector(`.inline-jour-quart2[data-date="${date}"]`).style.display = 'flex';
-      });
-    });
-    alternantPlanningTableWrap.querySelectorAll('.inline-save-jour-btn').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const date = btn.dataset.date;
-        const statut = alternantPlanningTableWrap.querySelector(`.inline-jour-statut[data-date="${date}"]`).value;
-        const heureDebut1 = alternantPlanningTableWrap.querySelector(`.inline-jour-debut1[data-date="${date}"]`).value;
-        const heureFin1 = alternantPlanningTableWrap.querySelector(`.inline-jour-fin1[data-date="${date}"]`).value;
-        const heureDebut2 = alternantPlanningTableWrap.querySelector(`.inline-jour-debut2[data-date="${date}"]`).value;
-        const heureFin2 = alternantPlanningTableWrap.querySelector(`.inline-jour-fin2[data-date="${date}"]`).value;
-        const nbPauses = Number(alternantPlanningTableWrap.querySelector(`.inline-jour-pauses[data-date="${date}"]`).value) || 0;
-        const formateur = alternantPlanningTableWrap.querySelector(`.inline-jour-formateur[data-date="${date}"]`).value;
-        btn.disabled = true;
-        try{
-          const res = await fetch(APPS_SCRIPT_URL, {
-            method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
-            body: JSON.stringify(authBody({ sheet:'update_bloc_alternant', targetRestaurant: currentRestaurant, nom: currentAlternantNom, date, statut, heureDebut1, heureFin1, heureDebut2, heureFin2, nbPauses, formation:'', integrationFormateur: formateur }))
-          });
-          const data = await res.json();
-          if(!data.ok) throw new Error(data.error || "Échec de l'enregistrement");
-          alternantPlanningCache = data.planning || [];
-          renderAlternantPlanningTable(depuisDate);
-        } catch(err){ alert('Erreur : ' + err.message); btn.disabled = false; }
-      });
-    });
-  }
 
-  // Jour déjà configuré : le crayon ouvre un panneau de correction complet
-  // (statut, horaires, pauses, formation, formateur) — jamais pour la
-  // saisie initiale, réservée au tableau lui-même.
+  // Un seul crayon par jour, que le jour soit déjà rempli ou encore en
+  // repos — il ouvre toujours le même panneau complet (statut, horaires,
+  // pauses, formation, formateur).
   function toggleEditJourPanel(date, depuisDate){
     const row = alternantPlanningTableWrap.querySelector(`.edit-jour-alternant-panel-row[data-date="${date}"]`);
     const panel = alternantPlanningTableWrap.querySelector(`.edit-jour-alternant-panel[data-date="${date}"]`);
@@ -5288,15 +5216,35 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
   function renderParcours(parcours){
     parcoursWrap.innerHTML = ['cuisine','comptoir'].map(phase => {
       const p = parcours[phase];
-      const etapesHtml = p.etapes.map(e => `
-        <div style="display:flex; align-items:center; gap:8px; padding:5px 0; border-bottom:1px dashed var(--line); font-size:12.5px;">
-          <span style="flex:1;">📘 ${e.formation}${e.suivi ? ' · ✅ ' + e.suivi : ''}</span>
-          ${canManageAlternant ? `<button type="button" class="remove-parcours-entry-btn" data-phase="${phase}" data-categorie="etape" data-libelle="${e.libelle.replace(/"/g,'&quot;')}" style="border:none;background:none;color:var(--red);cursor:pointer;" title="Retirer cette formation">🗑️</button>` : ''}
+      const etapesHtml = p.etapes.map((e, i) => `
+        <div style="padding:5px 0; border-bottom:1px dashed var(--line); font-size:12.5px;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="flex:1;">📘 ${e.formation}${e.suivi ? ' · ✅ ' + e.suivi : ''}</span>
+            ${canManageAlternant ? `
+              <button type="button" class="move-parcours-entry-btn" data-phase="${phase}" data-categorie="etape" data-libelle="${e.libelle.replace(/"/g,'&quot;')}" data-direction="haut" ${i===0?'disabled':''} style="border:none;background:none;color:var(--navy-2);cursor:pointer;font-size:13px;" title="Monter">▲</button>
+              <button type="button" class="move-parcours-entry-btn" data-phase="${phase}" data-categorie="etape" data-libelle="${e.libelle.replace(/"/g,'&quot;')}" data-direction="bas" ${i===p.etapes.length-1?'disabled':''} style="border:none;background:none;color:var(--navy-2);cursor:pointer;font-size:13px;" title="Descendre">▼</button>
+              <button type="button" class="show-edit-etape-btn" data-phase="${phase}" data-libelle="${e.libelle.replace(/"/g,'&quot;')}" style="border:none;background:none;cursor:pointer;" title="Modifier cette formation">✏️</button>
+              <button type="button" class="remove-parcours-entry-btn" data-phase="${phase}" data-categorie="etape" data-libelle="${e.libelle.replace(/"/g,'&quot;')}" style="border:none;background:none;color:var(--red);cursor:pointer;" title="Retirer cette formation">🗑️</button>` : ''}
+          </div>
+          ${canManageAlternant ? `
+          <div class="edit-etape-form" data-phase="${phase}" data-libelle="${e.libelle.replace(/"/g,'&quot;')}" style="display:none; margin-top:6px; padding:10px; background:#fff; border:1px solid var(--line); border-radius:8px;">
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px;">
+              <input type="text" class="edit-etape-libelle" value="${e.libelle.replace(/"/g,'&quot;')}" placeholder="Nom du poste">
+              <span></span>
+              <input type="text" class="edit-etape-formation" value="${e.formation.replace(/"/g,'&quot;')}" placeholder="Libellé formation">
+              <input type="text" class="edit-etape-suivi" value="${(e.suivi||'').replace(/"/g,'&quot;')}" placeholder="Libellé suivi">
+            </div>
+            <button type="button" class="save-edit-etape-btn" data-phase="${phase}" data-ancien-libelle="${e.libelle.replace(/"/g,'&quot;')}">Enregistrer</button>
+            <button type="button" class="cancel-edit-etape-btn" data-phase="${phase}" data-libelle="${e.libelle.replace(/"/g,'&quot;')}" style="margin-left:6px;">Annuler</button>
+          </div>` : ''}
         </div>`).join('') || '<p style="color:var(--ink-soft);font-size:12px;">Aucune formation initiale.</p>';
       const rotationHtml = p.rotation.map((libelle, i) => `
         <span class="action-pill amber" style="display:inline-flex; align-items:center; gap:4px; margin:2px 4px 2px 0;">
           ${libelle}
-          ${canManageAlternant ? `<button type="button" class="remove-parcours-entry-btn" data-phase="${phase}" data-categorie="rotation" data-libelle="${libelle.replace(/"/g,'&quot;')}" data-ordre="${i+1}" style="border:none;background:none;color:var(--red);cursor:pointer;font-size:11px;" title="Retirer cette occurrence">✕</button>` : ''}
+          ${canManageAlternant ? `
+            <button type="button" class="move-parcours-entry-btn" data-phase="${phase}" data-categorie="rotation" data-libelle="${libelle.replace(/"/g,'&quot;')}" data-ordre="${i+1}" data-direction="haut" ${i===0?'disabled':''} style="border:none;background:none;color:inherit;cursor:pointer;font-size:10px;" title="Monter">▲</button>
+            <button type="button" class="move-parcours-entry-btn" data-phase="${phase}" data-categorie="rotation" data-libelle="${libelle.replace(/"/g,'&quot;')}" data-ordre="${i+1}" data-direction="bas" ${i===p.rotation.length-1?'disabled':''} style="border:none;background:none;color:inherit;cursor:pointer;font-size:10px;" title="Descendre">▼</button>
+            <button type="button" class="remove-parcours-entry-btn" data-phase="${phase}" data-categorie="rotation" data-libelle="${libelle.replace(/"/g,'&quot;')}" data-ordre="${i+1}" style="border:none;background:none;color:var(--red);cursor:pointer;font-size:11px;" title="Retirer cette occurrence">✕</button>` : ''}
         </span>`).join('') || '<p style="color:var(--ink-soft);font-size:12px;">Rotation vide.</p>';
       return `<div style="margin-bottom:16px; padding:12px; background:#faf9f4; border:1px solid var(--line); border-radius:10px;">
         <div style="font-weight:700; font-size:13px; margin-bottom:6px;">${PHASE_LABELS[phase]}</div>
@@ -5323,6 +5271,52 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     }).join('');
 
     if(canManageAlternant){
+      parcoursWrap.querySelectorAll('.show-edit-etape-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const phase = btn.dataset.phase, libelle = btn.dataset.libelle;
+          parcoursWrap.querySelector(`.edit-etape-form[data-phase="${phase}"][data-libelle="${CSS.escape(libelle)}"]`).style.display = 'block';
+        });
+      });
+      parcoursWrap.querySelectorAll('.cancel-edit-etape-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const phase = btn.dataset.phase, libelle = btn.dataset.libelle;
+          parcoursWrap.querySelector(`.edit-etape-form[data-phase="${phase}"][data-libelle="${CSS.escape(libelle)}"]`).style.display = 'none';
+        });
+      });
+      parcoursWrap.querySelectorAll('.save-edit-etape-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const phase = btn.dataset.phase, ancienLibelle = btn.dataset.ancienLibelle;
+          const form = btn.closest('.edit-etape-form');
+          const libelle = form.querySelector('.edit-etape-libelle').value.trim();
+          const libelleFormation = form.querySelector('.edit-etape-formation').value.trim();
+          const libelleSuivi = form.querySelector('.edit-etape-suivi').value.trim();
+          if(!libelle){ alert('Le nom du poste est obligatoire.'); return; }
+          btn.disabled = true;
+          try{
+            const res = await fetch(APPS_SCRIPT_URL, {
+              method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+              body: JSON.stringify(authBody({ sheet:'modifier_etape_parcours', targetRestaurant: currentRestaurant, phase, ancienLibelle, libelle, libelleFormation, libelleSuivi }))
+            });
+            const data = await res.json();
+            if(!data.ok) throw new Error(data.error || "Échec de la modification");
+            renderParcours(data.parcours);
+          } catch(err){ alert('Erreur : ' + err.message); btn.disabled = false; }
+        });
+      });
+      parcoursWrap.querySelectorAll('.move-parcours-entry-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          btn.disabled = true;
+          try{
+            const res = await fetch(APPS_SCRIPT_URL, {
+              method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+              body: JSON.stringify(authBody({ sheet:'deplacer_entree_parcours', targetRestaurant: currentRestaurant, phase: btn.dataset.phase, categorie: btn.dataset.categorie, libelle: btn.dataset.libelle, ordre: btn.dataset.ordre || '', direction: btn.dataset.direction }))
+            });
+            const data = await res.json();
+            if(!data.ok) throw new Error(data.error || 'Échec du déplacement');
+            renderParcours(data.parcours);
+          } catch(err){ alert('Erreur : ' + err.message); btn.disabled = false; }
+        });
+      });
       parcoursWrap.querySelectorAll('.remove-parcours-entry-btn').forEach(btn => {
         btn.addEventListener('click', async () => {
           const confirmMsg = btn.dataset.categorie === 'etape'
