@@ -1424,6 +1424,11 @@
     <div id="periodesOpSection" style="display:none; margin-top:12px;">
       <div id="periodesOpWrap"></div>
     </div>
+    <button type="button" id="toggleCorrespondanceBtn" class="restriction-toggle-btn" style="margin-top:8px;">🔗 Voir/modifier la correspondance des postes du parcours</button>
+    <div id="correspondanceSection" style="display:none; margin-top:12px;">
+      <p style="font-size:11.5px;color:var(--ink-soft);margin-top:0;">Associe chaque étape du parcours au poste réel correspondant dans « Postes & Polyvalence », pour qu'un poste déjà maîtrisé par l'alternant ne soit jamais reproposé. Une étape sans correspondance renseignée continue d'être proposée normalement.</p>
+      <div id="correspondanceWrap"></div>
+    </div>
   </div>
 
   <div class="panel-block">
@@ -4871,12 +4876,18 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       <div class="poste-upload-item">
         <div class="poste-upload-item-head">
           <span class="poste-name">${a.nom} <span style="font-weight:400;color:var(--ink-soft);">— parcours débuté le ${frDate(parseDate(a.dateDebut))}</span></span>
-          <button type="button" class="voir-planning-alternant-btn" data-nom="${a.nom.replace(/"/g,'&quot;')}">📅 Voir le planning</button>
+          <span style="display:flex; gap:8px;">
+            <button type="button" class="voir-planning-alternant-btn" data-nom="${a.nom.replace(/"/g,'&quot;')}">📅 Voir le planning</button>
+            ${canManageAlternant ? `<button type="button" class="delete-alternant-list-btn" data-nom="${a.nom.replace(/"/g,'&quot;')}" style="color:var(--red); border-color:var(--red);" title="Supprimer cet alternant">🗑️</button>` : ''}
+          </span>
         </div>
       </div>
     `).join('');
     alternantsListWrap.querySelectorAll('.voir-planning-alternant-btn').forEach(btn => {
       btn.addEventListener('click', () => openAlternantPlanning(btn.dataset.nom));
+    });
+    alternantsListWrap.querySelectorAll('.delete-alternant-list-btn').forEach(btn => {
+      btn.addEventListener('click', () => supprimerAlternant(btn.dataset.nom));
     });
   }
 
@@ -5189,17 +5200,19 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     finally { regenererPlanningBtn.disabled = false; }
   });
 
-  deleteAlternantBtn && deleteAlternantBtn.addEventListener('click', async () => {
-    if(!window.confirm(`Supprimer définitivement le profil de ${currentAlternantNom} ? (le planning déjà généré reste consultable)`)) return;
+  async function supprimerAlternant(nom){
+    if(!window.confirm(`Supprimer définitivement le profil de ${nom} ? (le planning déjà généré reste consultable)`)) return;
     try{
-      const res = await fetch(APPS_SCRIPT_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(authBody({ sheet:'delete_alternant', targetRestaurant: currentRestaurant, nom: currentAlternantNom })) });
+      const res = await fetch(APPS_SCRIPT_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(authBody({ sheet:'delete_alternant', targetRestaurant: currentRestaurant, nom })) });
       const data = await res.json();
       if(!data.ok) throw new Error(data.error || 'Échec de la suppression');
       alternantsCache = data.alternants || [];
       renderAlternantsList();
-      alternantPlanningBlock.style.display = 'none';
+      if(currentAlternantNom === nom) alternantPlanningBlock.style.display = 'none';
     } catch(err){ alert('Erreur : ' + err.message); }
-  });
+  }
+
+  deleteAlternantBtn && deleteAlternantBtn.addEventListener('click', () => supprimerAlternant(currentAlternantNom));
 
   let alternantFormateursCache = [];
 
@@ -5220,6 +5233,57 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     periodesOpSection.style.display = isOpen ? 'none' : 'block';
     if(!isOpen && !periodesOpLoaded){ periodesOpLoaded = true; await loadPeriodesOp(); }
   });
+
+  const toggleCorrespondanceBtn = document.getElementById('toggleCorrespondanceBtn');
+  const correspondanceSection = document.getElementById('correspondanceSection');
+  const correspondanceWrap = document.getElementById('correspondanceWrap');
+  let correspondanceLoaded = false;
+  toggleCorrespondanceBtn && toggleCorrespondanceBtn.addEventListener('click', async () => {
+    const isOpen = correspondanceSection.style.display === 'block';
+    correspondanceSection.style.display = isOpen ? 'none' : 'block';
+    if(!isOpen && !correspondanceLoaded){ correspondanceLoaded = true; await loadCorrespondance(); }
+  });
+
+  async function loadCorrespondance(){
+    const res = await fetch(APPS_SCRIPT_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(authBody({ sheet:'get_correspondance_alternant', targetRestaurant: currentRestaurant })) });
+    const data = await res.json();
+    renderCorrespondance(data.correspondance || {}, data.etapes || [], data.postes || []);
+  }
+
+  function renderCorrespondance(correspondance, etapes, postes){
+    correspondanceWrap.innerHTML = `<div class="matrix-wrap"><table class="matrix-table">
+      <thead><tr><th>Étape du parcours</th><th>Poste réel correspondant</th>${canManageAlternant ? '<th></th>' : ''}</tr></thead>
+      <tbody>${etapes.map(etape => {
+        const actuel = correspondance[etape] || '';
+        if(canManageAlternant){
+          const options = ['<option value="">— Aucune —</option>'].concat(
+            postes.map(p => `<option value="${p.replace(/"/g,'&quot;')}" ${p===actuel?'selected':''}>${p}</option>`)
+          ).join('');
+          return `<tr><td>${etape}</td>
+            <td><select class="correspondance-poste-select" data-etape="${etape.replace(/"/g,'&quot;')}">${options}</select></td>
+            <td><button type="button" class="verif-folder-btn save-correspondance-btn" data-etape="${etape.replace(/"/g,'&quot;')}">Enregistrer</button></td>
+          </tr>`;
+        }
+        return `<tr><td>${etape}</td><td>${actuel || '—'}</td></tr>`;
+      }).join('')}</tbody>
+    </table></div>`;
+    if(canManageAlternant){
+      correspondanceWrap.querySelectorAll('.save-correspondance-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const etape = btn.dataset.etape;
+          const posteReel = correspondanceWrap.querySelector(`.correspondance-poste-select[data-etape="${CSS.escape(etape)}"]`).value;
+          btn.disabled = true;
+          try{
+            const res = await fetch(APPS_SCRIPT_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(authBody({ sheet:'update_correspondance_alternant', targetRestaurant: currentRestaurant, libelleParcours: etape, posteReel })) });
+            const data = await res.json();
+            if(!data.ok) throw new Error(data.error || "Échec de l'enregistrement");
+            btn.textContent = '✓ Enregistré';
+            setTimeout(() => { btn.textContent = 'Enregistrer'; btn.disabled = false; }, 1500);
+          } catch(err){ alert('Erreur : ' + err.message); btn.disabled = false; }
+        });
+      });
+    }
+  }
 
   // Sections secondaires repliées par défaut — chargées seulement à
   // l'ouverture, comme les restrictions par équipier dans Planification.
