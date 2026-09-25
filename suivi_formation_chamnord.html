@@ -5219,7 +5219,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       const etapesHtml = p.etapes.map((e, i) => `
         <div style="padding:5px 0; border-bottom:1px dashed var(--line); font-size:12.5px;">
           <div style="display:flex; align-items:center; gap:8px;">
-            <span style="flex:1;">📘 ${e.formation}${e.suivi ? ' · ✅ ' + e.suivi : ''}</span>
+            <span style="flex:1;"><strong>${i+1}. ${e.libelle}</strong><br><span style="color:var(--ink-soft);">📘 ${e.formation}${e.suivi ? ' · ✅ ' + e.suivi : ''}</span></span>
             ${canManageAlternant ? `
               <button type="button" class="move-parcours-entry-btn" data-phase="${phase}" data-categorie="etape" data-libelle="${e.libelle.replace(/"/g,'&quot;')}" data-direction="haut" ${i===0?'disabled':''} style="border:none;background:none;color:var(--navy-2);cursor:pointer;font-size:13px;" title="Monter">▲</button>
               <button type="button" class="move-parcours-entry-btn" data-phase="${phase}" data-categorie="etape" data-libelle="${e.libelle.replace(/"/g,'&quot;')}" data-direction="bas" ${i===p.etapes.length-1?'disabled':''} style="border:none;background:none;color:var(--navy-2);cursor:pointer;font-size:13px;" title="Descendre">▼</button>
