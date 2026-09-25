@@ -1429,6 +1429,11 @@
       <p style="font-size:11.5px;color:var(--ink-soft);margin-top:0;">Associe chaque étape du parcours au poste réel correspondant dans « Postes & Polyvalence », pour qu'un poste déjà maîtrisé par l'alternant ne soit jamais reproposé. Une étape sans correspondance renseignée continue d'être proposée normalement.</p>
       <div id="correspondanceWrap"></div>
     </div>
+    <button type="button" id="toggleParcoursBtn" class="restriction-toggle-btn" style="margin-top:8px;">🎓 Voir/modifier le parcours de formation</button>
+    <div id="parcoursSection" style="display:none; margin-top:12px;">
+      <p style="font-size:11.5px;color:var(--ink-soft);margin-top:0;">Une nouvelle formation reçoit sa propre formation initiale et son suivi, puis rejoint la rotation au même intervalle que les autres — choisis après quelle étape l'insérer.</p>
+      <div id="parcoursWrap"></div>
+    </div>
   </div>
 
   <div class="panel-block">
@@ -5243,6 +5248,116 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     correspondanceSection.style.display = isOpen ? 'none' : 'block';
     if(!isOpen && !correspondanceLoaded){ correspondanceLoaded = true; await loadCorrespondance(); }
   });
+
+  const toggleParcoursBtn = document.getElementById('toggleParcoursBtn');
+  const parcoursSection = document.getElementById('parcoursSection');
+  const parcoursWrap = document.getElementById('parcoursWrap');
+  let parcoursLoaded = false;
+  toggleParcoursBtn && toggleParcoursBtn.addEventListener('click', async () => {
+    const isOpen = parcoursSection.style.display === 'block';
+    parcoursSection.style.display = isOpen ? 'none' : 'block';
+    if(!isOpen && !parcoursLoaded){ parcoursLoaded = true; await loadParcours(); }
+  });
+
+  async function loadParcours(){
+    const res = await fetch(APPS_SCRIPT_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(authBody({ sheet:'get_parcours_alternant', targetRestaurant: currentRestaurant })) });
+    const data = await res.json();
+    renderParcours(data.parcours || { cuisine:{etapes:[],rotation:[]}, comptoir:{etapes:[],rotation:[]} });
+  }
+
+  const PHASE_LABELS = { cuisine: 'Cuisine', comptoir: 'Comptoir' };
+
+  function renderParcours(parcours){
+    parcoursWrap.innerHTML = ['cuisine','comptoir'].map(phase => {
+      const p = parcours[phase];
+      const etapesHtml = p.etapes.map(e => `
+        <div style="display:flex; align-items:center; gap:8px; padding:5px 0; border-bottom:1px dashed var(--line); font-size:12.5px;">
+          <span style="flex:1;">📘 ${e.formation}${e.suivi ? ' · ✅ ' + e.suivi : ''}</span>
+          ${canManageAlternant ? `<button type="button" class="remove-parcours-entry-btn" data-phase="${phase}" data-categorie="etape" data-libelle="${e.libelle.replace(/"/g,'&quot;')}" style="border:none;background:none;color:var(--red);cursor:pointer;" title="Retirer cette formation">🗑️</button>` : ''}
+        </div>`).join('') || '<p style="color:var(--ink-soft);font-size:12px;">Aucune formation initiale.</p>';
+      const rotationHtml = p.rotation.map((libelle, i) => `
+        <span class="action-pill amber" style="display:inline-flex; align-items:center; gap:4px; margin:2px 4px 2px 0;">
+          ${libelle}
+          ${canManageAlternant ? `<button type="button" class="remove-parcours-entry-btn" data-phase="${phase}" data-categorie="rotation" data-libelle="${libelle.replace(/"/g,'&quot;')}" data-ordre="${i+1}" style="border:none;background:none;color:var(--red);cursor:pointer;font-size:11px;" title="Retirer cette occurrence">✕</button>` : ''}
+        </span>`).join('') || '<p style="color:var(--ink-soft);font-size:12px;">Rotation vide.</p>';
+      return `<div style="margin-bottom:16px; padding:12px; background:#faf9f4; border:1px solid var(--line); border-radius:10px;">
+        <div style="font-weight:700; font-size:13px; margin-bottom:6px;">${PHASE_LABELS[phase]}</div>
+        <div style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;margin-bottom:4px;">Formations initiales (dans l'ordre)</div>
+        ${etapesHtml}
+        <div style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;margin:10px 0 4px;">Rotation (une fois les formations initiales épuisées)</div>
+        <div>${rotationHtml}</div>
+        ${canManageAlternant ? `
+          <button type="button" class="show-add-etape-btn" data-phase="${phase}" style="margin-top:10px; border:none;background:none;color:var(--navy-2);cursor:pointer;font-size:12.5px;font-weight:700;">➕ Ajouter une formation</button>
+          <div class="add-etape-form" data-phase="${phase}" style="display:none; margin-top:8px; padding:10px; background:#fff; border:1px solid var(--line); border-radius:8px;">
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px;">
+              <input type="text" class="new-etape-libelle" data-phase="${phase}" placeholder="Nom du poste (ex. Prise de commande)">
+              <select class="new-etape-apres" data-phase="${phase}">
+                <option value="">Après quelle étape ? (— au début —)</option>
+                ${p.etapes.map(e => `<option value="${e.libelle.replace(/"/g,'&quot;')}">Après « ${e.libelle} »</option>`).join('')}
+              </select>
+              <input type="text" class="new-etape-formation" data-phase="${phase}" placeholder="Libellé formation (ex. Formation Prise de commande)">
+              <input type="text" class="new-etape-suivi" data-phase="${phase}" placeholder="Libellé suivi (ex. Suivi formation Prise de commande)">
+            </div>
+            <button type="button" class="save-etape-btn" data-phase="${phase}">Ajouter</button>
+            <button type="button" class="cancel-etape-btn" data-phase="${phase}" style="margin-left:6px;">Annuler</button>
+          </div>` : ''}
+      </div>`;
+    }).join('');
+
+    if(canManageAlternant){
+      parcoursWrap.querySelectorAll('.remove-parcours-entry-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const confirmMsg = btn.dataset.categorie === 'etape'
+            ? `Retirer « ${btn.dataset.libelle} » des formations initiales (et de toutes ses occurrences en rotation) ?`
+            : `Retirer cette occurrence de « ${btn.dataset.libelle} » de la rotation ?`;
+          if(!window.confirm(confirmMsg)) return;
+          try{
+            const res = await fetch(APPS_SCRIPT_URL, {
+              method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+              body: JSON.stringify(authBody({ sheet:'supprimer_entree_parcours', targetRestaurant: currentRestaurant, phase: btn.dataset.phase, categorie: btn.dataset.categorie, libelle: btn.dataset.libelle, ordre: btn.dataset.ordre || '' }))
+            });
+            const data = await res.json();
+            if(!data.ok) throw new Error(data.error || 'Échec de la suppression');
+            renderParcours(data.parcours);
+          } catch(err){ alert('Erreur : ' + err.message); }
+        });
+      });
+      parcoursWrap.querySelectorAll('.show-add-etape-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const phase = btn.dataset.phase;
+          parcoursWrap.querySelector(`.add-etape-form[data-phase="${phase}"]`).style.display = 'block';
+          btn.style.display = 'none';
+        });
+      });
+      parcoursWrap.querySelectorAll('.cancel-etape-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const phase = btn.dataset.phase;
+          parcoursWrap.querySelector(`.add-etape-form[data-phase="${phase}"]`).style.display = 'none';
+          parcoursWrap.querySelector(`.show-add-etape-btn[data-phase="${phase}"]`).style.display = 'inline-block';
+        });
+      });
+      parcoursWrap.querySelectorAll('.save-etape-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const phase = btn.dataset.phase;
+          const libelle = parcoursWrap.querySelector(`.new-etape-libelle[data-phase="${phase}"]`).value.trim();
+          const libelleFormation = parcoursWrap.querySelector(`.new-etape-formation[data-phase="${phase}"]`).value.trim();
+          const libelleSuivi = parcoursWrap.querySelector(`.new-etape-suivi[data-phase="${phase}"]`).value.trim();
+          const apresLibelle = parcoursWrap.querySelector(`.new-etape-apres[data-phase="${phase}"]`).value;
+          if(!libelle){ alert('Le nom du poste est obligatoire.'); return; }
+          btn.disabled = true;
+          try{
+            const res = await fetch(APPS_SCRIPT_URL, {
+              method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+              body: JSON.stringify(authBody({ sheet:'ajouter_etape_parcours', targetRestaurant: currentRestaurant, phase, libelle, libelleFormation, libelleSuivi, apresLibelle }))
+            });
+            const data = await res.json();
+            if(!data.ok) throw new Error(data.error || "Échec de l'ajout");
+            renderParcours(data.parcours);
+          } catch(err){ alert('Erreur : ' + err.message); btn.disabled = false; }
+        });
+      });
+    }
+  }
 
   async function loadCorrespondance(){
     const res = await fetch(APPS_SCRIPT_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(authBody({ sheet:'get_correspondance_alternant', targetRestaurant: currentRestaurant })) });
