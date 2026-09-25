@@ -5266,6 +5266,22 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
             </div>
             <button type="button" class="save-etape-btn" data-phase="${phase}">Ajouter</button>
             <button type="button" class="cancel-etape-btn" data-phase="${phase}" style="margin-left:6px;">Annuler</button>
+          </div>
+          <button type="button" class="show-add-rotation-btn" data-phase="${phase}" style="margin-top:6px; margin-left:14px; border:none;background:none;color:var(--navy-2);cursor:pointer;font-size:12.5px;font-weight:700;">➕ Ajouter une occurrence en rotation (sans nouvelle formation)</button>
+          <div class="add-rotation-form" data-phase="${phase}" style="display:none; margin-top:8px; padding:10px; background:#fff; border:1px solid var(--line); border-radius:8px;">
+            <p style="font-size:11px;color:var(--ink-soft);margin:0 0 8px;">Fait revenir un poste existant à un autre endroit du cycle — utile pour construire une rotation qui alterne ou se répète.</p>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px;">
+              <select class="new-rotation-libelle" data-phase="${phase}">
+                <option value="">— Choisir un poste —</option>
+                ${Array.from(new Set(p.etapes.map(e=>e.libelle).concat(p.rotation))).map(l => `<option value="${l.replace(/"/g,'&quot;')}">${l}</option>`).join('')}
+              </select>
+              <select class="new-rotation-apres" data-phase="${phase}">
+                <option value="">Après quelle occurrence ? (— au début —)</option>
+                ${p.rotation.map((l,idx) => `<option value="${l.replace(/"/g,'&quot;')}|${idx+1}">${idx+1}. Après « ${l} »</option>`).join('')}
+              </select>
+            </div>
+            <button type="button" class="save-rotation-btn" data-phase="${phase}">Ajouter</button>
+            <button type="button" class="cancel-rotation-btn" data-phase="${phase}" style="margin-left:6px;">Annuler</button>
           </div>` : ''}
       </div>`;
     }).join('');
@@ -5339,6 +5355,39 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
           const phase = btn.dataset.phase;
           parcoursWrap.querySelector(`.add-etape-form[data-phase="${phase}"]`).style.display = 'block';
           btn.style.display = 'none';
+        });
+      });
+      parcoursWrap.querySelectorAll('.show-add-rotation-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const phase = btn.dataset.phase;
+          parcoursWrap.querySelector(`.add-rotation-form[data-phase="${phase}"]`).style.display = 'block';
+          btn.style.display = 'none';
+        });
+      });
+      parcoursWrap.querySelectorAll('.cancel-rotation-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const phase = btn.dataset.phase;
+          parcoursWrap.querySelector(`.add-rotation-form[data-phase="${phase}"]`).style.display = 'none';
+          parcoursWrap.querySelector(`.show-add-rotation-btn[data-phase="${phase}"]`).style.display = 'inline-block';
+        });
+      });
+      parcoursWrap.querySelectorAll('.save-rotation-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const phase = btn.dataset.phase;
+          const libelle = parcoursWrap.querySelector(`.new-rotation-libelle[data-phase="${phase}"]`).value;
+          const apresRaw = parcoursWrap.querySelector(`.new-rotation-apres[data-phase="${phase}"]`).value;
+          const apresLibelle = apresRaw ? apresRaw.split('|')[0] : '';
+          if(!libelle){ alert('Choisis un poste.'); return; }
+          btn.disabled = true;
+          try{
+            const res = await fetch(APPS_SCRIPT_URL, {
+              method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+              body: JSON.stringify(authBody({ sheet:'ajouter_occurrence_rotation', targetRestaurant: currentRestaurant, phase, libelle, apresLibelle }))
+            });
+            const data = await res.json();
+            if(!data.ok) throw new Error(data.error || "Échec de l'ajout");
+            renderParcours(data.parcours);
+          } catch(err){ alert('Erreur : ' + err.message); btn.disabled = false; }
         });
       });
       parcoursWrap.querySelectorAll('.cancel-etape-btn').forEach(btn => {
