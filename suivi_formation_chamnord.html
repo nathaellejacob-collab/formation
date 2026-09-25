@@ -1424,14 +1424,9 @@
     <div id="periodesOpSection" style="display:none; margin-top:12px;">
       <div id="periodesOpWrap"></div>
     </div>
-    <button type="button" id="toggleCorrespondanceBtn" class="restriction-toggle-btn" style="margin-top:8px;">🔗 Voir/modifier la correspondance des postes du parcours</button>
-    <div id="correspondanceSection" style="display:none; margin-top:12px;">
-      <p style="font-size:11.5px;color:var(--ink-soft);margin-top:0;">Associe chaque étape du parcours au poste réel correspondant dans « Postes & Polyvalence », pour qu'un poste déjà maîtrisé par l'alternant ne soit jamais reproposé. Une étape sans correspondance renseignée continue d'être proposée normalement.</p>
-      <div id="correspondanceWrap"></div>
-    </div>
     <button type="button" id="toggleParcoursBtn" class="restriction-toggle-btn" style="margin-top:8px;">🎓 Voir/modifier le parcours de formation</button>
     <div id="parcoursSection" style="display:none; margin-top:12px;">
-      <p style="font-size:11.5px;color:var(--ink-soft);margin-top:0;">Une nouvelle formation reçoit sa propre formation initiale et son suivi, puis rejoint la rotation au même intervalle que les autres — choisis après quelle étape l'insérer.</p>
+      <p style="font-size:11.5px;color:var(--ink-soft);margin-top:0;">Une nouvelle formation reçoit sa propre formation initiale et son suivi, puis rejoint la rotation au même intervalle que les autres — choisis après quelle étape l'insérer. Le « poste réel correspondant » sert à ne jamais reproposer un poste déjà maîtrisé par l'alternant dans « Postes & Polyvalence ».</p>
       <div id="parcoursWrap"></div>
     </div>
   </div>
@@ -5182,17 +5177,6 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     if(!isOpen && !periodesOpLoaded){ periodesOpLoaded = true; await loadPeriodesOp(); }
   });
 
-  const toggleCorrespondanceBtn = document.getElementById('toggleCorrespondanceBtn');
-  const correspondanceSection = document.getElementById('correspondanceSection');
-  const correspondanceWrap = document.getElementById('correspondanceWrap');
-  toggleCorrespondanceBtn && toggleCorrespondanceBtn.addEventListener('click', async () => {
-    const isOpen = correspondanceSection.style.display === 'block';
-    correspondanceSection.style.display = isOpen ? 'none' : 'block';
-    // Toujours rechargée à l'ouverture (pas mise en cache) — sinon une
-    // formation tout juste ajoutée dans "Parcours" n'apparaîtrait pas tant
-    // que la page n'est pas rafraîchie.
-    if(!isOpen){ await loadCorrespondance(); }
-  });
 
   const toggleParcoursBtn = document.getElementById('toggleParcoursBtn');
   const parcoursSection = document.getElementById('parcoursSection');
@@ -5206,17 +5190,35 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
   });
 
   async function loadParcours(){
-    const res = await fetch(APPS_SCRIPT_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(authBody({ sheet:'get_parcours_alternant', targetRestaurant: currentRestaurant })) });
-    const data = await res.json();
-    renderParcours(data.parcours || { cuisine:{etapes:[],rotation:[]}, comptoir:{etapes:[],rotation:[]} });
+    const [resParcours, resCorrespondance] = await Promise.all([
+      fetch(APPS_SCRIPT_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(authBody({ sheet:'get_parcours_alternant', targetRestaurant: currentRestaurant })) }),
+      fetch(APPS_SCRIPT_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(authBody({ sheet:'get_correspondance_alternant', targetRestaurant: currentRestaurant })) }),
+    ]);
+    const dataParcours = await resParcours.json();
+    const dataCorrespondance = await resCorrespondance.json();
+    renderParcours(
+      dataParcours.parcours || { cuisine:{etapes:[],rotation:[]}, comptoir:{etapes:[],rotation:[]} },
+      dataCorrespondance.correspondance || {},
+      dataCorrespondance.postes || []
+    );
   }
 
   const PHASE_LABELS = { cuisine: 'Cuisine', comptoir: 'Comptoir' };
 
-  function renderParcours(parcours){
+  function renderParcours(parcours, correspondance, postesReels){
+    correspondance = correspondance || {};
+    postesReels = postesReels || [];
+    function buildPosteOptions(actuel){
+      return ['<option value="">— Aucune —</option>'].concat(
+        postesReels.map(p => `<option value="${p.replace(/"/g,'&quot;')}" ${p===actuel?'selected':''}>${p}</option>`)
+      ).join('');
+    }
+
     parcoursWrap.innerHTML = ['cuisine','comptoir'].map(phase => {
       const p = parcours[phase];
-      const etapesHtml = p.etapes.map((e, i) => `
+      const etapesHtml = p.etapes.map((e, i) => {
+        const actuel = correspondance[e.libelle] || '';
+        return `
         <div style="padding:5px 0; border-bottom:1px dashed var(--line); font-size:12.5px;">
           <div style="display:flex; align-items:center; gap:8px;">
             <span style="flex:1;"><strong>${i+1}. ${e.libelle}</strong><br><span style="color:var(--ink-soft);">📘 ${e.formation}${e.suivi ? ' · ✅ ' + e.suivi : ''}</span></span>
@@ -5225,6 +5227,14 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
               <button type="button" class="move-parcours-entry-btn" data-phase="${phase}" data-categorie="etape" data-libelle="${e.libelle.replace(/"/g,'&quot;')}" data-direction="bas" ${i===p.etapes.length-1?'disabled':''} style="border:none;background:none;color:var(--navy-2);cursor:pointer;font-size:13px;" title="Descendre">▼</button>
               <button type="button" class="show-edit-etape-btn" data-phase="${phase}" data-libelle="${e.libelle.replace(/"/g,'&quot;')}" style="border:none;background:none;cursor:pointer;" title="Modifier cette formation">✏️</button>
               <button type="button" class="remove-parcours-entry-btn" data-phase="${phase}" data-categorie="etape" data-libelle="${e.libelle.replace(/"/g,'&quot;')}" style="border:none;background:none;color:var(--red);cursor:pointer;" title="Retirer cette formation">🗑️</button>` : ''}
+          </div>
+          <div style="margin-top:4px; display:flex; align-items:center; gap:6px; font-size:11.5px;">
+            <span style="color:var(--ink-soft);">→ Poste réel correspondant :</span>
+            ${canManageAlternant ? `
+              <select class="correspondance-poste-select" data-etape="${e.libelle.replace(/"/g,'&quot;')}">${buildPosteOptions(actuel)}</select>
+              <button type="button" class="save-correspondance-btn" data-etape="${e.libelle.replace(/"/g,'&quot;')}" style="border:none;background:none;color:var(--navy-2);cursor:pointer;font-weight:700;" title="Enregistrer la correspondance">✓</button>
+              ${actuel ? `<button type="button" class="delete-correspondance-btn" data-etape="${e.libelle.replace(/"/g,'&quot;')}" style="border:none;background:none;color:var(--red);cursor:pointer;" title="Retirer cette correspondance">🗑️</button>` : ''}
+            ` : `<strong>${actuel || '—'}</strong>`}
           </div>
           ${canManageAlternant ? `
           <div class="edit-etape-form" data-phase="${phase}" data-libelle="${e.libelle.replace(/"/g,'&quot;')}" style="display:none; margin-top:6px; padding:10px; background:#fff; border:1px solid var(--line); border-radius:8px;">
@@ -5237,7 +5247,26 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
             <button type="button" class="save-edit-etape-btn" data-phase="${phase}" data-ancien-libelle="${e.libelle.replace(/"/g,'&quot;')}">Enregistrer</button>
             <button type="button" class="cancel-edit-etape-btn" data-phase="${phase}" data-libelle="${e.libelle.replace(/"/g,'&quot;')}" style="margin-left:6px;">Annuler</button>
           </div>` : ''}
-        </div>`).join('') || '<p style="color:var(--ink-soft);font-size:12px;">Aucune formation initiale.</p>';
+        </div>`;
+      }).join('') || '<p style="color:var(--ink-soft);font-size:12px;">Aucune formation initiale.</p>';
+
+      // Postes qui n'existent qu'en rotation (pas de formation dédiée) —
+      // ont aussi besoin de leur propre correspondance.
+      const libellesEtapes = new Set(p.etapes.map(e => e.libelle));
+      const posteRotationSeule = Array.from(new Set(p.rotation.filter(l => !libellesEtapes.has(l))));
+      const rotationSeuleHtml = posteRotationSeule.map(libelle => {
+        const actuel = correspondance[libelle] || '';
+        return `
+        <div style="padding:4px 0; border-bottom:1px dashed var(--line); font-size:12.5px; display:flex; align-items:center; gap:6px;">
+          <span style="flex:1;">${libelle} <span style="color:var(--ink-soft);">(rotation seule, pas de formation dédiée)</span></span>
+          ${canManageAlternant ? `
+            <select class="correspondance-poste-select" data-etape="${libelle.replace(/"/g,'&quot;')}">${buildPosteOptions(actuel)}</select>
+            <button type="button" class="save-correspondance-btn" data-etape="${libelle.replace(/"/g,'&quot;')}" style="border:none;background:none;color:var(--navy-2);cursor:pointer;font-weight:700;" title="Enregistrer la correspondance">✓</button>
+            ${actuel ? `<button type="button" class="delete-correspondance-btn" data-etape="${libelle.replace(/"/g,'&quot;')}" style="border:none;background:none;color:var(--red);cursor:pointer;" title="Retirer cette correspondance">🗑️</button>` : ''}
+          ` : `<strong>${actuel || '—'}</strong>`}
+        </div>`;
+      }).join('');
+
       const rotationHtml = p.rotation.map((libelle, i) => `
         <span class="action-pill amber" style="display:inline-flex; align-items:center; gap:4px; margin:2px 4px 2px 0;">
           ${libelle}
@@ -5246,10 +5275,12 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
             <button type="button" class="move-parcours-entry-btn" data-phase="${phase}" data-categorie="rotation" data-libelle="${libelle.replace(/"/g,'&quot;')}" data-ordre="${i+1}" data-direction="bas" ${i===p.rotation.length-1?'disabled':''} style="border:none;background:none;color:inherit;cursor:pointer;font-size:10px;" title="Descendre">▼</button>
             <button type="button" class="remove-parcours-entry-btn" data-phase="${phase}" data-categorie="rotation" data-libelle="${libelle.replace(/"/g,'&quot;')}" data-ordre="${i+1}" style="border:none;background:none;color:var(--red);cursor:pointer;font-size:11px;" title="Retirer cette occurrence">✕</button>` : ''}
         </span>`).join('') || '<p style="color:var(--ink-soft);font-size:12px;">Rotation vide.</p>';
+
       return `<div style="margin-bottom:16px; padding:12px; background:#faf9f4; border:1px solid var(--line); border-radius:10px;">
         <div style="font-weight:700; font-size:13px; margin-bottom:6px;">${PHASE_LABELS[phase]}</div>
         <div style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;margin-bottom:4px;">Formations initiales (dans l'ordre)</div>
         ${etapesHtml}
+        ${posteRotationSeule.length ? `<div style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;margin:10px 0 4px;">Postes sans formation dédiée</div>${rotationSeuleHtml}` : ''}
         <div style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;margin:10px 0 4px;">Rotation (une fois les formations initiales épuisées)</div>
         <div>${rotationHtml}</div>
         ${canManageAlternant ? `
@@ -5287,6 +5318,32 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     }).join('');
 
     if(canManageAlternant){
+      parcoursWrap.querySelectorAll('.save-correspondance-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const etape = btn.dataset.etape;
+          const posteReel = parcoursWrap.querySelector(`.correspondance-poste-select[data-etape="${CSS.escape(etape)}"]`).value;
+          btn.disabled = true;
+          try{
+            const res = await fetch(APPS_SCRIPT_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(authBody({ sheet:'update_correspondance_alternant', targetRestaurant: currentRestaurant, libelleParcours: etape, posteReel })) });
+            const data = await res.json();
+            if(!data.ok) throw new Error(data.error || "Échec de l'enregistrement");
+            renderParcours(parcours, data.correspondance || {}, postesReels);
+          } catch(err){ alert('Erreur : ' + err.message); btn.disabled = false; }
+        });
+      });
+      parcoursWrap.querySelectorAll('.delete-correspondance-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const etape = btn.dataset.etape;
+          if(!window.confirm(`Retirer la correspondance de « ${etape} » ? Ce poste ne sera plus reconnu comme déjà maîtrisé.`)) return;
+          btn.disabled = true;
+          try{
+            const res = await fetch(APPS_SCRIPT_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(authBody({ sheet:'update_correspondance_alternant', targetRestaurant: currentRestaurant, libelleParcours: etape, posteReel: '' })) });
+            const data = await res.json();
+            if(!data.ok) throw new Error(data.error || 'Échec de la suppression');
+            renderParcours(parcours, data.correspondance || {}, postesReels);
+          } catch(err){ alert('Erreur : ' + err.message); btn.disabled = false; }
+        });
+      });
       parcoursWrap.querySelectorAll('.show-edit-etape-btn').forEach(btn => {
         btn.addEventListener('click', () => {
           const phase = btn.dataset.phase, libelle = btn.dataset.libelle;
@@ -5315,7 +5372,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
             });
             const data = await res.json();
             if(!data.ok) throw new Error(data.error || "Échec de la modification");
-            renderParcours(data.parcours);
+            await loadParcours();
           } catch(err){ alert('Erreur : ' + err.message); btn.disabled = false; }
         });
       });
@@ -5329,7 +5386,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
             });
             const data = await res.json();
             if(!data.ok) throw new Error(data.error || 'Échec du déplacement');
-            renderParcours(data.parcours);
+            renderParcours(data.parcours, correspondance, postesReels);
           } catch(err){ alert('Erreur : ' + err.message); btn.disabled = false; }
         });
       });
@@ -5346,7 +5403,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
             });
             const data = await res.json();
             if(!data.ok) throw new Error(data.error || 'Échec de la suppression');
-            renderParcours(data.parcours);
+            renderParcours(data.parcours, correspondance, postesReels);
           } catch(err){ alert('Erreur : ' + err.message); }
         });
       });
@@ -5386,7 +5443,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
             });
             const data = await res.json();
             if(!data.ok) throw new Error(data.error || "Échec de l'ajout");
-            renderParcours(data.parcours);
+            renderParcours(data.parcours, correspondance, postesReels);
           } catch(err){ alert('Erreur : ' + err.message); btn.disabled = false; }
         });
       });
@@ -5413,68 +5470,13 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
             });
             const data = await res.json();
             if(!data.ok) throw new Error(data.error || "Échec de l'ajout");
-            renderParcours(data.parcours);
+            renderParcours(data.parcours, correspondance, postesReels);
           } catch(err){ alert('Erreur : ' + err.message); btn.disabled = false; }
         });
       });
     }
   }
 
-  async function loadCorrespondance(){
-    const res = await fetch(APPS_SCRIPT_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(authBody({ sheet:'get_correspondance_alternant', targetRestaurant: currentRestaurant })) });
-    const data = await res.json();
-    renderCorrespondance(data.correspondance || {}, data.etapes || [], data.postes || []);
-  }
-
-  function renderCorrespondance(correspondance, etapes, postes){
-    correspondanceWrap.innerHTML = `<div class="matrix-wrap"><table class="matrix-table">
-      <thead><tr><th>Étape du parcours</th><th>Poste réel correspondant</th>${canManageAlternant ? '<th></th>' : ''}</tr></thead>
-      <tbody>${etapes.map(etape => {
-        const actuel = correspondance[etape] || '';
-        if(canManageAlternant){
-          const options = ['<option value="">— Aucune —</option>'].concat(
-            postes.map(p => `<option value="${p.replace(/"/g,'&quot;')}" ${p===actuel?'selected':''}>${p}</option>`)
-          ).join('');
-          return `<tr><td>${etape}</td>
-            <td><select class="correspondance-poste-select" data-etape="${etape.replace(/"/g,'&quot;')}">${options}</select></td>
-            <td style="white-space:nowrap;">
-              <button type="button" class="verif-folder-btn save-correspondance-btn" data-etape="${etape.replace(/"/g,'&quot;')}">Enregistrer</button>
-              ${actuel ? `<button type="button" class="delete-correspondance-btn" data-etape="${etape.replace(/"/g,'&quot;')}" style="border:none;background:none;color:var(--red);cursor:pointer;margin-left:4px;" title="Retirer cette correspondance">🗑️</button>` : ''}
-            </td>
-          </tr>`;
-        }
-        return `<tr><td>${etape}</td><td>${actuel || '—'}</td></tr>`;
-      }).join('')}</tbody>
-    </table></div>`;
-    if(canManageAlternant){
-      correspondanceWrap.querySelectorAll('.save-correspondance-btn').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          const etape = btn.dataset.etape;
-          const posteReel = correspondanceWrap.querySelector(`.correspondance-poste-select[data-etape="${CSS.escape(etape)}"]`).value;
-          btn.disabled = true;
-          try{
-            const res = await fetch(APPS_SCRIPT_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(authBody({ sheet:'update_correspondance_alternant', targetRestaurant: currentRestaurant, libelleParcours: etape, posteReel })) });
-            const data = await res.json();
-            if(!data.ok) throw new Error(data.error || "Échec de l'enregistrement");
-            renderCorrespondance(data.correspondance || {}, etapes, postes);
-          } catch(err){ alert('Erreur : ' + err.message); btn.disabled = false; }
-        });
-      });
-      correspondanceWrap.querySelectorAll('.delete-correspondance-btn').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          const etape = btn.dataset.etape;
-          if(!window.confirm(`Retirer la correspondance de « ${etape} » ? Ce poste ne sera plus reconnu comme déjà maîtrisé.`)) return;
-          btn.disabled = true;
-          try{
-            const res = await fetch(APPS_SCRIPT_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(authBody({ sheet:'update_correspondance_alternant', targetRestaurant: currentRestaurant, libelleParcours: etape, posteReel: '' })) });
-            const data = await res.json();
-            if(!data.ok) throw new Error(data.error || 'Échec de la suppression');
-            renderCorrespondance(data.correspondance || {}, etapes, postes);
-          } catch(err){ alert('Erreur : ' + err.message); btn.disabled = false; }
-        });
-      });
-    }
-  }
 
   // Sections secondaires repliées par défaut — chargées seulement à
   // l'ouverture, comme les restrictions par équipier dans Planification.
