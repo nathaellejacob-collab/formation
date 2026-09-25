@@ -5254,11 +5254,12 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
   const toggleParcoursBtn = document.getElementById('toggleParcoursBtn');
   const parcoursSection = document.getElementById('parcoursSection');
   const parcoursWrap = document.getElementById('parcoursWrap');
-  let parcoursLoaded = false;
   toggleParcoursBtn && toggleParcoursBtn.addEventListener('click', async () => {
     const isOpen = parcoursSection.style.display === 'block';
     parcoursSection.style.display = isOpen ? 'none' : 'block';
-    if(!isOpen && !parcoursLoaded){ parcoursLoaded = true; await loadParcours(); }
+    // Toujours rechargée à l'ouverture (pas mise en cache), pour ne jamais
+    // afficher un parcours obsolète.
+    if(!isOpen){ await loadParcours(); }
   });
 
   async function loadParcours(){
