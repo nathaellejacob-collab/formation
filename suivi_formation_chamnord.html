@@ -1466,6 +1466,7 @@
       <input type="date" id="alternantDateSelect">
       <button type="button" id="regenererPlanningBtn" class="verif-folder-btn">🔄 Recalculer les formations</button>
       <button type="button" id="telechargerPdfAlternantBtn" class="verif-folder-btn">🖨️ Télécharger en PDF</button>
+      <button type="button" id="ajouterSemaineAlternantBtn" class="verif-folder-btn">➕ Ajouter une semaine</button>
     </div>
     <div id="alternantPlanningTableWrap"></div>
   </div>
@@ -4857,6 +4858,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
   const alternantPlanningTableWrap = document.getElementById('alternantPlanningTableWrap');
   const regenererPlanningBtn = document.getElementById('regenererPlanningBtn');
   const telechargerPdfAlternantBtn = document.getElementById('telechargerPdfAlternantBtn');
+  const ajouterSemaineAlternantBtn = document.getElementById('ajouterSemaineAlternantBtn');
 
   let alternantsCache = [];
   let alternantPlanningCache = [];
@@ -4969,6 +4971,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     alternantPlanningTitle.textContent = '📅 Planning — ' + nom;
     alternantPlanningBlock.style.display = '';
     if(regenererPlanningBtn) regenererPlanningBtn.style.display = canManageAlternant ? '' : 'none';
+    if(ajouterSemaineAlternantBtn) ajouterSemaineAlternantBtn.style.display = canManageAlternant ? '' : 'none';
     await loadAlternantPlanning();
     alternantPlanningBlock.scrollIntoView({ behavior:'smooth', block:'start' });
   }
@@ -5240,6 +5243,18 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     win.document.close();
     win.focus();
     setTimeout(() => win.print(), 300);
+  });
+
+  ajouterSemaineAlternantBtn && ajouterSemaineAlternantBtn.addEventListener('click', async () => {
+    ajouterSemaineAlternantBtn.disabled = true;
+    try{
+      const res = await fetch(APPS_SCRIPT_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(authBody({ sheet:'ajouter_semaine_alternant', targetRestaurant: currentRestaurant, nom: currentAlternantNom })) });
+      const data = await res.json();
+      if(!data.ok) throw new Error(data.error || "Échec de l'ajout");
+      alternantPlanningCache = data.planning || [];
+      renderAlternantPlanningTable(alternantDateSelect.value);
+    } catch(err){ alert('Erreur : ' + err.message); }
+    finally { ajouterSemaineAlternantBtn.disabled = false; }
   });
 
   async function supprimerAlternant(nom){
