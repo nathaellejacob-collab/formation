@@ -2705,11 +2705,49 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
 
     const GROUP_LABELS = {production:'Production', service:'Service', autres:'Autres'};
 
+    // Glisser-déposer pour réordonner les postes au sein d'UNE famille —
+    // réécrit l'ordre complet du groupe concerné auprès du serveur au drop.
+    function wireDragReorderPostes(groupContainer){
+      let draggedEl = null;
+      groupContainer.querySelectorAll('.poste-drag-item').forEach(item => {
+        item.addEventListener('dragstart', () => { draggedEl = item; setTimeout(() => { item.style.opacity = '0.4'; }, 0); });
+        item.addEventListener('dragend', () => { item.style.opacity = ''; draggedEl = null; });
+        item.addEventListener('dragover', (e) => { e.preventDefault(); });
+        item.addEventListener('drop', async (e) => {
+          e.preventDefault();
+          if(!draggedEl || draggedEl === item) return;
+          const items = Array.from(groupContainer.querySelectorAll('.poste-drag-item'));
+          const draggedIdx = items.indexOf(draggedEl);
+          const targetIdx = items.indexOf(item);
+          if(draggedIdx < targetIdx) item.after(draggedEl); else item.before(draggedEl);
+          const cles = Array.from(groupContainer.querySelectorAll('.poste-drag-item')).map(el => el.dataset.key);
+          try{
+            const res = await fetch(APPS_SCRIPT_URL, {
+              method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+              body: JSON.stringify(authBody({ sheet:'reordonner_postes_groupe', targetRestaurant: currentRestaurant, group: groupContainer.dataset.group, cles }))
+            });
+            const data = await res.json();
+            if(!data.ok) throw new Error(data.error || 'Échec du réordonnancement');
+            renderPosteList(data.postes || []);
+          } catch(err){ alert('Erreur : ' + err.message); }
+        });
+      });
+    }
+
     function renderPosteList(list){
+      const groupes = { production: [], service: [], autres: [] };
+      list.forEach(p => { (groupes[p.group] || groupes.autres).push(p); });
+
       posteManageList.innerHTML = list.length
-        ? list.map(p => `<div class="poste-upload-item">
+        ? ['production','service','autres'].filter(g => groupes[g].length).map(g => `
+          <div style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;margin:12px 0 4px;">${GROUP_LABELS[g]}</div>
+          <div class="poste-group-list" data-group="${g}">
+          ${groupes[g].map(p => `<div class="poste-upload-item poste-drag-item" draggable="true" data-key="${p.key}" style="cursor:grab;">
             <div class="poste-upload-item-head">
-              <span class="poste-name">${p.label} <span style="font-weight:400;color:var(--ink-soft);">— ${GROUP_LABELS[p.group] || p.group}${p.actif ? '' : ' · inactif'}</span></span>
+              <span style="display:flex; align-items:center; gap:8px;">
+                <span style="color:var(--ink-soft); font-size:14px;" title="Glisser pour réordonner">⠿</span>
+                <span class="poste-name">${p.label}${p.actif ? '' : ' <span style="font-weight:400;color:var(--ink-soft);">· inactif</span>'}</span>
+              </span>
               ${p.actif ? '' : `<button type="button" class="toggle-poste-btn" data-key="${p.key}" data-actif="${p.actif}">Réactiver</button>`}
             </div>
             <div style="display:flex; align-items:center; gap:8px; margin-top:6px; flex-wrap:wrap;">
@@ -2718,8 +2756,13 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
               <input type="file" class="poste-verif-file-input" data-key="${p.key}" accept="application/pdf" style="display:none;">
             </div>
             <button type="button" class="verif-folder-btn delete-poste-btn" data-key="${p.key}" data-label="${p.label.replace(/"/g,'&quot;')}" style="margin-top:6px;color:var(--red);border-color:var(--red);">🗑️ Supprimer définitivement</button>
+          </div>`).join('')}
           </div>`).join('')
         : '<p style="color:var(--ink-soft);font-size:13px;">Aucun poste enregistré pour l\'instant.</p>';
+
+      posteManageList.querySelectorAll('.poste-group-list').forEach(groupContainer => {
+        wireDragReorderPostes(groupContainer);
+      });
 
       posteManageList.querySelectorAll('.upload-poste-verif-btn').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -5205,6 +5248,61 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
 
   const PHASE_LABELS = { cuisine: 'Cuisine', comptoir: 'Comptoir' };
 
+  // Glisser-déposer générique : réordonne visuellement au drop, puis appelle
+  // onDrop() avec le nouvel ordre lu directement dans le DOM.
+  function wireDragReorder(container, itemSelector, onDrop){
+    let draggedEl = null;
+    container.querySelectorAll(itemSelector).forEach(item => {
+      item.addEventListener('dragstart', () => { draggedEl = item; setTimeout(() => { item.style.opacity = '0.4'; }, 0); });
+      item.addEventListener('dragend', () => { item.style.opacity = ''; draggedEl = null; });
+      item.addEventListener('dragover', (e) => { e.preventDefault(); });
+      item.addEventListener('drop', (e) => {
+        e.preventDefault();
+        if(!draggedEl || draggedEl === item) return;
+        const items = Array.from(container.querySelectorAll(itemSelector));
+        const draggedIdx = items.indexOf(draggedEl);
+        const targetIdx = items.indexOf(item);
+        if(draggedIdx < targetIdx) item.after(draggedEl); else item.before(draggedEl);
+        onDrop();
+      });
+    });
+  }
+
+  function wireParcoursDragAndDrop(parcours, correspondance, postesReels){
+    ['cuisine','comptoir'].forEach(phase => {
+      const etapesContainer = parcoursWrap.querySelector(`.etapes-list[data-phase="${phase}"]`);
+      if(etapesContainer){
+        wireDragReorder(etapesContainer, '.etape-drag-item', async () => {
+          const libelles = Array.from(etapesContainer.querySelectorAll('.etape-drag-item')).map(el => el.dataset.libelle);
+          try{
+            const res = await fetch(APPS_SCRIPT_URL, {
+              method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+              body: JSON.stringify(authBody({ sheet:'reordonner_parcours_categorie', targetRestaurant: currentRestaurant, phase, categorie:'etape', libelles }))
+            });
+            const data = await res.json();
+            if(!data.ok) throw new Error(data.error || 'Échec du réordonnancement');
+            renderParcours(data.parcours, correspondance, postesReels);
+          } catch(err){ alert('Erreur : ' + err.message); await loadParcours(); }
+        });
+      }
+      const rotationContainer = parcoursWrap.querySelector(`.rotation-list[data-phase="${phase}"]`);
+      if(rotationContainer){
+        wireDragReorder(rotationContainer, '.rotation-drag-item', async () => {
+          const libelles = Array.from(rotationContainer.querySelectorAll('.rotation-drag-item')).map(el => el.dataset.libelle);
+          try{
+            const res = await fetch(APPS_SCRIPT_URL, {
+              method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+              body: JSON.stringify(authBody({ sheet:'reordonner_parcours_categorie', targetRestaurant: currentRestaurant, phase, categorie:'rotation', libelles }))
+            });
+            const data = await res.json();
+            if(!data.ok) throw new Error(data.error || 'Échec du réordonnancement');
+            renderParcours(data.parcours, correspondance, postesReels);
+          } catch(err){ alert('Erreur : ' + err.message); await loadParcours(); }
+        });
+      }
+    });
+  }
+
   function renderParcours(parcours, correspondance, postesReels){
     correspondance = correspondance || {};
     postesReels = postesReels || [];
@@ -5219,12 +5317,11 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       const etapesHtml = p.etapes.map((e, i) => {
         const actuel = correspondance[e.libelle] || '';
         return `
-        <div style="padding:5px 0; border-bottom:1px dashed var(--line); font-size:12.5px;">
+        <div class="etape-drag-item" draggable="${canManageAlternant}" data-phase="${phase}" data-libelle="${e.libelle.replace(/"/g,'&quot;')}" style="padding:5px 0; border-bottom:1px dashed var(--line); font-size:12.5px; ${canManageAlternant ? 'cursor:grab;' : ''}">
           <div style="display:flex; align-items:center; gap:8px;">
+            ${canManageAlternant ? `<span style="color:var(--ink-soft); font-size:14px; line-height:1;" title="Glisser pour réordonner">⠿</span>` : ''}
             <span style="flex:1;"><strong>${i+1}. ${e.libelle}</strong><br><span style="color:var(--ink-soft);">📘 ${e.formation}${e.suivi ? ' · ✅ ' + e.suivi : ''}</span></span>
             ${canManageAlternant ? `
-              <button type="button" class="move-parcours-entry-btn" data-phase="${phase}" data-categorie="etape" data-libelle="${e.libelle.replace(/"/g,'&quot;')}" data-direction="haut" ${i===0?'disabled':''} style="border:none;background:none;color:var(--navy-2);cursor:pointer;font-size:13px;" title="Monter">▲</button>
-              <button type="button" class="move-parcours-entry-btn" data-phase="${phase}" data-categorie="etape" data-libelle="${e.libelle.replace(/"/g,'&quot;')}" data-direction="bas" ${i===p.etapes.length-1?'disabled':''} style="border:none;background:none;color:var(--navy-2);cursor:pointer;font-size:13px;" title="Descendre">▼</button>
               <button type="button" class="show-edit-etape-btn" data-phase="${phase}" data-libelle="${e.libelle.replace(/"/g,'&quot;')}" style="border:none;background:none;cursor:pointer;" title="Modifier cette formation">✏️</button>
               <button type="button" class="remove-parcours-entry-btn" data-phase="${phase}" data-categorie="etape" data-libelle="${e.libelle.replace(/"/g,'&quot;')}" style="border:none;background:none;color:var(--red);cursor:pointer;" title="Retirer cette formation">🗑️</button>` : ''}
           </div>
@@ -5268,21 +5365,20 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       }).join('');
 
       const rotationHtml = p.rotation.map((libelle, i) => `
-        <span class="action-pill amber" style="display:inline-flex; align-items:center; gap:4px; margin:2px 4px 2px 0;">
+        <span class="action-pill amber rotation-drag-item" draggable="${canManageAlternant}" data-phase="${phase}" data-position="${i}" data-libelle="${libelle.replace(/"/g,'&quot;')}" style="display:inline-flex; align-items:center; gap:4px; margin:2px 4px 2px 0; ${canManageAlternant ? 'cursor:grab;' : ''}">
+          ${canManageAlternant ? '<span style="font-size:10px;" title="Glisser pour réordonner">⠿</span>' : ''}
           ${libelle}
           ${canManageAlternant ? `
-            <button type="button" class="move-parcours-entry-btn" data-phase="${phase}" data-categorie="rotation" data-libelle="${libelle.replace(/"/g,'&quot;')}" data-ordre="${i+1}" data-direction="haut" ${i===0?'disabled':''} style="border:none;background:none;color:inherit;cursor:pointer;font-size:10px;" title="Monter">▲</button>
-            <button type="button" class="move-parcours-entry-btn" data-phase="${phase}" data-categorie="rotation" data-libelle="${libelle.replace(/"/g,'&quot;')}" data-ordre="${i+1}" data-direction="bas" ${i===p.rotation.length-1?'disabled':''} style="border:none;background:none;color:inherit;cursor:pointer;font-size:10px;" title="Descendre">▼</button>
             <button type="button" class="remove-parcours-entry-btn" data-phase="${phase}" data-categorie="rotation" data-libelle="${libelle.replace(/"/g,'&quot;')}" data-ordre="${i+1}" style="border:none;background:none;color:var(--red);cursor:pointer;font-size:11px;" title="Retirer cette occurrence">✕</button>` : ''}
         </span>`).join('') || '<p style="color:var(--ink-soft);font-size:12px;">Rotation vide.</p>';
 
       return `<div style="margin-bottom:16px; padding:12px; background:#faf9f4; border:1px solid var(--line); border-radius:10px;">
         <div style="font-weight:700; font-size:13px; margin-bottom:6px;">${PHASE_LABELS[phase]}</div>
         <div style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;margin-bottom:4px;">Formations initiales (dans l'ordre)</div>
-        ${etapesHtml}
+        <div class="etapes-list" data-phase="${phase}">${etapesHtml}</div>
         ${posteRotationSeule.length ? `<div style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;margin:10px 0 4px;">Postes sans formation dédiée</div>${rotationSeuleHtml}` : ''}
         <div style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;margin:10px 0 4px;">Rotation (une fois les formations initiales épuisées)</div>
-        <div>${rotationHtml}</div>
+        <div class="rotation-list" data-phase="${phase}">${rotationHtml}</div>
         ${canManageAlternant ? `
           <button type="button" class="show-add-etape-btn" data-phase="${phase}" style="margin-top:10px; border:none;background:none;color:var(--navy-2);cursor:pointer;font-size:12.5px;font-weight:700;">➕ Ajouter une formation</button>
           <div class="add-etape-form" data-phase="${phase}" style="display:none; margin-top:8px; padding:10px; background:#fff; border:1px solid var(--line); border-radius:8px;">
@@ -5376,20 +5472,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
           } catch(err){ alert('Erreur : ' + err.message); btn.disabled = false; }
         });
       });
-      parcoursWrap.querySelectorAll('.move-parcours-entry-btn').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          btn.disabled = true;
-          try{
-            const res = await fetch(APPS_SCRIPT_URL, {
-              method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
-              body: JSON.stringify(authBody({ sheet:'deplacer_entree_parcours', targetRestaurant: currentRestaurant, phase: btn.dataset.phase, categorie: btn.dataset.categorie, libelle: btn.dataset.libelle, ordre: btn.dataset.ordre || '', direction: btn.dataset.direction }))
-            });
-            const data = await res.json();
-            if(!data.ok) throw new Error(data.error || 'Échec du déplacement');
-            renderParcours(data.parcours, correspondance, postesReels);
-          } catch(err){ alert('Erreur : ' + err.message); btn.disabled = false; }
-        });
-      });
+      wireParcoursDragAndDrop(parcours, correspondance, postesReels);
       parcoursWrap.querySelectorAll('.remove-parcours-entry-btn').forEach(btn => {
         btn.addEventListener('click', async () => {
           const confirmMsg = btn.dataset.categorie === 'etape'
