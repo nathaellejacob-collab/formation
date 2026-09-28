@@ -3289,6 +3289,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         div.innerHTML = `<div class="stat-num">${s.num}</div><div class="stat-label">${s.label}</div>`;
         div.addEventListener('click', () => {
           activeFilter = (activeFilter === s.key) ? 'all' : s.key;
+          updateUrgencySortAvailability();
           renderStats();
           render();
         });
@@ -3313,19 +3314,26 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       });
     }
 
-    // "Trier par urgence" n'a de sens que lorsqu'une formation précise est
-    // ciblée (sinon "urgence" mélange plusieurs formations différentes) —
-    // masquée et désactivée tant qu'aucune n'est sélectionnée.
+    // "Trier par urgence" n'est proposé que lorsqu'il y a une sélection : une
+    // formation précise, ou une carte de statut (En retard / Échéance sous
+    // 30 j / À jour). Sans aucune sélection, "urgence" mélangerait toutes les
+    // formations et n'aurait pas de sens : l'option est alors retirée de la
+    // liste. Elle est réellement ajoutée/retirée (et non simplement cachée),
+    // car certains navigateurs — Safari en tête — ignorent une option masquée.
     function updateUrgencySortAvailability(){
+      const aucuneSelection = trainingFocus === null && activeFilter === 'all';
       const urgencyOption = sortSelect.querySelector('option[value="urgency"]');
-      if(!urgencyOption) return;
-      if(trainingFocus === null){
-        urgencyOption.disabled = true;
-        urgencyOption.hidden = true;
-        if(sortSelect.value === 'urgency') sortSelect.value = 'name';
-      } else {
-        urgencyOption.disabled = false;
-        urgencyOption.hidden = false;
+      if(aucuneSelection){
+        if(urgencyOption){
+          const etaitChoisi = sortSelect.value === 'urgency';
+          urgencyOption.remove();
+          if(etaitChoisi) sortSelect.value = 'name';
+        }
+      } else if(!urgencyOption){
+        const opt = document.createElement('option');
+        opt.value = 'urgency';
+        opt.textContent = 'Trier par urgence';
+        sortSelect.insertBefore(opt, sortSelect.firstChild);
       }
     }
 
