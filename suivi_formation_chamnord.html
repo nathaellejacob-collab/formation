@@ -1346,6 +1346,14 @@
           <select id="coutFormation" required style="width:100%;"><option value="">— Choisir —</option></select>
         </div>
         <div>
+          <label for="coutTypeSession" style="font-size:11.5px;font-weight:700;color:var(--ink-soft);">Type de session</label>
+          <select id="coutTypeSession" required style="width:100%;">
+            <option value="">— Choisir —</option>
+            <option value="initiale">Formation initiale</option>
+            <option value="suivi">Suivi de formation</option>
+          </select>
+        </div>
+        <div>
           <label for="coutTempsTablette" style="font-size:11.5px;font-weight:700;color:var(--ink-soft);">Temps formation tablette (min)</label>
           <input type="number" id="coutTempsTablette" min="0" placeholder="—" style="width:100%;">
         </div>
@@ -4391,6 +4399,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
   const coutFormateurSelect = document.getElementById('coutFormateur');
   const coutEquipierInput = document.getElementById('coutEquipier');
   const coutFormationSelect = document.getElementById('coutFormation');
+  const coutTypeSessionSelect = document.getElementById('coutTypeSession');
   const coutTempsTabletteInput = document.getElementById('coutTempsTablette');
   const coutTempsAccompagnementInput = document.getElementById('coutTempsAccompagnement');
   const coutPreview = document.getElementById('coutPreview');
@@ -4455,6 +4464,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     addCoutFormationForm.reset();
     coutDateInput.value = new Date().toISOString().slice(0, 10);
     coutFormationSelect.value = '';
+    coutTypeSessionSelect.value = '';
     coutFormateurSelect.value = '';
     addCoutFormationForm.querySelector('button[type="submit"]').textContent = 'Enregistrer';
     const cancelBtn = document.getElementById('coutCancelEditBtn');
@@ -4468,6 +4478,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     coutFormateurSelect.value = entry.formateur;
     coutEquipierInput.value = entry.equipier;
     coutFormationSelect.value = entry.formation;
+    coutTypeSessionSelect.value = entry.typeSession || 'initiale';
     coutTempsTabletteInput.value = entry.tempsTablette;
     coutTempsAccompagnementInput.value = entry.tempsAccompagnement;
     updateCoutPreview();
@@ -4496,17 +4507,18 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     const total = rows.reduce((s, r) => s + r.cout, 0);
     coutFormationTableWrap.innerHTML = `
       <div class="matrix-wrap"><table class="matrix-table">
-        <thead><tr><th>Date</th><th>Formateur</th><th>Équipier</th><th>Formation</th><th>Temps tablette</th><th>Temps accompagnement</th><th>Coût</th>${canManage ? '<th></th>' : ''}</tr></thead>
+        <thead><tr><th>Date</th><th>Formateur</th><th>Équipier</th><th>Formation</th><th>Type</th><th>Temps tablette</th><th>Temps accompagnement</th><th>Coût</th>${canManage ? '<th></th>' : ''}</tr></thead>
         <tbody>
           ${rows.map(r => `<tr>
             <td>${dash(r.date ? frDate(parseDate(r.date)) : null)}</td><td>${dash(r.formateur)}</td><td>${dash(r.equipier)}</td><td>${dash(r.formation)}</td>
+            <td><span class="action-pill ${r.typeSession === 'suivi' ? 'plum' : 'gray'}">${r.typeSession === 'suivi' ? 'Suivi' : 'Initiale'}</span></td>
             <td>${r.tempsTablette ? r.tempsTablette + ' min' : '—'}</td><td>${r.tempsAccompagnement ? r.tempsAccompagnement + ' min' : '—'}</td><td>${r.cout ? `<span class="cout-pill">${r.cout.toFixed(2)} €</span>` : '—'}</td>
             ${canManage ? `<td style="white-space:nowrap;">
               <button type="button" class="edit-cout-btn" data-index="${r.index}" style="border:none;background:none;cursor:pointer;" title="Corriger">✏️</button>
               <button type="button" class="delete-cout-btn" data-index="${r.index}" style="color:var(--red);border:none;background:none;cursor:pointer;" title="Supprimer">🗑️</button>
             </td>` : ''}
           </tr>`).join('')}
-          <tr style="font-weight:700;"><td colspan="6">TOTAL DU MOIS</td><td><span class="cout-pill" style="font-size:13.5px;">${total.toFixed(2)} €</span></td>${canManage ? '<td></td>' : ''}</tr>
+          <tr style="font-weight:700;"><td colspan="7">TOTAL DU MOIS</td><td><span class="cout-pill" style="font-size:13.5px;">${total.toFixed(2)} €</span></td>${canManage ? '<td></td>' : ''}</tr>
         </tbody>
       </table></div>`;
     coutFormationTableWrap.querySelectorAll('.edit-cout-btn').forEach(btn => {
@@ -5732,6 +5744,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
           date: coutDateInput.value, nomFormateurSession: coutFormateurSelect.value,
           nomEquipier: coutEquipierInput.value.trim(), formation: coutFormationSelect.value,
           tempsTablette: coutTempsTabletteInput.value, tempsAccompagnement: coutTempsAccompagnementInput.value,
+          typeSession: coutTypeSessionSelect.value,
         };
         if(isEdit) payload.index = coutEditingIndex;
         else payload.tauxFormateur = coutFormateurTaux(coutFormateurSelect.value);
