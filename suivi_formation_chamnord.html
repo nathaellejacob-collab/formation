@@ -3546,7 +3546,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       if(!btn) return;
       btn.addEventListener('click', async (ev) => {
         ev.stopPropagation();
-        const confirmed = window.confirm(`Supprimer définitivement ${nom} ? Cette action modifie directement le Google Sheet et ne peut pas être annulée depuis le site.`);
+        const confirmed = window.confirm(`Supprimer définitivement ${nom} ? Son profil ainsi que ses coûts de formation et son suivi d'intégration opérationnelle seront aussi supprimés. Cette action modifie directement le Google Sheet et ne peut pas être annulée depuis le site.`);
         if(!confirmed) return;
         const statusSpan = btn.nextElementSibling;
         btn.disabled = true;
