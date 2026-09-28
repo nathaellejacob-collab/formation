@@ -1410,6 +1410,7 @@
       <label for="integrationMonthSelect" style="font-size:12px; font-weight:700; color:var(--ink-soft);">Mois affiché :</label>
       <select id="integrationMonthSelect"></select>
     </div>
+    <div id="integrationSummaryWrap"></div>
     <div id="integrationTableWrap"></div>
   </div>
 </section>
@@ -4763,6 +4764,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
   // ---------------- Suivi intégration opérationnelle ----------------
   const integrationMonthSelect = document.getElementById('integrationMonthSelect');
   const integrationTableWrap = document.getElementById('integrationTableWrap');
+  const integrationSummaryWrap = document.getElementById('integrationSummaryWrap');
   let integrationFormateursCache = [];
   let integrationRecordsCache = [];
 
@@ -4776,7 +4778,31 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     }).join('');
   }
 
+  // Nombre d'intégrations réalisées par formateur : ce mois-ci et au total
+  // des données conservées (année en cours + N-1). Seuls les formateurs qui
+  // en ont réellement réalisé au moins une apparaissent.
+  function renderIntegrationSummary(moisKey){
+    if(!integrationSummaryWrap) return;
+    const parFormateur = {};
+    integrationRecordsCache.forEach(r => {
+      if(!r.formateur) return;
+      const f = parFormateur[r.formateur] || (parFormateur[r.formateur] = { mois: 0, total: 0 });
+      f.total++;
+      if(r.mois === moisKey) f.mois++;
+    });
+    const lignes = Object.entries(parFormateur).sort((a, b) => b[1].total - a[1].total || a[0].localeCompare(b[0]));
+    if(!lignes.length){ integrationSummaryWrap.innerHTML = ''; return; }
+    integrationSummaryWrap.innerHTML = `<div style="margin-bottom:14px; padding:12px; background:#faf9f4; border:1px solid var(--line); border-radius:10px; max-width:420px;">
+      <div style="font-weight:700; font-size:13px; margin-bottom:6px;">📊 Intégrations réalisées par formateur</div>
+      <table class="matrix-table" style="font-size:12.5px;">
+        <thead><tr><th>Formateur</th><th>Ce mois-ci</th><th>Total conservé</th></tr></thead>
+        <tbody>${lignes.map(([nom, n]) => `<tr><td>${nom}</td><td><span class="cout-pill">${n.mois}</span></td><td><span class="cout-pill">${n.total}</span></td></tr>`).join('')}</tbody>
+      </table>
+    </div>`;
+  }
+
   function renderIntegrationTable(moisKey){
+    renderIntegrationSummary(moisKey);
     const equipiers = restaurantEmployees().filter(e => e.dateEntree && e.dateEntree.slice(0, 7) === moisKey);
     if(!equipiers.length){
       integrationTableWrap.innerHTML = '<p style="color:var(--ink-soft);font-size:13px;">Aucun nouvel équipier intégré ce mois-ci.</p>';
@@ -4814,6 +4840,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
           const data = await res.json();
           if(!data.ok) throw new Error(data.error || "Échec de l'enregistrement");
           integrationRecordsCache = data.records || [];
+          renderIntegrationSummary(moisKey);
         } catch(err){
           alert('Erreur : ' + err.message);
         } finally {
