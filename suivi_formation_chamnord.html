@@ -2751,35 +2751,6 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
 
     const GROUP_LABELS = {production:'Production', service:'Service', autres:'Autres'};
 
-    // Glisser-déposer pour réordonner les postes au sein d'UNE famille —
-    // réécrit l'ordre complet du groupe concerné auprès du serveur au drop.
-    function wireDragReorderPostes(groupContainer){
-      let draggedEl = null;
-      groupContainer.querySelectorAll('.poste-drag-item').forEach(item => {
-        item.addEventListener('dragstart', () => { draggedEl = item; setTimeout(() => { item.style.opacity = '0.4'; }, 0); });
-        item.addEventListener('dragend', () => { item.style.opacity = ''; draggedEl = null; });
-        item.addEventListener('dragover', (e) => { e.preventDefault(); });
-        item.addEventListener('drop', async (e) => {
-          e.preventDefault();
-          if(!draggedEl || draggedEl === item) return;
-          const items = Array.from(groupContainer.querySelectorAll('.poste-drag-item'));
-          const draggedIdx = items.indexOf(draggedEl);
-          const targetIdx = items.indexOf(item);
-          if(draggedIdx < targetIdx) item.after(draggedEl); else item.before(draggedEl);
-          const cles = Array.from(groupContainer.querySelectorAll('.poste-drag-item')).map(el => el.dataset.key);
-          try{
-            const res = await fetch(APPS_SCRIPT_URL, {
-              method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
-              body: JSON.stringify(authBody({ sheet:'reordonner_postes_groupe', targetRestaurant: currentRestaurant, group: groupContainer.dataset.group, cles }))
-            });
-            const data = await res.json();
-            if(!data.ok) throw new Error(data.error || 'Échec du réordonnancement');
-            renderPosteList(data.postes || []);
-          } catch(err){ alert('Erreur : ' + err.message); }
-        });
-      });
-    }
-
     function renderPosteList(list){
       const groupes = { production: [], service: [], autres: [] };
       list.forEach(p => { (groupes[p.group] || groupes.autres).push(p); });
@@ -2788,12 +2759,9 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         ? ['production','service','autres'].filter(g => groupes[g].length).map(g => `
           <div style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;margin:12px 0 4px;">${GROUP_LABELS[g]}</div>
           <div class="poste-group-list" data-group="${g}">
-          ${groupes[g].map(p => `<div class="poste-upload-item poste-drag-item" draggable="true" data-key="${p.key}" style="cursor:grab;">
+          ${groupes[g].map(p => `<div class="poste-upload-item" data-key="${p.key}">
             <div class="poste-upload-item-head">
-              <span style="display:flex; align-items:center; gap:8px;">
-                <span style="color:var(--ink-soft); font-size:14px;" title="Glisser pour réordonner">⠿</span>
-                <span class="poste-name">${p.label}${p.actif ? '' : ' <span style="font-weight:400;color:var(--ink-soft);">· inactif</span>'}</span>
-              </span>
+              <span class="poste-name">${p.label}${p.actif ? '' : ' <span style="font-weight:400;color:var(--ink-soft);">· inactif</span>'}</span>
               ${p.actif ? '' : `<button type="button" class="toggle-poste-btn" data-key="${p.key}" data-actif="${p.actif}">Réactiver</button>`}
             </div>
             <div style="display:flex; align-items:center; gap:8px; margin-top:6px; flex-wrap:wrap;">
@@ -2805,10 +2773,6 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
           </div>`).join('')}
           </div>`).join('')
         : '<p style="color:var(--ink-soft);font-size:13px;">Aucun poste enregistré pour l\'instant.</p>';
-
-      posteManageList.querySelectorAll('.poste-group-list').forEach(groupContainer => {
-        wireDragReorderPostes(groupContainer);
-      });
 
       posteManageList.querySelectorAll('.upload-poste-verif-btn').forEach(btn => {
         btn.addEventListener('click', () => {
