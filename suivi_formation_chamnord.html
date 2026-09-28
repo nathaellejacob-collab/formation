@@ -1322,7 +1322,7 @@
 <section id="tab-cout-formation" style="display:none;">
   <div class="poly-kpis" id="coutKpis" style="grid-template-columns:repeat(2,1fr);"></div>
 
-  <div class="panel-block" style="border-left:4px solid var(--amber-dark);">
+  <div class="panel-block">
     <div class="panel-head">
       <h3>💶 Enregistrer une formation</h3>
       <p>Aucun champ n'est pré-rempli — choisis et saisis toi-même chaque information.</p>
@@ -1362,7 +1362,7 @@
     </form>
   </div>
 
-  <div class="panel-block" style="border-left:4px solid var(--navy-2);">
+  <div class="panel-block">
     <div class="panel-head">
       <h3>📋 Historique</h3>
       <p>Le Responsable formation peut corriger ou supprimer une entrée en cas d'erreur de saisie.</p>
@@ -1374,7 +1374,7 @@
     <div id="coutFormationTableWrap"></div>
   </div>
 
-  <div class="panel-block" style="border-left:4px solid var(--plum);">
+  <div class="panel-block">
     <div class="panel-head">
       <h3>Plus d'options</h3>
     </div>
@@ -4769,7 +4769,15 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
   let integrationRecordsCache = [];
 
   function populateIntegrationMonthSelect(){
-    const moisPresents = new Set(restaurantEmployees().map(e => e.dateEntree && e.dateEntree.slice(0, 7)).filter(Boolean));
+    // Mêmes règles de rétention que côté serveur : année en cours et N-1
+    // uniquement — sinon un équipier entré il y a des années fait remonter
+    // la liste jusqu'à son mois d'arrivée.
+    const anneeMin = new Date().getFullYear() - 1;
+    const moisPresents = new Set(
+      restaurantEmployees()
+        .map(e => e.dateEntree && e.dateEntree.slice(0, 7))
+        .filter(m => m && Number(m.slice(0, 4)) >= anneeMin)
+    );
     moisPresents.add(currentMonthKeyClient());
     const sorted = Array.from(moisPresents).sort().reverse();
     integrationMonthSelect.innerHTML = sorted.map(m => {
@@ -4778,25 +4786,22 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     }).join('');
   }
 
-  // Nombre d'intégrations réalisées par formateur : ce mois-ci et au total
-  // des données conservées (année en cours + N-1). Seuls les formateurs qui
-  // en ont réellement réalisé au moins une apparaissent.
+  // Nombre d'intégrations réalisées par formateur sur le mois affiché. Seuls
+  // les formateurs qui en ont réellement réalisé au moins une apparaissent.
   function renderIntegrationSummary(moisKey){
     if(!integrationSummaryWrap) return;
     const parFormateur = {};
     integrationRecordsCache.forEach(r => {
-      if(!r.formateur) return;
-      const f = parFormateur[r.formateur] || (parFormateur[r.formateur] = { mois: 0, total: 0 });
-      f.total++;
-      if(r.mois === moisKey) f.mois++;
+      if(!r.formateur || r.mois !== moisKey) return;
+      parFormateur[r.formateur] = (parFormateur[r.formateur] || 0) + 1;
     });
-    const lignes = Object.entries(parFormateur).sort((a, b) => b[1].total - a[1].total || a[0].localeCompare(b[0]));
+    const lignes = Object.entries(parFormateur).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
     if(!lignes.length){ integrationSummaryWrap.innerHTML = ''; return; }
-    integrationSummaryWrap.innerHTML = `<div style="margin-bottom:14px; padding:12px; background:#faf9f4; border:1px solid var(--line); border-radius:10px; max-width:420px;">
+    integrationSummaryWrap.innerHTML = `<div style="margin-bottom:14px; padding:12px; background:#faf9f4; border:1px solid var(--line); border-radius:10px; max-width:360px;">
       <div style="font-weight:700; font-size:13px; margin-bottom:6px;">📊 Intégrations réalisées par formateur</div>
       <table class="matrix-table" style="font-size:12.5px;">
-        <thead><tr><th>Formateur</th><th>Ce mois-ci</th><th>Total conservé</th></tr></thead>
-        <tbody>${lignes.map(([nom, n]) => `<tr><td>${nom}</td><td><span class="cout-pill">${n.mois}</span></td><td><span class="cout-pill">${n.total}</span></td></tr>`).join('')}</tbody>
+        <thead><tr><th>Formateur</th><th>Ce mois-ci</th></tr></thead>
+        <tbody>${lignes.map(([nom, n]) => `<tr><td>${nom}</td><td><span class="cout-pill">${n}</span></td></tr>`).join('')}</tbody>
       </table>
     </div>`;
   }
