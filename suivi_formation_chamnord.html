@@ -1307,6 +1307,18 @@
     <div id="planningResults"></div>
   </div>
 
+  <div class="panel-block" id="ordreFormationBlock">
+    <div class="panel-head">
+      <h3>🧭 Ordre de formation par filière</h3>
+      <p>Dans une filière, un équipier est formé dans cet ordre, un poste à la fois. Un poste « hors filière » est proposé librement, sans ordre imposé.</p>
+    </div>
+    <button type="button" id="toggleOrdreFormationBtn" class="restriction-toggle-btn">🧭 Voir/modifier l'ordre de formation</button>
+    <div id="ordreFormationSection" style="display:none; margin-top:12px;">
+      <p id="ordreFormationHint" style="font-size:11.5px; color:var(--ink-soft); margin-top:0;"></p>
+      <div id="ordreFormationWrap"></div>
+    </div>
+  </div>
+
   <div class="panel-block">
     <div class="panel-head">
       <h3>🚫 Restrictions par équipier</h3>
@@ -1722,11 +1734,13 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
   const TRAINABLE_POSTES = POSTES.filter(p => !PLANNING_EXCLUDED_POSTE_KEYS.has(p.key));
 
   // Ordre de formation imposé au sein de chaque filière — un équipier doit
-  // faire ces postes DANS CET ORDRE avant de passer au suivant. Les postes
-  // formables qui n'apparaissent dans aucune des deux listes n'ont pas
-  // d'ordre imposé (peu importe quand ils sont faits). Rattaché par LIBELLÉ
-  // (comparaison insensible à la casse), pas par clé technique.
-  const TRAINING_TRACK_ORDER = [
+  // faire ces postes DANS CET ORDRE avant de passer au suivant (un seul à la
+  // fois). Les postes formables qui n'apparaissent dans aucune des deux
+  // filières sont « hors filière » : proposés librement, sans ordre imposé.
+  // L'ordre est modifiable par le gérant (onglet Planification) et enregistré
+  // côté serveur ; tant qu'il n'a jamais été modifié — ou si le serveur n'est
+  // pas encore à jour — c'est l'ordre d'origine ci-dessous qui s'applique.
+  const TRAINING_TRACK_ORDER_DEFAUT = [
     { track: 'cuisine',  label: 'Cuisson des viandes' },
     { track: 'cuisine',  label: 'Cuisson des produits frits' },
     { track: 'cuisine',  label: 'Initiation & Assemblage' },
@@ -1743,12 +1757,33 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     if(!na || !nb) return false;
     return na === nb || na.includes(nb) || nb.includes(na); // tolère une petite différence de libellé (ex. suffixe en plus/en moins)
   }
+  // Rattache chaque entrée de l'ordre à UN poste réel, une seule fois : d'abord
+  // par libellé identique, puis (pour l'ordre d'origine, écrit à la main) par
+  // libellé proche. Ensuite tout le reste du site compare des libellés
+  // identiques — un poste nouvellement ajouté dont le nom ressemble à un poste
+  // de la liste n'y est donc jamais rangé par erreur.
+  function resolveTrackOrder(payload){
+    const source = payload && payload.configure && Array.isArray(payload.entries) ? payload.entries : TRAINING_TRACK_ORDER_DEFAUT;
+    const utilises = new Set();
+    const trouves = source.map(() => null);
+    source.forEach((t, i) => {
+      const p = POSTES.find(x => !utilises.has(x.key) && normLabel(x.label) === normLabel(t.label));
+      if(p){ utilises.add(p.key); trouves[i] = p; }
+    });
+    source.forEach((t, i) => {
+      if(trouves[i]) return;
+      const p = POSTES.find(x => !utilises.has(x.key) && labelsMatch(x.label, t.label));
+      if(p){ utilises.add(p.key); trouves[i] = p; }
+    });
+    return source.map((t, i) => trouves[i] ? { track: t.track, label: trouves[i].label } : null).filter(Boolean);
+  }
+  let TRAINING_TRACK_ORDER = resolveTrackOrder(appData.ordreFormation);
   function trackOf(posteLabel){
-    const found = TRAINING_TRACK_ORDER.find(t => labelsMatch(t.label, posteLabel));
+    const found = TRAINING_TRACK_ORDER.find(t => normLabel(t.label) === normLabel(posteLabel));
     return found ? found.track : null;
   }
   function trackOrderIndex(posteLabel){
-    return TRAINING_TRACK_ORDER.findIndex(t => labelsMatch(t.label, posteLabel));
+    return TRAINING_TRACK_ORDER.findIndex(t => normLabel(t.label) === normLabel(posteLabel));
   }
 
   // Grille de disponibilités habituelles (pas le planning réel) — même
@@ -5978,6 +6013,115 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
   }
 
   const canManagePlanning = isGerant || isResponsableLevelRole(sessionRole);
+
+  // ---------------- Ordre de formation par filière (onglet Planification) ----------------
+  // Le gérant glisse les postes pour les ranger dans Cuisine ou Comptoir, dans
+  // l'ordre voulu, ou les retirer des filières (« hors filière »). Chaque
+  // dépôt est enregistré aussitôt côté serveur ; la prochaine génération du
+  // planning en tient compte. Les autres profils voient l'ordre en lecture seule.
+  const ordreFormationBlock = document.getElementById('ordreFormationBlock');
+  const toggleOrdreFormationBtn = document.getElementById('toggleOrdreFormationBtn');
+  const ordreFormationSection = document.getElementById('ordreFormationSection');
+  const ordreFormationHint = document.getElementById('ordreFormationHint');
+  const ordreFormationWrap = document.getElementById('ordreFormationWrap');
+  const FILIERE_LABELS = { cuisine: 'Cuisine', comptoir: 'Comptoir', libres: 'Hors filière' };
+  if(ordreFormationBlock && !canManagePlanning) ordreFormationBlock.style.display = 'none';
+
+  function ordreFormationGroupes(){
+    const g = { cuisine: [], comptoir: [], libres: [] };
+    TRAINABLE_POSTES.forEach(p => {
+      const t = trackOf(p.label);
+      (t === 'cuisine' ? g.cuisine : t === 'comptoir' ? g.comptoir : g.libres).push(p);
+    });
+    g.cuisine.sort((a, b) => trackOrderIndex(a.label) - trackOrderIndex(b.label));
+    g.comptoir.sort((a, b) => trackOrderIndex(a.label) - trackOrderIndex(b.label));
+    return g;
+  }
+
+  function renderOrdreFormation(){
+    if(!ordreFormationWrap) return;
+    const editable = isGerant;
+    ordreFormationHint.textContent = editable
+      ? "Glisse un poste pour le déplacer dans une filière, d'une filière à l'autre, ou vers « Hors filière ». C'est enregistré aussitôt. L'ordre des postes « hors filière » dépend de « Gérer les postes »."
+      : "Lecture seule — seul le gérant peut modifier cet ordre.";
+    const g = ordreFormationGroupes();
+    const colonne = (cle, liste, numerote) => `<div>
+      <div style="font-weight:700; font-size:12px; text-transform:uppercase; color:var(--ink-soft); margin-bottom:6px;">${FILIERE_LABELS[cle]}</div>
+      <div class="filiere-list" data-track="${cle}" style="min-height:60px; padding:6px; background:#faf9f4; border:1px dashed var(--line); border-radius:10px;">
+        ${liste.map((p, i) => `<div class="filiere-item" ${editable ? 'draggable="true"' : ''} data-label="${p.label.replace(/"/g, '&quot;')}" style="display:flex; align-items:center; gap:6px; padding:6px 8px; margin-bottom:4px; background:#fff; border:1px solid var(--line); border-radius:8px; font-size:12.5px; ${editable ? 'cursor:grab;' : ''}">
+          ${editable ? '<span style="color:var(--ink-soft);" title="Glisser pour déplacer">⠿</span>' : ''}
+          ${numerote ? `<span style="color:var(--ink-soft); min-width:16px;">${i + 1}.</span>` : ''}
+          <span>${p.label}</span>
+        </div>`).join('') || `<div style="color:var(--ink-soft); font-size:12px; padding:6px;">${editable ? 'Glisse un poste ici' : 'Aucun poste'}</div>`}
+      </div>
+    </div>`;
+    ordreFormationWrap.innerHTML = `<div style="display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:12px;">
+      ${colonne('cuisine', g.cuisine, true)}${colonne('comptoir', g.comptoir, true)}${colonne('libres', g.libres, false)}
+    </div>`;
+    if(editable) wireOrdreFormationDnD();
+  }
+
+  function wireOrdreFormationDnD(){
+    let dragged = null;
+    ordreFormationWrap.querySelectorAll('.filiere-item').forEach(item => {
+      item.addEventListener('dragstart', (e) => {
+        dragged = item;
+        if(e.dataTransfer){ e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', item.dataset.label); }
+        setTimeout(() => { item.style.opacity = '0.4'; }, 0);
+      });
+      item.addEventListener('dragend', () => {
+        item.style.opacity = '';
+        dragged = null;
+        ordreFormationWrap.querySelectorAll('.filiere-list').forEach(l => { l.style.background = '#faf9f4'; });
+      });
+    });
+    ordreFormationWrap.querySelectorAll('.filiere-list').forEach(list => {
+      list.addEventListener('dragover', (e) => { e.preventDefault(); list.style.background = '#f3efe2'; });
+      list.addEventListener('dragleave', (e) => { if(!list.contains(e.relatedTarget)) list.style.background = '#faf9f4'; });
+      list.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        list.style.background = '#faf9f4';
+        if(!dragged) return;
+        const source = dragged.closest('.filiere-list');
+        const cible = e.target.closest('.filiere-item');
+        if(cible === dragged) return;
+        if(source === list && list.dataset.track === 'libres') return; // pas d'ordre imposé hors filière
+        if(cible){
+          const items = Array.from(list.querySelectorAll('.filiere-item'));
+          const apres = source === list && items.indexOf(dragged) < items.indexOf(cible);
+          if(apres) cible.after(dragged); else cible.before(dragged);
+        } else {
+          list.appendChild(dragged);
+        }
+        await enregistrerOrdreFormation();
+      });
+    });
+  }
+
+  async function enregistrerOrdreFormation(){
+    const lire = (t) => Array.from(ordreFormationWrap.querySelectorAll(`.filiere-list[data-track="${t}"] .filiere-item`)).map(el => el.dataset.label);
+    try{
+      const res = await fetch(APPS_SCRIPT_URL, {
+        method: 'POST',
+        headers: {'Content-Type': 'text/plain;charset=utf-8'},
+        body: JSON.stringify(authBody({ sheet: 'reordonner_filieres', targetRestaurant: currentRestaurant, cuisine: lire('cuisine'), comptoir: lire('comptoir') }))
+      });
+      const data = await res.json();
+      if(!data.ok) throw new Error(data.error || "Échec de l'enregistrement");
+      TRAINING_TRACK_ORDER = resolveTrackOrder(data.ordreFormation);
+    } catch(err){
+      alert('Erreur : ' + err.message);
+    }
+    // Toujours réaffiché depuis l'état réellement enregistré : en cas d'échec,
+    // le glissement est annulé plutôt que de laisser croire qu'il a été pris en compte.
+    renderOrdreFormation();
+  }
+
+  toggleOrdreFormationBtn && toggleOrdreFormationBtn.addEventListener('click', () => {
+    const ouvert = ordreFormationSection.style.display === 'block';
+    ordreFormationSection.style.display = ouvert ? 'none' : 'block';
+    if(!ouvert) renderOrdreFormation();
+  });
 
   function renderPlanningSummary(proposals){
     const summary = document.getElementById('planningSummary');
