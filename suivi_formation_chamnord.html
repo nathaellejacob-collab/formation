@@ -465,6 +465,11 @@
   }
   @keyframes spin{ to { transform:rotate(360deg); } }
   .loading-state p{color:var(--ink-soft); font-size:13.5px;}
+  .btn-inline-spinner{
+    display:inline-block; width:13px; height:13px; border-radius:50%;
+    border:2px solid rgba(255,255,255,0.4); border-top-color:#fff;
+    animation:spin 0.7s linear infinite; vertical-align:-2px; margin-right:2px;
+  }
   .load-error{
     max-width:420px; text-align:center; color:var(--red);
     background:var(--red-bg); border:1px solid var(--red-line);
@@ -6548,6 +6553,17 @@ const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz0Dg-wg4Y4XFo7
     formateurCodeInput.focus();
   }
 
+  // Indicateur de chargement sur un bouton de connexion : texte + petit
+  // sablier animé, pour qu'un temps de réponse un peu long (chargement des
+  // données du restaurant, par exemple) ne donne jamais l'impression que le
+  // site est bloqué. restore() remet le bouton dans son état d'origine.
+  function setBtnLoading(btn, texte){
+    const original = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = `<span class="btn-inline-spinner"></span> ${texte}`;
+    return () => { btn.disabled = false; btn.innerHTML = original; };
+  }
+
   formateurCodeBack.addEventListener('click', () => {
     selectedFormateurNom = null;
     formateurCodeForm.style.display = 'none';
@@ -6564,7 +6580,7 @@ const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz0Dg-wg4Y4XFo7
     const code = formateurCodeInput.value.trim();
     if(!code || !selectedFormateurNom) return;
     const submitBtn = formateurCodeForm.querySelector('button[type="submit"]');
-    submitBtn.disabled = true;
+    const restoreBtn = setBtnLoading(submitBtn, 'Validation…');
     whoAreYouError.style.display = 'none';
     try{
       const res = await fetch(APPS_SCRIPT_URL, {
@@ -6583,7 +6599,7 @@ const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz0Dg-wg4Y4XFo7
       whoAreYouError.textContent = err.message;
       whoAreYouError.style.display = 'block';
     } finally {
-      submitBtn.disabled = false;
+      restoreBtn();
     }
   });
 
@@ -6597,7 +6613,7 @@ const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz0Dg-wg4Y4XFo7
       authError.style.display = 'block';
       return;
     }
-    submitBtn.disabled = true;
+    const restoreBtn = setBtnLoading(submitBtn, 'Connexion…');
     authError.style.display = 'none';
     try{
       const res = await fetch(APPS_SCRIPT_URL, {
@@ -6613,7 +6629,7 @@ const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz0Dg-wg4Y4XFo7
       authError.textContent = err.message;
       authError.style.display = 'block';
     } finally {
-      submitBtn.disabled = false;
+      restoreBtn();
     }
   });
 
@@ -6621,7 +6637,7 @@ const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz0Dg-wg4Y4XFo7
     e.preventDefault();
     const submitBtn = formGerant.querySelector('button[type="submit"]');
     const password = gerantPasswordInput.value;
-    submitBtn.disabled = true;
+    const restoreBtn = setBtnLoading(submitBtn, 'Connexion…');
     authError.style.display = 'none';
     try{
       const res = await fetch(APPS_SCRIPT_URL, {
@@ -6638,7 +6654,7 @@ const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz0Dg-wg4Y4XFo7
       authError.textContent = err.message;
       authError.style.display = 'block';
     } finally {
-      submitBtn.disabled = false;
+      restoreBtn();
     }
   });
 })();
