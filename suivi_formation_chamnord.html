@@ -3595,7 +3595,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       if(!btn) return;
       btn.addEventListener('click', async (ev) => {
         ev.stopPropagation();
-        const confirmed = window.confirm(`Supprimer définitivement ${nom} ? Son profil ainsi que ses coûts de formation et son suivi d'intégration opérationnelle seront aussi supprimés. Cette action modifie directement le Google Sheet et ne peut pas être annulée depuis le site.`);
+        const confirmed = window.confirm(`Supprimer définitivement ${nom} ? Son profil ainsi que ses coûts de formation seront aussi supprimés. Son historique de suivi d'intégration opérationnelle, lui, sera conservé. Cette action modifie directement le Google Sheet et ne peut pas être annulée depuis le site.`);
         if(!confirmed) return;
         const statusSpan = btn.nextElementSibling;
         btn.disabled = true;
@@ -4555,7 +4555,8 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
 
   function renderCoutTable(moisKey){
     const canManage = isGerant || isResponsableLevelRole(sessionRole);
-    const rows = coutEntriesCache.filter(e => e.date && e.date.slice(0, 7) === moisKey);
+    const rows = coutEntriesCache.filter(e => e.date && e.date.slice(0, 7) === moisKey)
+      .sort((a, b) => a.date.localeCompare(b.date)); // toujours par ordre de date, quel que soit l'ordre de saisie
     if(!rows.length){
       coutFormationTableWrap.innerHTML = '<p style="color:var(--ink-soft);font-size:13px;">Aucune entrée pour ce mois.</p>';
       return;
@@ -4606,28 +4607,31 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
 
   function renderCoutAnnuel(){
     const annee = new Date().getFullYear();
-    const totalsByMonth = {};
+    const anneePrec = annee - 1;
+    const totalsByMonth = { [annee]: {}, [anneePrec]: {} };
     coutEntriesCache.forEach(e => {
       if(!e.date) return;
       const [y, m] = e.date.split('-');
-      if(Number(y) !== annee) return;
-      totalsByMonth[m] = (totalsByMonth[m] || 0) + e.cout;
+      const yn = Number(y);
+      if(yn !== annee && yn !== anneePrec) return;
+      totalsByMonth[yn][m] = (totalsByMonth[yn][m] || 0) + e.cout;
     });
-    let grandTotal = 0;
+    let grandTotalN = 0, grandTotalN1 = 0;
     const rows = MOIS_LABELS_FR.map((label, i) => {
       const mm = String(i + 1).padStart(2, '0');
-      const t = totalsByMonth[mm] || 0;
-      grandTotal += t;
-      if(t === 0) return null; // n'affiche que les mois avec des données
-      return `<tr><td>${label}</td><td>${t.toFixed(2)} €</td></tr>`;
+      const tN1 = totalsByMonth[anneePrec][mm] || 0;
+      const tN = totalsByMonth[annee][mm] || 0;
+      grandTotalN1 += tN1; grandTotalN += tN;
+      if(tN1 === 0 && tN === 0) return null; // n'affiche que les mois avec des données (une des deux années)
+      return `<tr><td>${label}</td><td>${tN1 ? tN1.toFixed(2) + ' €' : '—'}</td><td>${tN ? tN.toFixed(2) + ' €' : '—'}</td></tr>`;
     }).filter(Boolean).join('');
     if(!rows){
-      coutAnnuelWrap.innerHTML = `<p style="color:var(--ink-soft);font-size:13px;">Aucune donnée pour ${annee} pour le moment.</p>`;
+      coutAnnuelWrap.innerHTML = `<p style="color:var(--ink-soft);font-size:13px;">Aucune donnée pour ${anneePrec} ou ${annee} pour le moment.</p>`;
       return;
     }
     coutAnnuelWrap.innerHTML = `<div class="matrix-wrap"><table class="matrix-table">
-      <thead><tr><th>Mois</th><th>Coût total</th></tr></thead>
-      <tbody>${rows}<tr style="font-weight:700;"><td>COÛT ANNUEL ${annee}</td><td>${grandTotal.toFixed(2)} €</td></tr></tbody>
+      <thead><tr><th>Mois</th><th>${anneePrec}</th><th>${annee}</th></tr></thead>
+      <tbody>${rows}<tr style="font-weight:700;"><td>COÛT ANNUEL</td><td>${grandTotalN1.toFixed(2)} €</td><td>${grandTotalN.toFixed(2)} €</td></tr></tbody>
     </table></div>`;
   }
 
@@ -4877,21 +4881,31 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
   function renderIntegrationTable(moisKey){
     renderIntegrationSummary(moisKey);
     const equipiers = restaurantEmployees().filter(e => e.dateEntree && e.dateEntree.slice(0, 7) === moisKey);
-    if(!equipiers.length){
+    // Un équipier dont le profil a été supprimé depuis reste affiché tant
+    // qu'il a un enregistrement d'intégration pour ce mois — c'est un
+    // historique, il ne doit pas disparaître avec le profil.
+    const nomsActuels = new Set(equipiers.map(e => e.nom));
+    const supprimes = integrationRecordsCache
+      .filter(r => r.mois === moisKey && r.nom && !nomsActuels.has(r.nom))
+      .map(r => r.nom)
+      .filter((nom, i, arr) => arr.indexOf(nom) === i) // dédoublonne
+      .map(nom => ({ nom, dateEntree: null, supprime: true }));
+    const lignes = equipiers.concat(supprimes);
+    if(!lignes.length){
       integrationTableWrap.innerHTML = '<p style="color:var(--ink-soft);font-size:13px;">Aucun nouvel équipier intégré ce mois-ci.</p>';
       return;
     }
     integrationTableWrap.innerHTML = `<div class="matrix-wrap"><table class="matrix-table">
       <thead><tr><th>Équipier</th><th>Date d'entrée</th><th>Formateur ayant réalisé l'intégration</th></tr></thead>
-      <tbody>${equipiers.map(e => {
+      <tbody>${lignes.map(e => {
         const record = integrationRecordsCache.find(r => r.nom === e.nom && r.mois === moisKey);
         const safeNom = e.nom.replace(/"/g,'&quot;');
         const options = ['<option value="">— Choisir —</option>'].concat(
           integrationFormateursCache.map(f => `<option value="${f.nom.replace(/"/g,'&quot;')}" ${record && record.formateur === f.nom ? 'selected' : ''}>${f.nom}</option>`)
         ).join('');
         return `<tr>
-          <td>${displayName(e.nom)}</td>
-          <td>${frDate(parseDate(e.dateEntree))}</td>
+          <td>${displayName(e.nom)}${e.supprime ? ' <span style="color:var(--ink-soft);font-weight:400;font-size:11.5px;">(profil supprimé)</span>' : ''}</td>
+          <td>${e.dateEntree ? frDate(parseDate(e.dateEntree)) : '—'}</td>
           <td><select class="integration-formateur-select" data-nom="${safeNom}">${options}</select></td>
         </tr>`;
       }).join('')}</tbody>
