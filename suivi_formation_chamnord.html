@@ -1362,7 +1362,7 @@
           <label for="coutFormation" style="font-size:11.5px;font-weight:700;color:var(--ink-soft);">Formation</label>
           <select id="coutFormation" required style="width:100%;"><option value="">— Choisir —</option></select>
         </div>
-        <div>
+        <div id="coutTypeSessionWrap">
           <label for="coutTypeSession" style="font-size:11.5px;font-weight:700;color:var(--ink-soft);">Type de session</label>
           <select id="coutTypeSession" required style="width:100%;">
             <option value="">— Choisir —</option>
@@ -4440,6 +4440,20 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
   const coutEquipierInput = document.getElementById('coutEquipier');
   const coutFormationSelect = document.getElementById('coutFormation');
   const coutTypeSessionSelect = document.getElementById('coutTypeSession');
+  const coutTypeSessionWrap = document.getElementById('coutTypeSessionWrap');
+  // L'intégration opérationnelle a déjà son propre suivi (onglet dédié) —
+  // elle n'a pas la notion de formation initiale/suivi : le champ est masqué
+  // et retiré de la validation dès qu'elle est sélectionnée.
+  function formationSansTypeSession(label){
+    return String(label || '').trim().toLowerCase() === 'integration operationnel';
+  }
+  function updateTypeSessionVisibility(){
+    const sansType = formationSansTypeSession(coutFormationSelect.value);
+    coutTypeSessionWrap.style.display = sansType ? 'none' : '';
+    coutTypeSessionSelect.required = !sansType;
+    if(sansType) coutTypeSessionSelect.value = '';
+  }
+  coutFormationSelect.addEventListener('change', () => { updateTypeSessionVisibility(); updateCoutPreview(); });
   const coutTempsTabletteInput = document.getElementById('coutTempsTablette');
   const coutTempsAccompagnementInput = document.getElementById('coutTempsAccompagnement');
   const coutPreview = document.getElementById('coutPreview');
@@ -4505,6 +4519,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     coutDateInput.value = new Date().toISOString().slice(0, 10);
     coutFormationSelect.value = '';
     coutTypeSessionSelect.value = '';
+    updateTypeSessionVisibility();
     coutFormateurSelect.value = '';
     addCoutFormationForm.querySelector('button[type="submit"]').textContent = 'Enregistrer';
     const cancelBtn = document.getElementById('coutCancelEditBtn');
@@ -4518,7 +4533,8 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     coutFormateurSelect.value = entry.formateur;
     coutEquipierInput.value = entry.equipier;
     coutFormationSelect.value = entry.formation;
-    coutTypeSessionSelect.value = entry.typeSession || 'initiale';
+    updateTypeSessionVisibility();
+    coutTypeSessionSelect.value = entry.typeSession || '';
     coutTempsTabletteInput.value = entry.tempsTablette;
     coutTempsAccompagnementInput.value = entry.tempsAccompagnement;
     updateCoutPreview();
@@ -4551,7 +4567,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         <tbody>
           ${rows.map(r => `<tr>
             <td>${dash(r.date ? frDate(parseDate(r.date)) : null)}</td><td>${dash(r.formateur)}</td><td>${dash(r.equipier)}</td><td>${dash(r.formation)}</td>
-            <td><span class="action-pill ${r.typeSession === 'suivi' ? 'plum' : 'gray'}">${r.typeSession === 'suivi' ? 'Suivi' : 'Initiale'}</span></td>
+            <td>${r.typeSession ? `<span class="action-pill ${r.typeSession === 'suivi' ? 'plum' : 'gray'}">${r.typeSession === 'suivi' ? 'Suivi' : 'Initiale'}</span>` : '—'}</td>
             <td>${r.tempsTablette ? r.tempsTablette + ' min' : '—'}</td><td>${r.tempsAccompagnement ? r.tempsAccompagnement + ' min' : '—'}</td><td>${r.cout ? `<span class="cout-pill">${r.cout.toFixed(2)} €</span>` : '—'}</td>
             ${canManage ? `<td style="white-space:nowrap;">
               <button type="button" class="edit-cout-btn" data-index="${r.index}" style="border:none;background:none;cursor:pointer;" title="Corriger">✏️</button>
@@ -5784,7 +5800,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
           date: coutDateInput.value, nomFormateurSession: coutFormateurSelect.value,
           nomEquipier: coutEquipierInput.value.trim(), formation: coutFormationSelect.value,
           tempsTablette: coutTempsTabletteInput.value, tempsAccompagnement: coutTempsAccompagnementInput.value,
-          typeSession: coutTypeSessionSelect.value,
+          typeSession: formationSansTypeSession(coutFormationSelect.value) ? '' : coutTypeSessionSelect.value,
         };
         if(isEdit) payload.index = coutEditingIndex;
         else payload.tauxFormateur = coutFormateurTaux(coutFormateurSelect.value);
