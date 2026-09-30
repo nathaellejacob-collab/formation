@@ -1526,6 +1526,8 @@
       <select id="newEmpRestaurant" required></select>
       <label for="newEmpDate">Date d'entrée</label>
       <input type="date" id="newEmpDate" required>
+      <label style="margin-top:14px;">Disponibilités habituelles <span style="font-weight:400;color:var(--ink-soft);">(facultatif — modifiable ensuite dans sa fiche)</span></label>
+      <div id="newEmpDispoGrid"></div>
       <div class="modal-error" id="addEmployeeError" style="display:none;"></div>
       <div class="modal-actions">
         <button type="button" id="cancelAddEmployee">Annuler</button>
@@ -3824,11 +3826,23 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     const submitBtn = document.getElementById(cfg.ids.submitBtn);
     const cancelBtn = document.getElementById(cfg.ids.cancelBtn);
 
+    const dispoGridEl = cfg.ids.dispoGrid ? document.getElementById(cfg.ids.dispoGrid) : null;
+
     function openModal(){
       form.reset();
       errorEl.style.display = 'none';
       modal.style.display = 'flex';
       restaurantInput.value = currentRestaurant || '';
+      // Grille de disponibilités pré-cochée "disponible partout" par défaut,
+      // comme pour un équipier déjà existant qui n'a encore rien renseigné —
+      // la personne décoche seulement ce qui ne lui convient pas. Le nom
+      // n'existe pas encore à ce stade : on ne s'en sert pas (son propre
+      // bouton "Enregistrer" est masqué, l'envoi se fait avec le formulaire).
+      if(dispoGridEl){
+        dispoGridEl.innerHTML = dispoGridHtml('(nouvel équipier)', null, currentRestaurant);
+        const ownSaveRow = dispoGridEl.querySelector('.save-dispo-btn');
+        if(ownSaveRow) ownSaveRow.closest('div').style.display = 'none';
+      }
       nomInput.focus();
     }
     function closeModal(){
@@ -3856,6 +3870,25 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       errorEl.style.display = 'none';
       try{
         await postUpdate(cfg.addSheetKey, nom, 'dateEntree', dateEntree, {targetRestaurant: restaurant});
+
+        // Disponibilités saisies dans le même formulaire : envoyées juste
+        // après la création, maintenant que le nom existe réellement. Un
+        // échec ici ne doit pas faire croire que la création elle-même a
+        // échoué — l'équipier reste créé, seules ses disponibilités devront
+        // être ressaisies depuis sa fiche.
+        if(dispoGridEl){
+          const values = DISPO_SLOTS.map((s, idx) => {
+            const cb = dispoGridEl.querySelector(`.dispo-checkbox[data-idx="${idx}"]`);
+            return cb ? cb.checked : true;
+          });
+          try{
+            await fetch(APPS_SCRIPT_URL, {
+              method: 'POST',
+              headers: {'Content-Type': 'text/plain;charset=utf-8'},
+              body: JSON.stringify(authBody({ sheet: 'save_disponibilites_batch', nom, values, targetRestaurant: restaurant }))
+            });
+          } catch(dispoErr){ /* création déjà faite — on n'en bloque pas le reste */ }
+        }
 
         const suivi4sButoir = addMonthsJS(dateEntree, 1);
         const suivi60jButoir = addDaysJS(dateEntree, 60);
@@ -3919,7 +3952,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       search:'searchInput', sort:'sortSelect', addBtn:'addEmployeeBtn', chips:'trainingChips',
       statsRow:'statsRow', tableBody:'tableBody', tableHead:'tableHead', cardsWrap:'cardsWrap', emptyState:'emptyState',
       modal:'addEmployeeModal', form:'addEmployeeForm', nomInput:'newEmpNom', restaurantInput:'newEmpRestaurant', dateInput:'newEmpDate',
-      error:'addEmployeeError', submitBtn:'submitAddEmployee', cancelBtn:'cancelAddEmployee'
+      error:'addEmployeeError', submitBtn:'submitAddEmployee', cancelBtn:'cancelAddEmployee', dispoGrid:'newEmpDispoGrid'
     },
     afterChange: function(){
       computePolyStats();
