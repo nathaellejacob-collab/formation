@@ -2448,6 +2448,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       if(accesResponsable){
         html += sectionHeader(n++ + ' — Alternant : parcours et planning', 'var(--plum)');
         html += bullet('« ➕ Ajouter un alternant » crée son profil et génère automatiquement son planning sur plusieurs mois, à partir de sa date de début');
+        html += bullet('Les semaines vont du <strong>dimanche au samedi</strong>. Si l\'alternant commence en milieu de semaine, la première semaine est partielle (ex. départ un jeudi : jeudi, vendredi, samedi) et l\'objectif de 35 h ne s\'applique qu\'aux semaines complètes. « ➕ Ajouter une semaine » complète d\'abord la semaine en cours jusqu\'au samedi, puis ajoute des semaines entières');
         html += bullet('Dans le planning, clique directement sur une case (statut, horaires, pauses, formation, formateur) pour la modifier — Entrée (ou le choix dans un menu déroulant) enregistre aussitôt ; le 💾 en bout de ligne enregistre si besoin');
         html += bullet('« 🔄 Recalculer les formations » réattribue automatiquement les formations prévues à partir des jours travaillés, sans toucher aux statuts ni aux horaires déjà saisis');
         html += bullet('« ➕ Ajouter une semaine » prolonge le planning si le parcours dépasse la durée prévue ; le 🗑️ sur l\'en-tête d\'une semaine la supprime entièrement');
@@ -5130,7 +5131,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     // Par défaut, la date de début du parcours — ou la date d'aujourd'hui si
     // elle tombe dans le parcours, pour retrouver directement la semaine en cours.
     const alt = alternantsCache.find(a => a.nom === currentAlternantNom);
-    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayStr = isoLocal(new Date());
     const joursDisponibles = alternantPlanningCache.map(j => j.date).filter(Boolean).sort();
     const defaut = (alt && joursDisponibles.includes(todayStr)) ? todayStr : (alt ? alt.dateDebut : (joursDisponibles[0] || ''));
     alternantDateSelect.value = defaut;
@@ -5147,48 +5148,81 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
   // Regroupe les jours par semaine de 7 jours consécutifs à partir de la
   // date de début du parcours (comme le tableur de référence) — pas des
   // semaines civiles.
-  function groupByWeek(jours, dateDebut){
-    const debut = parseDate(dateDebut);
+  // Semaines du DIMANCHE au SAMEDI. Le planning commence à la vraie date de
+  // début du parcours : si elle tombe en milieu de semaine, la première
+  // semaine est une semaine partielle (ex. départ un jeudi : jeudi, vendredi,
+  // samedi) ; dès le dimanche suivant, le planning reprend sur des semaines
+  // complètes. Les jours reçus doivent être triés par date.
+  function isoLocal(d){
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const j = String(d.getDate()).padStart(2, '0');
+    return `${d.getFullYear()}-${m}-${j}`;
+  }
+  function dimancheDeLaSemaine(dateStr){
+    const d = parseDate(dateStr);
+    if(!d) return '';
+    d.setDate(d.getDate() - d.getDay()); // getDay() : 0 = dimanche
+    return isoLocal(d);
+  }
+  function groupByWeek(jours){
     const groups = [];
+    const parCle = {};
     jours.forEach(j => {
-      const d = parseDate(j.date);
-      const diffJours = Math.floor((d - debut) / 86400000);
-      const semaineIdx = Math.floor(diffJours / 7);
-      if(!groups[semaineIdx]) groups[semaineIdx] = [];
-      groups[semaineIdx].push(j);
+      const cle = dimancheDeLaSemaine(j.date);
+      if(!parCle[cle]){ parCle[cle] = []; groups.push(parCle[cle]); }
+      parCle[cle].push(j);
     });
-    return groups.filter(Boolean);
+    return groups;
+  }
+  // Libellé et total d'une semaine. Seule une semaine complète (7 jours) est
+  // comparée à l'objectif de 35 h : une semaine partielle (début de parcours,
+  // ou fin d'un ancien planning) affiche simplement son total.
+  function infosSemaine(semaine){
+    const complete = semaine.length === 7;
+    const total = Math.round(semaine.reduce((s, j) => s + (j.heures || 0), 0) * 100) / 100;
+    const du = frDate(parseDate(semaine[0].date));
+    const au = frDate(parseDate(semaine[semaine.length - 1].date));
+    const libelle = `Semaine du ${du} au ${au}` + (complete ? '' : ` · semaine partielle (${semaine.length} jour${semaine.length > 1 ? 's' : ''})`);
+    return { complete, total, libelle };
+  }
+  // L'affichage commence toujours au dimanche de la semaine choisie, pour ne
+  // jamais montrer une semaine tronquée (sauf à la toute première, qui
+  // commence à la vraie date de début du parcours).
+  function joursAPartirDe(planning, depuisDate){
+    const debut = depuisDate ? dimancheDeLaSemaine(depuisDate) : '';
+    return planning.filter(j => j.date && (!debut || j.date >= debut)).sort((a, b) => a.date.localeCompare(b.date));
   }
 
   // Rendu façon tableur : un vrai tableau, une ligne par jour, une ligne de
   // total à la fin de chaque semaine — plus proche du fichier Excel
   // d'origine qu'un empilement de cartes. Filtré par mois affiché.
   function renderAlternantPlanningTable(depuisDate){
-    const jours = alternantPlanningCache.filter(j => j.date && (!depuisDate || j.date >= depuisDate)).sort((a,b) => a.date.localeCompare(b.date));
+    const jours = joursAPartirDe(alternantPlanningCache, depuisDate);
     if(!jours.length){
       alternantPlanningTableWrap.innerHTML = '<p style="color:var(--ink-soft);font-size:13px;">Aucun jour à partir de cette date.</p>';
       return;
     }
-    const alt = alternantsCache.find(a => a.nom === currentAlternantNom);
-    const semaines = alt ? groupByWeek(jours, alt.dateDebut) : [jours];
+    const semaines = groupByWeek(jours);
 
     const thead = `<thead><tr>
       <th>Date</th><th>Jour</th><th>Statut</th><th>Quart 1</th><th>Quart 2</th><th>Pauses</th><th>Heures</th><th>Formation</th><th>Formateur</th>${canManageAlternant ? '<th></th>' : ''}
     </tr></thead>`;
 
     const tbody = semaines.map((semaine) => {
-      const totalSemaine = semaine.reduce((s, j) => s + (j.heures || 0), 0);
+      const { complete, total: totalSemaine, libelle } = infosSemaine(semaine);
       const atteint35 = totalSemaine >= 35;
       const nbCols = canManageAlternant ? 10 : 9;
       const datesSemaine = semaine.map(j => j.date).join(',');
       const headerRow = `<tr class="alt-semaine-header-row" style="background:#faf9f4;">
-        <td colspan="${canManageAlternant ? nbCols - 1 : nbCols}" style="font-weight:700; font-size:11.5px; color:var(--ink-soft);">Semaine du ${frDate(parseDate(semaine[0].date))}</td>
+        <td colspan="${canManageAlternant ? nbCols - 1 : nbCols}" style="font-weight:700; font-size:11.5px; color:var(--ink-soft);">${libelle}</td>
         ${canManageAlternant ? `<td><button type="button" class="delete-semaine-alternant-btn" data-dates="${datesSemaine}" style="border:none;background:none;color:var(--red);cursor:pointer;" title="Supprimer cette semaine">🗑️</button></td>` : ''}
       </tr>`;
       const joursRows = semaine.map(j => renderJourRow(j, depuisDate)).join('');
       const totalRow = `<tr style="font-weight:700;">
         <td colspan="6">TOTAL SEMAINE</td>
-        <td><span class="action-pill ${atteint35 ? 'green' : 'red'}">${totalSemaine} h / 35 h${atteint35 ? ' ✓' : ''}</span></td>
+        <td>${complete
+          ? `<span class="action-pill ${atteint35 ? 'green' : 'red'}">${totalSemaine} h / 35 h${atteint35 ? ' ✓' : ''}</span>`
+          : `<span class="action-pill gray">${totalSemaine} h</span>`}</td>
         <td colspan="${canManageAlternant ? 3 : 2}"></td>
       </tr>`;
       return headerRow + joursRows + totalRow;
@@ -5362,13 +5396,13 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
   // navigateur, où "Enregistrer en PDF" est proposé comme imprimante.
   telechargerPdfAlternantBtn && telechargerPdfAlternantBtn.addEventListener('click', () => {
     const depuisDate = alternantDateSelect.value;
-    const jours = alternantPlanningCache.filter(j => j.date && (!depuisDate || j.date >= depuisDate)).sort((a,b) => a.date.localeCompare(b.date));
+    const jours = joursAPartirDe(alternantPlanningCache, depuisDate);
     if(!jours.length){ alert('Aucun jour à afficher pour cette période.'); return; }
     const alt = alternantsCache.find(a => a.nom === currentAlternantNom);
-    const semaines = alt ? groupByWeek(jours, alt.dateDebut) : [jours];
+    const semaines = groupByWeek(jours);
 
     const lignesHtml = semaines.map(semaine => {
-      const totalSemaine = semaine.reduce((s, j) => s + (j.heures || 0), 0);
+      const { complete, total: totalSemaine, libelle } = infosSemaine(semaine);
       const joursHtml = semaine.map(j => {
         const peutAvoirHoraires = j.statut === 'travail' || j.statut === 'ecole';
         const quart1 = (peutAvoirHoraires && j.heureDebut1 && j.heureFin1) ? `${j.heureDebut1}–${j.heureFin1}` : '—';
@@ -5383,9 +5417,9 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
           <td>${j.formateur || '—'}</td>
         </tr>`;
       }).join('');
-      return `<tr style="background:#f2f0e8;"><td colspan="7" style="font-weight:700;">Semaine du ${frDate(parseDate(semaine[0].date))}</td></tr>
+      return `<tr style="background:#f2f0e8;"><td colspan="7" style="font-weight:700;">${libelle}</td></tr>
         ${joursHtml}
-        <tr style="font-weight:700;"><td colspan="4">TOTAL SEMAINE</td><td colspan="3">${totalSemaine} h / 35 h${totalSemaine >= 35 ? ' ✓' : ''}</td></tr>`;
+        <tr style="font-weight:700;"><td colspan="4">TOTAL SEMAINE</td><td colspan="3">${complete ? `${totalSemaine} h / 35 h${totalSemaine >= 35 ? ' ✓' : ''}` : `${totalSemaine} h`}</td></tr>`;
     }).join('');
 
     const win = window.open('', '_blank');
@@ -5401,7 +5435,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       </style>
       </head><body>
       <h1>Planning de formation — ${currentAlternantNom}</h1>
-      <p class="sub">${currentRestaurant}${alt ? ' · Parcours débuté le ' + frDate(parseDate(alt.dateDebut)) : ''} · à partir du ${frDate(parseDate(depuisDate || jours[0].date))}</p>
+      <p class="sub">${currentRestaurant}${alt ? ' · Parcours débuté le ' + frDate(parseDate(alt.dateDebut)) : ''} · à partir du ${frDate(parseDate(jours[0].date))}</p>
       <table><thead><tr><th>Date</th><th>Jour</th><th>Statut</th><th>Horaires</th><th>Heures</th><th>Formation</th><th>Formateur</th></tr></thead>
       <tbody>${lignesHtml}</tbody></table>
       </body></html>`);
