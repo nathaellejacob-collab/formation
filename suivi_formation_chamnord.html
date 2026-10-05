@@ -1337,7 +1337,7 @@
           <li>Sans étape de zone à faire, priorité aux personnes dont le taux de polyvalence est le plus faible, en Production ou en Service.</li>
           <li>En dernier recours seulement : les formations « Autres ».</li>
         </ol>
-        <p style="margin:4px 0 0;">Plafonds par mois : 2 formations par formateur, et 2 par équipier.</p>
+        <p style="margin:4px 0 0;">Plafonds par mois : 2 formations par formateur, 2 par équipier, et un même poste n'est jamais proposé plus de 3 fois.</p>
         <p style="margin:4px 0 0;">Chaque proposition garde le nom exact de la vérification. Quand une vérification couvre plusieurs postes (ex. « Assemblage et Présentation » : comptoir, drive, OAT), le poste concerné est indiqué et le Responsable peut le choisir dans le menu de la proposition.</p>
       </details>
     </div>
@@ -2515,7 +2515,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       if(accesResponsable){
         html += sectionHeader(n++ + ' — Fonctions Responsable de la formation', 'var(--plum)');
         html += bullet('« 👥 Gérer les profils » : ajoute, modifie ou désactive un formateur/profil, définis son poste (qui détermine son accès)');
-        html += bullet('Depuis « Planification » : « Générer » propose de nouvelles formations pour le mois, « Ignorer » retire une proposition — y compris une formation déjà réalisée (✓ Réalisée) — et libère sa place : « Générer » pourra alors en proposer une nouvelle. Un équipier ne reçoit jamais plus de 2 formations par mois');
+        html += bullet('Depuis « Planification » : « Générer » propose de nouvelles formations pour le mois, « Ignorer » retire une proposition — y compris une formation déjà réalisée (✓ Réalisée) — et libère sa place : « Générer » pourra alors en proposer une nouvelle. Un équipier ne reçoit jamais plus de 2 formations par mois, et un même poste n\'est jamais proposé plus de 3 fois sur le mois');
         html += bullet('Ordre de priorité des propositions : 1) les personnes arrivées dans les 2 derniers mois, 2) zone par zone (« Cuisine » puis « Comptoir »), 3) dans l\'ordre de formation défini pour chaque zone, 4) sans étape de zone à faire, le taux de polyvalence le plus faible en Production ou en Service, 5) en dernier recours, les formations « Autres »');
         html += bullet('Quand une vérification regroupe plusieurs postes (ex. « Assemblage et Présentation » : comptoir, drive, OAT), choisis dans le menu de la proposition le poste concerné par la formation. Le nom exact de la vérification ne change pas : c\'est lui qui la valide automatiquement quand elle est cochée dans « Postes &amp; Polyvalence »');
         html += bullet('Quand une vérification couvre plusieurs postes (ex. « Assemblage et Présentation » : comptoir, drive, OAT), le poste concerné s\'affiche sur la proposition et se choisit dans son menu « Poste à préciser » — le nom exact de la vérification ne change jamais, c\'est lui qui la valide automatiquement quand le poste est coché dans Postes &amp; Polyvalence');
@@ -6115,6 +6115,10 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
   // (en plus de l'objectif de 2 par formateur). Seules les propositions non
   // ignorées comptent — « Proposé » comme « Validé ».
   const MAX_FORMATIONS_PAR_EQUIPIER = 2;
+  // Un même poste (= une même vérification, par son nom exact) n'est jamais
+  // proposé plus de 3 fois sur le même mois, quel que soit le statut des
+  // propositions déjà présentes sauf « Ignoré ».
+  const MAX_PROPOSITIONS_PAR_POSTE = 3;
 
   // Un équipier est « nouveau » s'il est arrivé au cours des 2 derniers mois
   // (date d'entrée réelle, et non l'ancienneté arrondie en mois).
@@ -6160,12 +6164,14 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     return a.taux - b.taux;                                   // 4. polyvalence la plus faible d'abord
   }
 
-  function matchFormateursToNeeds(needsByEmp, formateurCompetences, startingCounts, dispoByNom, startingCountsEquipier){
+  function matchFormateursToNeeds(needsByEmp, formateurCompetences, startingCounts, dispoByNom, startingCountsEquipier, startingCountsPoste){
     const usedPairs = new Set();
     const proposals = [];
     const counts = {}; // nom -> nombre de propositions déjà attribuées à ce formateur
     formateurCompetences.forEach(f => { counts[f.nom] = (startingCounts && startingCounts[f.nom]) || 0; });
     const countsEq = Object.assign({}, startingCountsEquipier || {}); // nom d'équipier -> formations déjà ce mois-ci
+    const countsPoste = Object.assign({}, startingCountsPoste || {}); // libellé normalisé du poste -> propositions déjà ce mois-ci
+    const posteAtteint = (poste) => (countsPoste[normLabel(poste.label)] || 0) >= MAX_PROPOSITIONS_PAR_POSTE;
     const allAvailable = DISPO_SLOTS.map(() => true);
     function dispoOf(nom){ return (dispoByNom && dispoByNom[nom]) || allAvailable; }
 
@@ -6183,6 +6189,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
           const posteIdx = POSTES.findIndex(p => p.key === posteKey);
           if(posteIdx === -1 || !f.competences[posteIdx]) return;
           const poste = POSTES[posteIdx];
+          if(posteAtteint(poste)) return; // ce poste a déjà été proposé 3 fois ce mois-ci
           const rang = rangFormation(nom, poste);
           if((rang.classe === 2) !== autres) return;
           options.push({ nom, posteKey, poste, rang, ordre: ordre++ });
@@ -6212,6 +6219,8 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
           usedPairs.add(choix.nom + '|' + choix.posteKey);
           counts[f.nom]++;
           countsEq[choix.nom] = (countsEq[choix.nom] || 0) + 1;
+          const clePoste = normLabel(choix.poste.label);
+          countsPoste[clePoste] = (countsPoste[clePoste] || 0) + 1;
         });
       }
     });
@@ -6225,6 +6234,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         let hasCompetenceMatch = false;
         let hasCompetenceAndDispoMatch = false;
         let bloqueParPlafond = false;
+        let bloqueParPoste = false;
         Object.keys(needsByEmp).forEach(nom => {
           needsByEmp[nom].forEach(posteKey => {
             const posteIdx = POSTES.findIndex(p => p.key === posteKey);
@@ -6232,6 +6242,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
             hasCompetenceMatch = true;
             if(!dispoByNom || hasDispoOverlap(dispoOf(f.nom), dispoOf(nom))){
               if((countsEq[nom] || 0) >= MAX_FORMATIONS_PAR_EQUIPIER) bloqueParPlafond = true;
+              else if(posteAtteint(POSTES[posteIdx])) bloqueParPoste = true;
               else hasCompetenceAndDispoMatch = true;
             }
           });
@@ -6239,6 +6250,8 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         let raison;
         if(!hasCompetenceMatch){
           raison = "aucune compétence en commun avec les besoins actuels";
+        } else if(!hasCompetenceAndDispoMatch && bloqueParPoste){
+          raison = `les postes concernés ont déjà été proposés ${MAX_PROPOSITIONS_PAR_POSTE} fois ce mois-ci`;
         } else if(!hasCompetenceAndDispoMatch && bloqueParPlafond){
           raison = `les équipiers concernés ont déjà ${MAX_FORMATIONS_PAR_EQUIPIER} formations ce mois-ci`;
         } else if(!hasCompetenceAndDispoMatch){
@@ -6748,6 +6761,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
 
           const countsByFormateur = {}; // objectif de 2 : uniquement le mois ciblé
           const countsByEquipier = {}; // plafond de 2 par équipier : uniquement le mois ciblé
+          const countsByPoste = {}; // plafond de 3 par poste (vérification) : uniquement le mois ciblé
           const usedPairs = new Set(); // "déjà en attente/validé" : tous mois confondus, jamais de doublon
           const ignoredPairs = new Set(); // "ignoré" : seulement pour le mois ciblé (redevient éligible ensuite)
           existingAll.forEach(p => {
@@ -6756,6 +6770,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
               if(p.mois === currentViewedMonth){
                 countsByFormateur[p.formateur] = (countsByFormateur[p.formateur] || 0) + 1;
                 countsByEquipier[p.equipier] = (countsByEquipier[p.equipier] || 0) + 1;
+                countsByPoste[normLabel(p.posteLabel)] = (countsByPoste[normLabel(p.posteLabel)] || 0) + 1;
               }
             } else if(p.mois === currentViewedMonth){
               ignoredPairs.add(p.equipier + '|' + p.posteLabel);
@@ -6777,7 +6792,14 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
           const equipiersPlafonnes = Object.keys(needsByEmp).filter(nom => (countsByEquipier[nom] || 0) >= MAX_FORMATIONS_PAR_EQUIPIER);
           equipiersPlafonnes.forEach(nom => { delete needsByEmp[nom]; });
 
-          const { proposals: newProposals, shortages } = matchFormateursToNeeds(needsByEmp, data.formateurs || [], countsByFormateur, dispoByNom, countsByEquipier);
+          // Postes déjà proposés 3 fois ce mois-ci et encore demandés par des
+          // équipiers : ils ne sont plus proposés, on les signale (libellé exact).
+          const postesPlafonnes = [...new Set(Object.values(needsByEmp).flat()
+            .map(key => POSTES.find(p => p.key === key))
+            .filter(poste => poste && (countsByPoste[normLabel(poste.label)] || 0) >= MAX_PROPOSITIONS_PAR_POSTE)
+            .map(poste => poste.label))];
+
+          const { proposals: newProposals, shortages } = matchFormateursToNeeds(needsByEmp, data.formateurs || [], countsByFormateur, dispoByNom, countsByEquipier, countsByPoste);
 
           // Une vérification qui a des postes reçoit d'emblée le premier dans l'ordre
           // défini ; le Responsable peut le changer ensuite dans le menu de la proposition.
@@ -6800,7 +6822,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
           renderPersistedPlanning(finalProposals);
           if(!newProposals.length){
             document.getElementById('planningResults').insertAdjacentHTML('afterbegin',
-              '<p class="planning-empty">Rien à ajouter — chaque formateur a déjà ses 2 propositions, ou plus aucun besoin compatible n\'est disponible' + (equipiersPlafonnes.length ? ` (${equipiersPlafonnes.length} équipier${equipiersPlafonnes.length > 1 ? 's ont' : ' a'} déjà ${MAX_FORMATIONS_PAR_EQUIPIER} formations ce mois-ci)` : '') + '.</p>'
+              '<p class="planning-empty">Rien à ajouter — chaque formateur a déjà ses 2 propositions, ou plus aucun besoin compatible n\'est disponible' + (equipiersPlafonnes.length ? ` (${equipiersPlafonnes.length} équipier${equipiersPlafonnes.length > 1 ? 's ont' : ' a'} déjà ${MAX_FORMATIONS_PAR_EQUIPIER} formations ce mois-ci)` : '') + (postesPlafonnes.length ? ` — déjà proposé ${MAX_PROPOSITIONS_PAR_POSTE} fois ce mois-ci : ${postesPlafonnes.map(escHtml).join(', ')}` : '') + '.</p>'
             );
           }
           if(shortages.length){
@@ -6811,7 +6833,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
           }
           const totalNeeds = Object.values(needsByEmp).reduce((s, arr) => s + arr.length, 0);
           document.getElementById('planningResults').insertAdjacentHTML('beforeend',
-            `<p style="font-size:11px;color:var(--ink-soft);margin-top:14px;">Diagnostic : ${data.formateurs.length} formateur(s) pris en compte, ${Object.keys(needsByEmp).length} équipier(s) avec des besoins de formation restants (${totalNeeds} besoin(s) au total), ${newProposals.length} nouvelle(s) proposition(s) ajoutée(s) ce coup-ci${equipiersPlafonnes.length ? `, ${equipiersPlafonnes.length} équipier(s) écarté(s) car déjà à ${MAX_FORMATIONS_PAR_EQUIPIER} formations ce mois-ci` : ''}.</p>`
+            `<p style="font-size:11px;color:var(--ink-soft);margin-top:14px;">Diagnostic : ${data.formateurs.length} formateur(s) pris en compte, ${Object.keys(needsByEmp).length} équipier(s) avec des besoins de formation restants (${totalNeeds} besoin(s) au total), ${newProposals.length} nouvelle(s) proposition(s) ajoutée(s) ce coup-ci${equipiersPlafonnes.length ? `, ${equipiersPlafonnes.length} équipier(s) écarté(s) car déjà à ${MAX_FORMATIONS_PAR_EQUIPIER} formations ce mois-ci` : ''}${postesPlafonnes.length ? `, ${postesPlafonnes.length} poste(s) déjà proposé(s) ${MAX_PROPOSITIONS_PAR_POSTE} fois ce mois-ci (${postesPlafonnes.map(escHtml).join(', ')})` : ''}.</p>`
           );
         } catch(err){
           document.getElementById('planningResults').innerHTML = '<p class="planning-empty" style="color:var(--red);">Erreur : ' + err.message + '</p>';
