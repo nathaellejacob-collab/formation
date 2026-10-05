@@ -1301,7 +1301,18 @@
   <div class="panel-block">
     <div class="panel-head">
       <h3>🗓️ Planification mensuelle des formations</h3>
-      <p>Propose automatiquement 2 formations initiales par formateur, en respectant qui peut former quoi et les besoins réels des équipiers. Une proposition devient validée automatiquement dès que le poste est coché maîtrisé dans « Postes &amp; Polyvalence » — inutile de la valider ici. « Ignorer » retire simplement une proposition qui n'aurait pas dû être faite ; reclique « Générer » ensuite pour compléter automatiquement les formateurs qui n'ont plus leurs 2 propositions.</p>
+      <p>Propose automatiquement 2 formations initiales par formateur, en respectant qui peut former quoi et les besoins réels des équipiers. Une proposition devient validée automatiquement dès que le poste est coché maîtrisé dans « Postes &amp; Polyvalence » — inutile de la valider ici. « Ignorer » retire une proposition qui n'aurait pas dû être faite, ou même une formation déjà réalisée ; reclique « Générer » ensuite pour compléter les formateurs qui n'ont plus leurs 2 propositions.</p>
+      <details class="planning-priorites" style="margin-top:6px; font-size:12.5px; color:var(--ink-soft);">
+        <summary style="cursor:pointer; font-weight:700; color:var(--ink);">📋 Ordre de priorité des propositions</summary>
+        <ol style="margin:8px 0 4px 18px; padding:0; line-height:1.55;">
+          <li>Les personnes arrivées au cours des 2 derniers mois sont formées en priorité.</li>
+          <li>Les formations sont organisées zone par zone : « Cuisine » et « Comptoir ».</li>
+          <li>On suit l'ordre de formation défini pour chaque zone (panneau « Ordre de formation par filière »).</li>
+          <li>Sans étape de zone à faire, priorité aux personnes dont le taux de polyvalence est le plus faible, en Production ou en Service.</li>
+          <li>En dernier recours seulement : les formations « Autres ».</li>
+        </ol>
+        <p style="margin:4px 0 0;">Plafonds par mois : 2 formations par formateur, et 2 par équipier.</p>
+      </details>
     </div>
     <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
       <button type="button" id="generatePlanningBtn" class="planning-generate-btn">🧮 Générer le planning du mois</button>
@@ -2460,7 +2471,8 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       if(accesResponsable){
         html += sectionHeader(n++ + ' — Fonctions Responsable de la formation', 'var(--plum)');
         html += bullet('« 👥 Gérer les profils » : ajoute, modifie ou désactive un formateur/profil, définis son poste (qui détermine son accès)');
-        html += bullet('Depuis « Planification » : « Générer » propose de nouvelles formations pour le mois, « Ignorer » retire une proposition sans la remplacer');
+        html += bullet('Depuis « Planification » : « Générer » propose de nouvelles formations pour le mois, « Ignorer » retire une proposition — y compris une formation déjà réalisée (✓ Réalisée) — et libère sa place : « Générer » pourra alors en proposer une nouvelle. Un équipier ne reçoit jamais plus de 2 formations par mois');
+        html += bullet('Ordre de priorité des propositions : 1) les personnes arrivées dans les 2 derniers mois, 2) zone par zone (« Cuisine » puis « Comptoir »), 3) dans l\'ordre de formation défini pour chaque zone, 4) sans étape de zone à faire, le taux de polyvalence le plus faible en Production ou en Service, 5) en dernier recours, les formations « Autres »');
         html += bullet('« Restrictions par équipier » (dans Planification) : indique les postes à ne jamais proposer à quelqu\'un');
       }
 
@@ -5963,11 +5975,23 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
   //
   // Règles connues, propres à ce restaurant :
   // - certains postes ne sont jamais proposés en formation planifiée
-  // - un équipier qui a commencé Production ou Service doit finir cette
-  //   famille à 100% avant de basculer sur l'autre
   // - chaque formateur ne peut former que sur les postes où il est coché
   //   compétent ; un équipier ne se voit jamais proposer un poste marqué
   //   comme restreint pour lui
+  // - plafonds mensuels : 2 formations par formateur, 2 par équipier
+  //
+  // ORDRE DE PRIORITÉ (voulu par le gérant) pour décider qui former et sur quoi :
+  //   1. Les personnes arrivées au cours des 2 derniers mois, en premier.
+  //   2. Zone par zone, « Cuisine » et « Comptoir » : un équipier avance dans
+  //      une seule zone à la fois, qu'il finit avant de passer à l'autre.
+  //   3. Dans chaque zone, l'ordre de formation défini (panneau « Ordre de
+  //      formation par filière ») : toujours le premier poste pas encore acquis.
+  //   4. Sans étape de zone à faire : on priorise le taux de polyvalence le
+  //      plus faible, en Production ou en Service — pour choisir la zone d'un
+  //      équipier qui n'en a commencé aucune (la famille la plus faible du
+  //      restaurant), puis les équipiers les moins polyvalents sur les postes
+  //      hors zone Production/Service.
+  //   5. En dernier recours seulement : les formations « Autres ».
 
   function computePlanningNeeds(){
     const activePostes = TRAINABLE_POSTES;
@@ -5987,24 +6011,34 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       const comptoir = statusFor(comptoirPostes);
       const cuisineStarted = cuisine.done > 0, cuisineComplete = cuisine.total > 0 && cuisine.done === cuisine.total;
       const comptoirStarted = comptoir.done > 0, comptoirComplete = comptoir.total > 0 && comptoir.done === comptoir.total;
+      // Une zone reste « à faire » tant qu'elle contient des postes et n'est pas terminée.
+      const cuisineAFaire = cuisine.total > 0 && !cuisineComplete;
+      const comptoirAFaire = comptoir.total > 0 && !comptoirComplete;
 
+      // Zone par zone : on termine la zone en cours avant de passer à l'autre,
+      // et une fois une zone terminée on enchaîne sur celle qui reste.
       let trackPostes;
-      if(cuisineStarted && !cuisineComplete && (!comptoirStarted || comptoirComplete)){
-        trackPostes = cuisinePostes;
-      } else if(comptoirStarted && !comptoirComplete && (!cuisineStarted || cuisineComplete)){
-        trackPostes = comptoirPostes;
-      } else if(cuisineStarted && !cuisineComplete && comptoirStarted && !comptoirComplete){
-        // Les deux filières entamées à la fois (ne devrait pas arriver) : on continue la plus avancée.
-        trackPostes = (cuisine.total ? cuisine.done/cuisine.total : 0) >= (comptoir.total ? comptoir.done/comptoir.total : 0) ? cuisinePostes : comptoirPostes;
-      } else if(!cuisineStarted && !comptoirStarted){
-        // Aucune filière démarrée : on priorise celle dont le taux de
-        // polyvalence (Production vs Service) est le plus faible pour le
-        // restaurant — le besoin le plus criant passe en premier, plutôt
-        // que de toujours démarrer par la cuisine par défaut.
-        const restoStats = computeRestaurantStats(currentRestaurant);
-        trackPostes = restoStats.prodAvg <= restoStats.servAvg ? cuisinePostes : comptoirPostes;
+      if(cuisineAFaire && comptoirAFaire){
+        if(cuisineStarted && !comptoirStarted){
+          trackPostes = cuisinePostes;
+        } else if(comptoirStarted && !cuisineStarted){
+          trackPostes = comptoirPostes;
+        } else if(cuisineStarted && comptoirStarted){
+          // Les deux zones entamées à la fois (ne devrait pas arriver) : on continue la plus avancée.
+          trackPostes = (cuisine.done/cuisine.total) >= (comptoir.done/comptoir.total) ? cuisinePostes : comptoirPostes;
+        } else {
+          // Aucune zone démarrée : on prend la famille dont le taux de
+          // polyvalence (Production vs Service) est le plus faible pour le
+          // restaurant — le besoin le plus criant passe en premier.
+          const restoStats = computeRestaurantStats(currentRestaurant);
+          trackPostes = restoStats.prodAvg <= restoStats.servAvg ? cuisinePostes : comptoirPostes;
+        }
+      } else if(cuisineAFaire){
+        trackPostes = cuisinePostes;   // Comptoir terminé (ou sans poste) : il reste Cuisine
+      } else if(comptoirAFaire){
+        trackPostes = comptoirPostes;  // Cuisine terminée (ou sans poste) : il reste Comptoir
       } else {
-        trackPostes = []; // les deux filières déjà complètes
+        trackPostes = [];              // les deux zones sont terminées
       }
 
       // Dans la filière en cours, un SEUL poste possible à la fois : le
@@ -6029,60 +6063,110 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     return needsByEmp;
   }
 
-  function matchFormateursToNeeds(needsByEmp, formateurCompetences, startingCounts, dispoByNom){
-    // Ancienneté d'un équipier/membre gestion, pour la priorité "2 mois ou
-    // moins" ci-dessous (ne sert qu'à départager, jamais à passer devant
-    // tout le reste).
-    function ancienneteOf(nom){
-      const p = employees.find(e => e.nom === nom) || managers.find(m => m.nom === nom);
-      return p && p.ancienneteMois !== null && p.ancienneteMois !== undefined ? p.ancienneteMois : null;
-    }
+  // Plafond : jamais plus de 2 formations par équipier sur un même mois
+  // (en plus de l'objectif de 2 par formateur). Seules les propositions non
+  // ignorées comptent — « Proposé » comme « Validé ».
+  const MAX_FORMATIONS_PAR_EQUIPIER = 2;
 
+  // Un équipier est « nouveau » s'il est arrivé au cours des 2 derniers mois
+  // (date d'entrée réelle, et non l'ancienneté arrondie en mois).
+  const MOIS_NOUVEL_ARRIVANT = 2;
+  function estNouvelArrivant(nom){
+    const e = employees.find(x => x.nom === nom);
+    const entree = e && parseDate(e.dateEntree);
+    if(!entree) return false;
+    const seuil = new Date();
+    seuil.setHours(0, 0, 0, 0);
+    seuil.setMonth(seuil.getMonth() - MOIS_NOUVEL_ARRIVANT);
+    return entree >= seuil;
+  }
+
+  // Taux de polyvalence d'un équipier dans une famille de postes (Production,
+  // Service ou Autres) : part des postes formables de cette famille qu'il
+  // maîtrise déjà. 1 si la famille est vide (rien à départager).
+  function tauxPolyvalenceFamille(nom, groupe){
+    const e = employees.find(x => x.nom === nom);
+    const postes = TRAINABLE_POSTES.filter(p => p.group === groupe);
+    if(!e || !postes.length) return 1;
+    const acquis = postes.filter(p => e.skills[POSTES.indexOf(p)]).length;
+    return acquis / postes.length;
+  }
+
+  // Rang d'une formation possible (équipier + poste), du plus prioritaire au
+  // moins prioritaire — voir l'ordre de priorité en tête de section.
+  //   classe 0 : étape d'une zone (Cuisine / Comptoir), dans l'ordre défini
+  //   classe 1 : poste Production/Service hors zone
+  //   classe 2 : poste « Autres » hors zone — dernier recours
+  function rangFormation(nom, poste){
+    const enZone = !!trackOf(poste.label);
+    const autres = !enZone && poste.group === 'autres';
+    return {
+      classe: enZone ? 0 : (autres ? 2 : 1),
+      nouveau: estNouvelArrivant(nom),
+      taux: tauxPolyvalenceFamille(nom, poste.group),
+    };
+  }
+  function comparerRangs(a, b){
+    if(a.nouveau !== b.nouveau) return a.nouveau ? -1 : 1;   // 1. nouveaux arrivants d'abord
+    if(a.classe !== b.classe) return a.classe - b.classe;     // 2-3. étape de zone, puis hors zone
+    return a.taux - b.taux;                                   // 4. polyvalence la plus faible d'abord
+  }
+
+  function matchFormateursToNeeds(needsByEmp, formateurCompetences, startingCounts, dispoByNom, startingCountsEquipier){
     const usedPairs = new Set();
     const proposals = [];
     const counts = {}; // nom -> nombre de propositions déjà attribuées à ce formateur
     formateurCompetences.forEach(f => { counts[f.nom] = (startingCounts && startingCounts[f.nom]) || 0; });
+    const countsEq = Object.assign({}, startingCountsEquipier || {}); // nom d'équipier -> formations déjà ce mois-ci
     const allAvailable = DISPO_SLOTS.map(() => true);
     function dispoOf(nom){ return (dispoByNom && dispoByNom[nom]) || allAvailable; }
 
-    // Deux passes plutôt qu'une seule : d'abord UNE proposition pour CHAQUE
-    // formateur (équitable), puis une deuxième si des besoins restent après
-    // le premier tour. Évite qu'un formateur traité en premier n'épuise à
-    // lui seul tous les besoins disponibles au détriment des suivants.
-    for(let pass = 0; pass < 2; pass++){
-      formateurCompetences.forEach(f => {
-        if(counts[f.nom] >= 2) return;
-        const candidates = Object.keys(needsByEmp)
-          .map(nom => ({ nom, gaps: needsByEmp[nom] }))
-          .filter(cand => !dispoByNom || hasDispoOverlap(dispoOf(f.nom), dispoOf(cand.nom))) // aucun créneau en commun : formateur et équipier ne se croisent jamais
-          .sort((a,b) => {
-            const gapDiff = a.gaps.length - b.gaps.length; // priorité à ceux les plus proches de finir leur famille
-            if(gapDiff !== 0) return gapDiff;
-            // À égalité : priorité aux équipiers ayant 2 mois ou moins d'ancienneté.
-            const aNouveau = ancienneteOf(a.nom) !== null && ancienneteOf(a.nom) <= 2;
-            const bNouveau = ancienneteOf(b.nom) !== null && ancienneteOf(b.nom) <= 2;
-            if(aNouveau && !bNouveau) return -1;
-            if(bNouveau && !aNouveau) return 1;
-            return 0;
-          });
-
-        for(const cand of candidates){
-          let assigned = false;
-          for(const posteKey of cand.gaps){
-            const pairKey = cand.nom + '|' + posteKey;
-            if(usedPairs.has(pairKey)) continue;
-            const posteIdx = POSTES.findIndex(p => p.key === posteKey);
-            if(!f.competences[posteIdx]) continue;
-            proposals.push({ formateur: f.nom, equipier: cand.nom, posteKey, posteLabel: POSTES[posteIdx].label });
-            usedPairs.add(pairKey);
-            counts[f.nom]++;
-            assigned = true;
-            break;
-          }
-          if(assigned) break;
-        }
+    // Toutes les formations qu'un formateur pourrait donner maintenant, déjà
+    // triées par priorité. `autres` choisit la famille : false = tout sauf les
+    // « Autres », true = uniquement les « Autres ».
+    function optionsPour(f, autres){
+      const options = [];
+      let ordre = 0; // départage deux formations de même rang : l'ordre d'origine
+      Object.keys(needsByEmp).forEach(nom => {
+        if((countsEq[nom] || 0) >= MAX_FORMATIONS_PAR_EQUIPIER) return; // déjà 2 formations ce mois-ci
+        if(dispoByNom && !hasDispoOverlap(dispoOf(f.nom), dispoOf(nom))) return; // aucun créneau en commun : ils ne se croisent jamais
+        needsByEmp[nom].forEach(posteKey => {
+          if(usedPairs.has(nom + '|' + posteKey)) return;
+          const posteIdx = POSTES.findIndex(p => p.key === posteKey);
+          if(posteIdx === -1 || !f.competences[posteIdx]) return;
+          const poste = POSTES[posteIdx];
+          const rang = rangFormation(nom, poste);
+          if((rang.classe === 2) !== autres) return;
+          options.push({ nom, posteKey, poste, rang, ordre: ordre++ });
+        });
       });
+      return options.sort((a, b) => comparerRangs(a.rang, b.rang) || a.ordre - b.ordre);
     }
+
+    // Deux temps, pour que les « Autres » passent vraiment après TOUT le reste :
+    //   1) toutes les formations hors « Autres », pour tous les formateurs ;
+    //   2) seulement ensuite, les « Autres » pour les formateurs qui n'ont pas
+    //      encore leurs 2 propositions et les équipiers qui n'ont pas encore 2 formations.
+    // Ainsi un « Autres » ne prend jamais la place (d'un formateur ou d'un
+    // équipier) d'une formation plus prioritaire.
+    //
+    // Dans chaque temps, deux passes plutôt qu'une seule : d'abord UNE
+    // proposition pour CHAQUE formateur (équitable), puis une deuxième si des
+    // besoins restent. Évite qu'un formateur traité en premier n'épuise à lui
+    // seul tous les besoins disponibles au détriment des suivants.
+    [false, true].forEach(autres => {
+      for(let pass = 0; pass < 2; pass++){
+        formateurCompetences.forEach(f => {
+          if(counts[f.nom] >= 2) return;
+          const choix = optionsPour(f, autres)[0];
+          if(!choix) return;
+          proposals.push({ formateur: f.nom, equipier: choix.nom, posteKey: choix.posteKey, posteLabel: choix.poste.label });
+          usedPairs.add(choix.nom + '|' + choix.posteKey);
+          counts[f.nom]++;
+          countsEq[choix.nom] = (countsEq[choix.nom] || 0) + 1;
+        });
+      }
+    });
 
     const shortages = formateurCompetences
       .filter(f => counts[f.nom] < 2)
@@ -6092,17 +6176,23 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         // d'autre) pour distinguer la vraie cause.
         let hasCompetenceMatch = false;
         let hasCompetenceAndDispoMatch = false;
+        let bloqueParPlafond = false;
         Object.keys(needsByEmp).forEach(nom => {
           needsByEmp[nom].forEach(posteKey => {
             const posteIdx = POSTES.findIndex(p => p.key === posteKey);
             if(!f.competences[posteIdx]) return;
             hasCompetenceMatch = true;
-            if(!dispoByNom || hasDispoOverlap(dispoOf(f.nom), dispoOf(nom))) hasCompetenceAndDispoMatch = true;
+            if(!dispoByNom || hasDispoOverlap(dispoOf(f.nom), dispoOf(nom))){
+              if((countsEq[nom] || 0) >= MAX_FORMATIONS_PAR_EQUIPIER) bloqueParPlafond = true;
+              else hasCompetenceAndDispoMatch = true;
+            }
           });
         });
         let raison;
         if(!hasCompetenceMatch){
           raison = "aucune compétence en commun avec les besoins actuels";
+        } else if(!hasCompetenceAndDispoMatch && bloqueParPlafond){
+          raison = `les équipiers concernés ont déjà ${MAX_FORMATIONS_PAR_EQUIPIER} formations ce mois-ci`;
         } else if(!hasCompetenceAndDispoMatch){
           raison = "compétent, mais aucun créneau de disponibilité en commun avec les équipiers concernés";
         } else {
@@ -6270,7 +6360,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
           ` : ''}
           ${canManagePlanning ? `
             <div class="pp-actions">
-              ${!isValide && !isIgnore ? '<button type="button" class="planning-ignore-btn">✗ Ignorer</button>' : ''}
+              ${!isIgnore ? `<button type="button" class="planning-ignore-btn${isValide ? ' planning-ignore-validated' : ''}"${isValide ? ' title="Retire cette formation réalisée de la liste et libère la place pour en planifier une nouvelle"' : ''}>✗ Ignorer</button>` : ''}
               ${isIgnore ? '<button type="button" class="planning-undo-history-btn">↩ Remettre en attente</button>' : ''}
             </div>
           ` : ''}
@@ -6303,6 +6393,10 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         const undoBtn = row.querySelector('.planning-undo-history-btn');
         if(ignoreBtn) ignoreBtn.addEventListener('click', async (ev) => {
           const btn = ev.currentTarget;
+          // Une formation déjà réalisée est un fait : on demande confirmation
+          // avant de la retirer de la liste (elle ne comptera plus dans les
+          // 2 du formateur ni dans les 2 de l'équipier).
+          if(btn.classList.contains('planning-ignore-validated') && !window.confirm('Ignorer cette formation déjà réalisée ? Elle sera retirée de la liste et ne comptera plus dans les 2 formations du mois — « Générer » pourra alors en proposer une nouvelle.')) return;
           btn.disabled = true;
           btn.textContent = '…';
           try{
@@ -6432,12 +6526,16 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
           const existing = existingAll.filter(p => p.mois === currentViewedMonth);
 
           const countsByFormateur = {}; // objectif de 2 : uniquement le mois ciblé
+          const countsByEquipier = {}; // plafond de 2 par équipier : uniquement le mois ciblé
           const usedPairs = new Set(); // "déjà en attente/validé" : tous mois confondus, jamais de doublon
           const ignoredPairs = new Set(); // "ignoré" : seulement pour le mois ciblé (redevient éligible ensuite)
           existingAll.forEach(p => {
             if(p.statut !== 'Ignoré'){
               usedPairs.add(p.equipier + '|' + p.posteLabel);
-              if(p.mois === currentViewedMonth) countsByFormateur[p.formateur] = (countsByFormateur[p.formateur] || 0) + 1;
+              if(p.mois === currentViewedMonth){
+                countsByFormateur[p.formateur] = (countsByFormateur[p.formateur] || 0) + 1;
+                countsByEquipier[p.equipier] = (countsByEquipier[p.equipier] || 0) + 1;
+              }
             } else if(p.mois === currentViewedMonth){
               ignoredPairs.add(p.equipier + '|' + p.posteLabel);
             }
@@ -6453,7 +6551,12 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
             if(!needsByEmp[nom].length) delete needsByEmp[nom];
           });
 
-          const { proposals: newProposals, shortages } = matchFormateursToNeeds(needsByEmp, data.formateurs || [], countsByFormateur, dispoByNom);
+          // Un équipier qui a déjà 2 formations ce mois-ci (en attente ou
+          // réalisées) n'en reçoit plus : on l'écarte avant même le matching.
+          const equipiersPlafonnes = Object.keys(needsByEmp).filter(nom => (countsByEquipier[nom] || 0) >= MAX_FORMATIONS_PAR_EQUIPIER);
+          equipiersPlafonnes.forEach(nom => { delete needsByEmp[nom]; });
+
+          const { proposals: newProposals, shortages } = matchFormateursToNeeds(needsByEmp, data.formateurs || [], countsByFormateur, dispoByNom, countsByEquipier);
 
           let finalProposals = existing;
           if(newProposals.length){
@@ -6472,7 +6575,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
           renderPersistedPlanning(finalProposals);
           if(!newProposals.length){
             document.getElementById('planningResults').insertAdjacentHTML('afterbegin',
-              '<p class="planning-empty">Rien à ajouter — tout le monde a déjà ses 2 propositions, ou plus aucun besoin compatible n\'est disponible.</p>'
+              '<p class="planning-empty">Rien à ajouter — chaque formateur a déjà ses 2 propositions, ou plus aucun besoin compatible n\'est disponible' + (equipiersPlafonnes.length ? ` (${equipiersPlafonnes.length} équipier${equipiersPlafonnes.length > 1 ? 's ont' : ' a'} déjà ${MAX_FORMATIONS_PAR_EQUIPIER} formations ce mois-ci)` : '') + '.</p>'
             );
           }
           if(shortages.length){
@@ -6483,7 +6586,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
           }
           const totalNeeds = Object.values(needsByEmp).reduce((s, arr) => s + arr.length, 0);
           document.getElementById('planningResults').insertAdjacentHTML('beforeend',
-            `<p style="font-size:11px;color:var(--ink-soft);margin-top:14px;">Diagnostic : ${data.formateurs.length} formateur(s) pris en compte, ${Object.keys(needsByEmp).length} équipier(s) avec des besoins de formation restants (${totalNeeds} besoin(s) au total), ${newProposals.length} nouvelle(s) proposition(s) ajoutée(s) ce coup-ci.</p>`
+            `<p style="font-size:11px;color:var(--ink-soft);margin-top:14px;">Diagnostic : ${data.formateurs.length} formateur(s) pris en compte, ${Object.keys(needsByEmp).length} équipier(s) avec des besoins de formation restants (${totalNeeds} besoin(s) au total), ${newProposals.length} nouvelle(s) proposition(s) ajoutée(s) ce coup-ci${equipiersPlafonnes.length ? `, ${equipiersPlafonnes.length} équipier(s) écarté(s) car déjà à ${MAX_FORMATIONS_PAR_EQUIPIER} formations ce mois-ci` : ''}.</p>`
           );
         } catch(err){
           document.getElementById('planningResults').innerHTML = '<p class="planning-empty" style="color:var(--red);">Erreur : ' + err.message + '</p>';
