@@ -777,20 +777,26 @@
   .pp-date-input{
     padding:6px 9px; border-radius:7px; border:1px solid var(--line); font-size:12.5px; font-family:inherit;
   }
-  .planning-proposal .pp-sous-poste{font-size:12.5px; font-weight:700; color:var(--navy-2);}
+  /* Les « postes » d'une vérification ont leur propre couleur (teal), distincte de
+     l'ambre du nom de la vérification : bouton ✏️ Postes, liste sous la
+     vérification, et poste choisi dans le planning du mois. */
+  .planning-proposal .pp-sous-poste{
+    font-size:11.5px; font-weight:700; padding:3px 9px; border-radius:999px;
+    background:var(--teal-bg); color:var(--teal); border:1px solid var(--teal-line);
+  }
   .pp-sous-poste-select{
-    padding:6px 9px; border-radius:7px; border:1px solid var(--line); background:#fff;
-    font-size:12.5px; font-family:inherit; max-width:230px; color:var(--ink);
+    padding:6px 9px; border-radius:7px; border:1px solid var(--teal-line); background:var(--teal-bg);
+    font-size:12.5px; font-family:inherit; font-weight:700; max-width:230px; color:var(--teal);
   }
   .planning-proposal .pp-actions{margin-left:auto; display:flex; gap:8px;}
   /* Postes d'une vérification — panneau « Ordre de formation par filière » */
-  .filiere-sous-postes{margin:2px 0 0; padding:0 0 0 24px; font-size:11.5px; color:var(--ink-soft); line-height:1.55;}
+  .filiere-sous-postes{margin:2px 0 0; padding:0 0 0 24px; font-size:11.5px; color:var(--teal); line-height:1.55;}
   .filiere-sous-postes li{list-style:'– ';}
   .filiere-poste-btn{
-    appearance:none; border:1px solid var(--line); border-radius:7px; background:#fff; color:var(--ink-soft);
+    appearance:none; border:1px solid var(--teal-line); border-radius:7px; background:var(--teal-bg); color:var(--teal);
     font-size:11px; font-weight:700; padding:3px 8px; cursor:pointer; white-space:nowrap;
   }
-  .filiere-poste-btn:hover{border-color:var(--amber-dark); color:var(--amber-dark);}
+  .filiere-poste-btn:hover{background:var(--teal); border-color:var(--teal); color:#fff;}
   .sp-edit-item{display:flex; align-items:center; gap:8px; margin-bottom:7px;}
   .sp-edit-item .sp-handle{cursor:grab; color:var(--ink-soft); font-size:15px; user-select:none;}
   .sp-edit-item input{flex:1; padding:8px 10px; border-radius:8px; border:1px solid var(--line); font-size:13px; outline:none; background:#fff;}
