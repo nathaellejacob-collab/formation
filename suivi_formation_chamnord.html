@@ -777,7 +777,33 @@
   .pp-date-input{
     padding:6px 9px; border-radius:7px; border:1px solid var(--line); font-size:12.5px; font-family:inherit;
   }
+  .planning-proposal .pp-sous-poste{font-size:12.5px; font-weight:700; color:var(--navy-2);}
+  .pp-sous-poste-select{
+    padding:6px 9px; border-radius:7px; border:1px solid var(--line); background:#fff;
+    font-size:12.5px; font-family:inherit; max-width:230px; color:var(--ink);
+  }
   .planning-proposal .pp-actions{margin-left:auto; display:flex; gap:8px;}
+  /* Postes d'une vérification — panneau « Ordre de formation par filière » */
+  .filiere-sous-postes{margin:2px 0 0; padding:0 0 0 24px; font-size:11.5px; color:var(--ink-soft); line-height:1.55;}
+  .filiere-sous-postes li{list-style:'– ';}
+  .filiere-poste-btn{
+    appearance:none; border:1px solid var(--line); border-radius:7px; background:#fff; color:var(--ink-soft);
+    font-size:11px; font-weight:700; padding:3px 8px; cursor:pointer; white-space:nowrap;
+  }
+  .filiere-poste-btn:hover{border-color:var(--amber-dark); color:var(--amber-dark);}
+  .sp-edit-item{display:flex; align-items:center; gap:8px; margin-bottom:7px;}
+  .sp-edit-item .sp-handle{cursor:grab; color:var(--ink-soft); font-size:15px; user-select:none;}
+  .sp-edit-item input{flex:1; padding:8px 10px; border-radius:8px; border:1px solid var(--line); font-size:13px; outline:none; background:#fff;}
+  .sp-edit-item input:focus, .sp-add-row input:focus{border-color:var(--amber-dark); box-shadow:0 0 0 3px rgba(232,163,61,0.18);}
+  .sp-edit-del{appearance:none; border:none; background:none; color:var(--red); cursor:pointer; font-size:14px; padding:4px 6px;}
+  .sp-add-row{display:flex; gap:8px; margin-top:12px;}
+  .sp-add-row input{flex:1; padding:9px 11px; border-radius:8px; border:1px solid var(--line); font-size:13px; outline:none; background:#fff;}
+  .sp-add-row button{appearance:none; border:1px solid var(--line); border-radius:8px; background:#fff; color:var(--navy-2); font-size:12.5px; font-weight:700; padding:9px 14px; cursor:pointer;}
+  .sp-empty{margin:8px 0; font-size:12.5px; color:var(--ink-soft); line-height:1.45;}
+  #sousPostesCancel{background:transparent; border:1px solid var(--line); color:var(--ink-soft);}
+  #sousPostesSave{background:var(--navy); border:none; color:#fff;}
+  #sousPostesSave:hover{background:var(--navy-2);}
+  #sousPostesSave:disabled{opacity:0.6; cursor:default;}
   .planning-validate-btn{
     appearance:none; border:none; border-radius:8px; background:var(--green); color:#fff;
     font-size:12px; font-weight:700; padding:7px 14px; cursor:pointer;
@@ -1312,6 +1338,7 @@
           <li>En dernier recours seulement : les formations « Autres ».</li>
         </ol>
         <p style="margin:4px 0 0;">Plafonds par mois : 2 formations par formateur, et 2 par équipier.</p>
+        <p style="margin:4px 0 0;">Chaque proposition garde le nom exact de la vérification. Quand une vérification couvre plusieurs postes (ex. « Assemblage et Présentation » : comptoir, drive, OAT), le poste concerné est indiqué et le Responsable peut le choisir dans le menu de la proposition.</p>
       </details>
     </div>
     <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
@@ -1796,6 +1823,23 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     return source.map((t, i) => trouves[i] ? { track: t.track, label: trouves[i].label } : null).filter(Boolean);
   }
   let TRAINING_TRACK_ORDER = resolveTrackOrder(appData.ordreFormation);
+
+  // ---- Postes d'une vérification (sous-catégorie) ----
+  // Une vérification (= un poste de « Postes & Polyvalence », ex. « Assemblage et
+  // Présentation ») peut regrouper plusieurs postes (« Vérification comptoir »,
+  // « Vérification drive », « OAT »...). Le NOM EXACT de la vérification reste
+  // partout inchangé — c'est lui qui valide automatiquement la formation planifiée
+  // quand le poste est coché dans Postes & Polyvalence ; le « poste » précise
+  // seulement lequel est concerné. Rangés par clé de vérification, dans l'ordre défini.
+  let SOUS_POSTES = (appData.sousPostes && typeof appData.sousPostes === 'object' && !Array.isArray(appData.sousPostes)) ? appData.sousPostes : {};
+  function sousPostesDeCle(posteKey){ return Array.isArray(SOUS_POSTES[posteKey]) ? SOUS_POSTES[posteKey] : []; }
+  function sousPostesDeLabel(posteLabel){
+    const p = POSTES.find(x => normLabel(x.label) === normLabel(posteLabel));
+    return p ? sousPostesDeCle(p.key) : [];
+  }
+  const escHtml = (v) => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const escAttr = (v) => escHtml(v).replace(/"/g, '&quot;');
+  let lastPlanningProposals = null; // dernières propositions affichées (pour redessiner après un changement de postes)
   function trackOf(posteLabel){
     const found = TRAINING_TRACK_ORDER.find(t => normLabel(t.label) === normLabel(posteLabel));
     return found ? found.track : null;
@@ -2473,6 +2517,8 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         html += bullet('« 👥 Gérer les profils » : ajoute, modifie ou désactive un formateur/profil, définis son poste (qui détermine son accès)');
         html += bullet('Depuis « Planification » : « Générer » propose de nouvelles formations pour le mois, « Ignorer » retire une proposition — y compris une formation déjà réalisée (✓ Réalisée) — et libère sa place : « Générer » pourra alors en proposer une nouvelle. Un équipier ne reçoit jamais plus de 2 formations par mois');
         html += bullet('Ordre de priorité des propositions : 1) les personnes arrivées dans les 2 derniers mois, 2) zone par zone (« Cuisine » puis « Comptoir »), 3) dans l\'ordre de formation défini pour chaque zone, 4) sans étape de zone à faire, le taux de polyvalence le plus faible en Production ou en Service, 5) en dernier recours, les formations « Autres »');
+        html += bullet('Quand une vérification regroupe plusieurs postes (ex. « Assemblage et Présentation » : comptoir, drive, OAT), choisis dans le menu de la proposition le poste concerné par la formation. Le nom exact de la vérification ne change pas : c\'est lui qui la valide automatiquement quand elle est cochée dans « Postes &amp; Polyvalence »');
+        html += bullet('Quand une vérification couvre plusieurs postes (ex. « Assemblage et Présentation » : comptoir, drive, OAT), le poste concerné s\'affiche sur la proposition et se choisit dans son menu « Poste à préciser » — le nom exact de la vérification ne change jamais, c\'est lui qui la valide automatiquement quand le poste est coché dans Postes &amp; Polyvalence');
         html += bullet('« Restrictions par équipier » (dans Planification) : indique les postes à ne jamais proposer à quelqu\'un');
       }
 
@@ -2481,6 +2527,8 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         html += bullet('Le sélecteur de restaurant en haut de page permet de passer d\'un restaurant à l\'autre — tout ce que tu fais s\'applique au restaurant actuellement sélectionné');
         html += bullet('« ➕ Ajouter une formation » : seul le gérant peut créer un nouveau poste ou une nouvelle formation obligatoire (les modifier, les retirer, les supprimer définitivement) — les autres postes peuvent les suivre et les valider, mais pas en créer de nouvelles');
         html += bullet('« 🧭 Ordre de formation par filière » (dans Planification) : glisse un poste pour le ranger dans Cuisine ou Comptoir, dans l\'ordre où il doit être appris, ou le sortir de toute filière — ça détermine l\'ordre des propositions automatiques de la Planification');
+        html += bullet('Sous chaque vérification de ce même panneau, « ✏️ Postes » permet de définir les postes qu\'elle regroupe : ajouter, renommer, retirer, réordonner par glisser-déposer. Une nouvelle proposition reçoit d\'office le premier poste de la liste ; le Responsable peut le changer dans le menu de la proposition');
+        html += bullet('« ✏️ Postes » (sur chaque vérification, dans « Ordre de formation par filière ») : ajoute, renomme, retire ou réordonne les postes que couvre une vérification — ex. « Initiation &amp; Assemblage » : Initiation, Assemblage. Le nom exact de la vérification est conservé');
         html += bullet('« ⚙️ Gérer les restaurants » : ajoute ou supprime un restaurant, modifie son email de contact (alertes hebdomadaires), et renseigne ton propre email pour recevoir le récapitulatif tous restaurants confondus chaque lundi');
       }
 
@@ -6234,23 +6282,153 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     if(!ordreFormationWrap) return;
     const editable = isGerant;
     ordreFormationHint.textContent = editable
-      ? "Glisse un poste pour le déplacer dans une filière, d'une filière à l'autre, ou vers « Hors filière ». C'est enregistré aussitôt. L'ordre des postes « hors filière » dépend de « Gérer les postes »."
-      : "Lecture seule — seul le gérant peut modifier cet ordre.";
+      ? "Glisse une vérification pour la déplacer dans une filière, d'une filière à l'autre, ou vers « Hors filière » — c'est enregistré aussitôt. Le nom exact de la vérification est conservé : c'est lui qui la valide automatiquement dans « Planification » quand le poste est coché dans « Postes & Polyvalence ». Avec « ✏️ Postes », précise les postes que couvre une vérification (ex. « Assemblage et Présentation » : Vérification comptoir, Vérification drive, OAT)."
+      : "Lecture seule — seul le gérant peut modifier cet ordre et les postes de chaque vérification.";
     const g = ordreFormationGroupes();
     const colonne = (cle, liste, numerote) => `<div>
       <div style="font-weight:700; font-size:12px; text-transform:uppercase; color:var(--ink-soft); margin-bottom:6px;">${FILIERE_LABELS[cle]}</div>
       <div class="filiere-list" data-track="${cle}" style="min-height:60px; padding:6px; background:#faf9f4; border:1px dashed var(--line); border-radius:10px;">
-        ${liste.map((p, i) => `<div class="filiere-item" ${editable ? 'draggable="true"' : ''} data-label="${p.label.replace(/"/g, '&quot;')}" style="display:flex; align-items:center; gap:6px; padding:6px 8px; margin-bottom:4px; background:#fff; border:1px solid var(--line); border-radius:8px; font-size:12.5px; ${editable ? 'cursor:grab;' : ''}">
+        ${liste.map((p, i) => `<div class="filiere-item" ${editable ? 'draggable="true"' : ''} data-label="${p.label.replace(/"/g, '&quot;')}" style="display:flex; flex-wrap:wrap; align-items:center; gap:6px; padding:6px 8px; margin-bottom:4px; background:#fff; border:1px solid var(--line); border-radius:8px; font-size:12.5px; ${editable ? 'cursor:grab;' : ''}">
           ${editable ? '<span style="color:var(--ink-soft);" title="Glisser pour déplacer">⠿</span>' : ''}
           ${numerote ? `<span style="color:var(--ink-soft); min-width:16px;">${i + 1}.</span>` : ''}
-          <span>${p.label}</span>
+          <span style="flex:1;">${p.label}</span>
+          ${editable ? `<button type="button" class="filiere-poste-btn" data-key="${escAttr(p.key)}" title="${sousPostesDeCle(p.key).length ? 'Modifier' : 'Ajouter'} les postes de cette vérification">✏️ Postes</button>` : ''}
+          ${sousPostesDeCle(p.key).length ? `<ul class="filiere-sous-postes" style="flex-basis:100%;">${sousPostesDeCle(p.key).map(sp => `<li>${escHtml(sp)}</li>`).join('')}</ul>` : ''}
         </div>`).join('') || `<div style="color:var(--ink-soft); font-size:12px; padding:6px;">${editable ? 'Glisse un poste ici' : 'Aucun poste'}</div>`}
       </div>
     </div>`;
     ordreFormationWrap.innerHTML = `<div style="display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:12px;">
       ${colonne('cuisine', g.cuisine, true)}${colonne('comptoir', g.comptoir, true)}${colonne('libres', g.libres, false)}
     </div>`;
-    if(editable) wireOrdreFormationDnD();
+    if(editable){
+      wireOrdreFormationDnD();
+      ordreFormationWrap.querySelectorAll('.filiere-poste-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const poste = POSTES.find(x => x.key === btn.dataset.key);
+          if(poste) ouvrirEditeurSousPostes(poste);
+        });
+        // un clic sur le bouton ne doit jamais démarrer un glissement de la vérification
+        btn.addEventListener('mousedown', (e) => e.stopPropagation());
+      });
+    }
+  }
+
+  // Fenêtre d'édition des postes d'UNE vérification : ajouter, renommer, retirer,
+  // réordonner par glisser-déposer (par la poignée), puis enregistrer d'un coup.
+  function ouvrirEditeurSousPostes(poste){
+    const ancien = document.getElementById('sousPostesModal');
+    if(ancien) ancien.remove();
+    let liste = sousPostesDeCle(poste.key).slice();
+
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.id = 'sousPostesModal';
+    overlay.innerHTML = `<div class="modal-card" style="max-width:480px;">
+      <div class="modal-head-row">
+        <div>
+          <h3>Postes de la vérification</h3>
+          <p class="modal-sub"><strong>« ${escHtml(poste.label)} »</strong> — le nom exact de la vérification ne change pas ; ces postes précisent lequel est concerné par une formation. Glisse la poignée ⠿ pour les réordonner.</p>
+        </div>
+        <button type="button" class="modal-close-btn" id="sousPostesClose" aria-label="Fermer">✕</button>
+      </div>
+      <div id="sousPostesList"></div>
+      <div class="sp-add-row">
+        <input type="text" id="sousPostesInput" maxlength="60" placeholder="Nouveau poste (ex. Vérification drive)">
+        <button type="button" id="sousPostesAdd">Ajouter</button>
+      </div>
+      <div class="modal-error" id="sousPostesError" style="display:none;"></div>
+      <div class="modal-actions">
+        <button type="button" id="sousPostesCancel">Annuler</button>
+        <button type="button" id="sousPostesSave">Enregistrer</button>
+      </div>
+    </div>`;
+    document.body.appendChild(overlay);
+
+    const listEl = overlay.querySelector('#sousPostesList');
+    const inputEl = overlay.querySelector('#sousPostesInput');
+    const errorEl = overlay.querySelector('#sousPostesError');
+    const saveBtn = overlay.querySelector('#sousPostesSave');
+    const montrerErreur = (msg) => { errorEl.textContent = msg; errorEl.style.display = msg ? 'block' : 'none'; };
+    const fermer = () => overlay.remove();
+    const cle = (v) => String(v).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+
+    function dessiner(){
+      listEl.innerHTML = liste.length
+        ? liste.map((sp, i) => `<div class="sp-edit-item" data-i="${i}">
+            <span class="sp-handle" title="Glisser pour réordonner">⠿</span>
+            <input type="text" class="sp-edit-name" maxlength="60" value="${escAttr(sp)}">
+            <button type="button" class="sp-edit-del" title="Retirer ce poste">✕</button>
+          </div>`).join('')
+        : '<p class="sp-empty">Aucun poste — cette vérification est planifiée telle quelle. Ajoute-en pour préciser lequel est concerné.</p>';
+
+      let source = null;
+      listEl.querySelectorAll('.sp-edit-item').forEach(row => {
+        const i = Number(row.dataset.i);
+        row.querySelector('.sp-edit-name').addEventListener('input', (e) => { liste[i] = e.target.value; });
+        row.querySelector('.sp-edit-del').addEventListener('click', () => { liste.splice(i, 1); montrerErreur(''); dessiner(); });
+        // Seule la poignée déclenche le glissement : on peut ainsi sélectionner le texte du champ sans déplacer la ligne.
+        const poignee = row.querySelector('.sp-handle');
+        poignee.addEventListener('mousedown', () => { row.draggable = true; });
+        row.addEventListener('dragstart', (e) => { source = i; if(e.dataTransfer){ e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', String(i)); } setTimeout(() => { row.style.opacity = '0.4'; }, 0); });
+        row.addEventListener('dragend', () => { row.draggable = false; row.style.opacity = ''; source = null; });
+        row.addEventListener('dragover', (e) => { e.preventDefault(); });
+        row.addEventListener('drop', (e) => {
+          e.preventDefault();
+          if(source === null || source === i) return;
+          const [deplace] = liste.splice(source, 1);
+          liste.splice(i, 0, deplace);
+          source = null;
+          dessiner();
+        });
+      });
+    }
+
+    function ajouter(){
+      const v = inputEl.value.replace(/\s+/g, ' ').trim();
+      if(!v) return;
+      if(liste.length >= 12){ montrerErreur('Une vérification ne peut pas avoir plus de 12 postes.'); return; }
+      if(liste.some(x => cle(x) === cle(v))){ montrerErreur(`« ${v} » est déjà dans la liste.`); return; }
+      montrerErreur('');
+      liste.push(v);
+      inputEl.value = '';
+      dessiner();
+      inputEl.focus();
+    }
+
+    overlay.querySelector('#sousPostesAdd').addEventListener('click', ajouter);
+    inputEl.addEventListener('keydown', (e) => { if(e.key === 'Enter'){ e.preventDefault(); ajouter(); } });
+    overlay.querySelector('#sousPostesClose').addEventListener('click', fermer);
+    overlay.querySelector('#sousPostesCancel').addEventListener('click', fermer);
+    overlay.addEventListener('click', (e) => { if(e.target === overlay) fermer(); });
+
+    saveBtn.addEventListener('click', async () => {
+      // Un champ saisi mais pas encore « Ajouté » est pris en compte plutôt que perdu.
+      if(inputEl.value.trim()) ajouter();
+      const propres = liste.map(x => String(x).replace(/\s+/g, ' ').trim());
+      if(propres.some(x => !x)){ montrerErreur('Un poste n\'a pas de nom : renseigne-le ou retire-le.'); return; }
+      if(new Set(propres.map(cle)).size !== propres.length){ montrerErreur('Deux postes portent le même nom.'); return; }
+      saveBtn.disabled = true; saveBtn.textContent = 'Enregistrement…'; montrerErreur('');
+      try{
+        const res = await fetch(APPS_SCRIPT_URL, {
+          method: 'POST',
+          headers: {'Content-Type': 'text/plain;charset=utf-8'},
+          body: JSON.stringify(authBody({ sheet: 'enregistrer_sous_postes', targetRestaurant: currentRestaurant, posteKey: poste.key, sousPostes: propres }))
+        });
+        const data = await res.json();
+        if(!data.ok) throw new Error(data.error || "Échec de l'enregistrement");
+        SOUS_POSTES = data.sousPostes || {};
+        fermer();
+        renderOrdreFormation();
+        if(lastPlanningProposals) renderPersistedPlanning(lastPlanningProposals);   // les menus de poste des propositions suivent la nouvelle liste
+      } catch(err){
+        montrerErreur('Erreur : ' + err.message);
+        saveBtn.disabled = false; saveBtn.textContent = 'Enregistrer';
+      }
+    });
+
+    dessiner();
+    inputEl.focus();
   }
 
   function wireOrdreFormationDnD(){
@@ -6328,7 +6506,25 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     `;
   }
 
+  // Poste précis de la vérification concerné par une proposition. Le nom exact de
+  // la vérification est affiché à part, tel quel. Le Responsable / gérant choisit le
+  // poste dans un menu tant que la formation n'est pas réalisée ; les autres le voient.
+  function sousPosteHtml(p){
+    const liste = sousPostesDeLabel(p.posteLabel);
+    const stocke = p.sousPoste || '';
+    if(canManagePlanning && p.statut === 'Proposé' && liste.length){
+      const horsListe = stocke && !liste.includes(stocke); // poste retiré de la liste depuis : on le montre quand même
+      const options = ['<option value="">— Poste à préciser —</option>']
+        .concat(horsListe ? [`<option value="${escAttr(stocke)}" selected>${escHtml(stocke)} (retiré de la liste)</option>`] : [])
+        .concat(liste.map(sp => `<option value="${escAttr(sp)}" ${sp === stocke ? 'selected' : ''}>${escHtml(sp)}</option>`))
+        .join('');
+      return `<select class="pp-sous-poste-select" data-row="${p.rowIndex}" title="Poste de la vérification concerné par cette formation">${options}</select>`;
+    }
+    return stocke ? `<span class="pp-sous-poste" title="Poste concerné par cette formation">› ${escHtml(stocke)}</span>` : '';
+  }
+
   function renderPersistedPlanning(proposals){
+    lastPlanningProposals = proposals;
     renderPlanningSummary(proposals);
 
     const sorted = proposals.filter(p => p.statut !== 'Ignoré').sort((a, b) => a.formateur.localeCompare(b.formateur, 'fr'));
@@ -6350,6 +6546,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
           <span class="pp-arrow">→</span>
           <span class="pp-equipier">${displayName(p.equipier)}</span>
           <span class="pp-poste">${p.posteLabel}</span>
+          ${sousPosteHtml(p)}
           ${isValide ? '<span class="pp-done-badge" title="Réalisée — poste coché maîtrisé dans Postes & Polyvalence">✓ Réalisée</span>' : ''}
           ${isIgnore ? '<span class="pp-ignored-badge">✗ Ignorée</span>' : ''}
           ${!isIgnore ? `
@@ -6382,6 +6579,30 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
           alert('Erreur : ' + err.message);
         } finally {
           input.disabled = false;
+        }
+      });
+    });
+
+    wrap.querySelectorAll('.pp-sous-poste-select').forEach(select => {
+      select.addEventListener('change', async () => {
+        const rowIndex = Number(select.dataset.row);
+        const choix = select.value;
+        select.disabled = true;
+        try{
+          const res = await fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            headers: {'Content-Type': 'text/plain;charset=utf-8'},
+            body: JSON.stringify(authBody({ sheet: 'update_planning_sous_poste', rowIndex, sousPoste: choix, targetRestaurant: currentRestaurant }))
+          });
+          const data = await res.json();
+          if(!data.ok) throw new Error(data.error || "Échec de l'enregistrement");
+          const concernee = (lastPlanningProposals || []).find(x => x.rowIndex === rowIndex);
+          if(concernee) concernee.sousPoste = data.sousPoste || '';
+          select.disabled = false;
+        } catch(err){
+          // Rien n'a été enregistré : on revient à ce qui l'est réellement plutôt que de laisser croire le contraire.
+          alert('Erreur : ' + err.message);
+          loadPersistedPlanning(currentViewedMonth);
         }
       });
     });
@@ -6557,6 +6778,10 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
           equipiersPlafonnes.forEach(nom => { delete needsByEmp[nom]; });
 
           const { proposals: newProposals, shortages } = matchFormateursToNeeds(needsByEmp, data.formateurs || [], countsByFormateur, dispoByNom, countsByEquipier);
+
+          // Une vérification qui a des postes reçoit d'emblée le premier dans l'ordre
+          // défini ; le Responsable peut le changer ensuite dans le menu de la proposition.
+          newProposals.forEach(np => { const l = sousPostesDeLabel(np.posteLabel); np.sousPoste = l.length ? l[0] : ''; });
 
           let finalProposals = existing;
           if(newProposals.length){
