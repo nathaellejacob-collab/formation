@@ -1338,6 +1338,7 @@
           <li>En dernier recours seulement : les formations « Autres ».</li>
         </ol>
         <p style="margin:4px 0 0;">Plafonds par mois : 2 formations par formateur, 2 par équipier, et un même poste n'est jamais proposé plus de 3 fois.</p>
+        <p style="margin:4px 0 0;">Une formation déjà proposée à un équipier (en attente, ignorée ou réalisée) n'est pas reproposée pendant 2 mois : le mois de la proposition et le suivant. Passé ce délai, si elle n'a pas été validée, elle peut être proposée de nouveau pour être planifiée.</p>
         <p style="margin:4px 0 0;">Chaque proposition garde le nom exact de la vérification. Quand une vérification couvre plusieurs postes (ex. « Assemblage et Présentation » : comptoir, drive, OAT), le poste concerné est indiqué et le Responsable peut le choisir dans le menu de la proposition.</p>
       </details>
     </div>
@@ -2515,7 +2516,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       if(accesResponsable){
         html += sectionHeader(n++ + ' — Fonctions Responsable de la formation', 'var(--plum)');
         html += bullet('« 👥 Gérer les profils » : ajoute, modifie ou désactive un formateur/profil, définis son poste (qui détermine son accès)');
-        html += bullet('Depuis « Planification » : « Générer » propose de nouvelles formations pour le mois, « Ignorer » retire une proposition — y compris une formation déjà réalisée (✓ Réalisée) — et libère sa place : « Générer » pourra alors en proposer une nouvelle. Un équipier ne reçoit jamais plus de 2 formations par mois, et un même poste n\'est jamais proposé plus de 3 fois sur le mois');
+        html += bullet('Depuis « Planification » : « Générer » propose de nouvelles formations pour le mois, « Ignorer » retire une proposition — y compris une formation déjà réalisée (✓ Réalisée) — et libère sa place : « Générer » pourra alors en proposer une nouvelle. Un équipier ne reçoit jamais plus de 2 formations par mois, et un même poste n\'est jamais proposé plus de 3 fois sur le mois. Une formation déjà proposée (en attente, ignorée ou réalisée) n\'est pas reproposée à la même personne pendant 2 mois (le mois de la proposition et le suivant), même si elle n\'a pas été validée ; passé ce délai, elle peut être proposée de nouveau pour être planifiée');
         html += bullet('Ordre de priorité des propositions : 1) les personnes arrivées dans les 2 derniers mois, 2) zone par zone (« Cuisine » puis « Comptoir »), 3) dans l\'ordre de formation défini pour chaque zone, 4) sans étape de zone à faire, le taux de polyvalence le plus faible en Production ou en Service, 5) en dernier recours, les formations « Autres »');
         html += bullet('Quand une vérification regroupe plusieurs postes (ex. « Assemblage et Présentation » : comptoir, drive, OAT), choisis dans le menu de la proposition le poste concerné par la formation. Le nom exact de la vérification ne change pas : c\'est lui qui la valide automatiquement quand elle est cochée dans « Postes &amp; Polyvalence »');
         html += bullet('Quand une vérification couvre plusieurs postes (ex. « Assemblage et Présentation » : comptoir, drive, OAT), le poste concerné s\'affiche sur la proposition et se choisit dans son menu « Poste à préciser » — le nom exact de la vérification ne change jamais, c\'est lui qui la valide automatiquement quand le poste est coché dans Postes &amp; Polyvalence');
@@ -6115,6 +6116,13 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
   // (en plus de l'objectif de 2 par formateur). Seules les propositions non
   // ignorées comptent — « Proposé » comme « Validé ».
   const MAX_FORMATIONS_PAR_EQUIPIER = 2;
+  // Mois décalé de n (ex. « 2027-01 » − 1 = « 2026-12 »), au format « aaaa-mm ».
+  function moisDecale(moisKey, n){
+    const m = /^(\d{4})-(\d{2})$/.exec(String(moisKey || '').trim());
+    if(!m) return '';
+    const total = Number(m[1]) * 12 + (Number(m[2]) - 1) + n;
+    return `${Math.floor(total / 12)}-${String((total % 12) + 1).padStart(2, '0')}`;
+  }
   // Un même poste (= une même vérification, par son nom exact) n'est jamais
   // proposé plus de 3 fois sur le même mois, quel que soit le statut des
   // propositions déjà présentes sauf « Ignoré ».
@@ -6762,27 +6770,37 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
           const countsByFormateur = {}; // objectif de 2 : uniquement le mois ciblé
           const countsByEquipier = {}; // plafond de 2 par équipier : uniquement le mois ciblé
           const countsByPoste = {}; // plafond de 3 par poste (vérification) : uniquement le mois ciblé
-          const usedPairs = new Set(); // "déjà en attente/validé" : tous mois confondus, jamais de doublon
-          const ignoredPairs = new Set(); // "ignoré" : seulement pour le mois ciblé (redevient éligible ensuite)
+          // Une formation déjà proposée à un équipier — en attente, ignorée ou
+          // réalisée — n'est pas reproposée sur 2 mois consécutifs, même non
+          // validée : ni le mois de la proposition, ni le suivant (ni le précédent,
+          // si on planifie en avance). Passé ce délai, si elle n'a toujours pas été
+          // validée (le poste n'est pas acquis), elle redevient éligible pour être
+          // planifiée.
+          const usedPairs = new Set();    // en attente ou réalisée dans cette fenêtre (ou de date inconnue : prudence)
+          const ignoredPairs = new Set(); // ignorée dans cette fenêtre
+          const moisProches = new Set([moisDecale(currentViewedMonth, -1), currentViewedMonth, moisDecale(currentViewedMonth, 1)]);
           existingAll.forEach(p => {
             if(p.statut !== 'Ignoré'){
-              usedPairs.add(p.equipier + '|' + p.posteLabel);
+              if(moisProches.has(p.mois) || !/^\d{4}-\d{2}$/.test(p.mois || '')) usedPairs.add(p.equipier + '|' + p.posteLabel);
               if(p.mois === currentViewedMonth){
                 countsByFormateur[p.formateur] = (countsByFormateur[p.formateur] || 0) + 1;
                 countsByEquipier[p.equipier] = (countsByEquipier[p.equipier] || 0) + 1;
                 countsByPoste[normLabel(p.posteLabel)] = (countsByPoste[normLabel(p.posteLabel)] || 0) + 1;
               }
-            } else if(p.mois === currentViewedMonth){
+            } else if(moisProches.has(p.mois)){
               ignoredPairs.add(p.equipier + '|' + p.posteLabel);
             }
           });
 
           const needsByEmp = computePlanningNeeds();
+          let ecarteesIgnorees = 0; // formations écartées uniquement parce qu'ignorées ces 2 derniers mois
           Object.keys(needsByEmp).forEach(nom => {
             needsByEmp[nom] = needsByEmp[nom].filter(posteKey => {
               const poste = POSTES.find(p => p.key === posteKey);
               const pairKey = nom + '|' + poste.label;
-              return !usedPairs.has(pairKey) && !ignoredPairs.has(pairKey);
+              if(usedPairs.has(pairKey)) return false;
+              if(ignoredPairs.has(pairKey)){ ecarteesIgnorees++; return false; }
+              return true;
             });
             if(!needsByEmp[nom].length) delete needsByEmp[nom];
           });
@@ -6833,7 +6851,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
           }
           const totalNeeds = Object.values(needsByEmp).reduce((s, arr) => s + arr.length, 0);
           document.getElementById('planningResults').insertAdjacentHTML('beforeend',
-            `<p style="font-size:11px;color:var(--ink-soft);margin-top:14px;">Diagnostic : ${data.formateurs.length} formateur(s) pris en compte, ${Object.keys(needsByEmp).length} équipier(s) avec des besoins de formation restants (${totalNeeds} besoin(s) au total), ${newProposals.length} nouvelle(s) proposition(s) ajoutée(s) ce coup-ci${equipiersPlafonnes.length ? `, ${equipiersPlafonnes.length} équipier(s) écarté(s) car déjà à ${MAX_FORMATIONS_PAR_EQUIPIER} formations ce mois-ci` : ''}${postesPlafonnes.length ? `, ${postesPlafonnes.length} poste(s) déjà proposé(s) ${MAX_PROPOSITIONS_PAR_POSTE} fois ce mois-ci (${postesPlafonnes.map(escHtml).join(', ')})` : ''}.</p>`
+            `<p style="font-size:11px;color:var(--ink-soft);margin-top:14px;">Diagnostic : ${data.formateurs.length} formateur(s) pris en compte, ${Object.keys(needsByEmp).length} équipier(s) avec des besoins de formation restants (${totalNeeds} besoin(s) au total), ${newProposals.length} nouvelle(s) proposition(s) ajoutée(s) ce coup-ci${equipiersPlafonnes.length ? `, ${equipiersPlafonnes.length} équipier(s) écarté(s) car déjà à ${MAX_FORMATIONS_PAR_EQUIPIER} formations ce mois-ci` : ''}${postesPlafonnes.length ? `, ${postesPlafonnes.length} poste(s) déjà proposé(s) ${MAX_PROPOSITIONS_PAR_POSTE} fois ce mois-ci (${postesPlafonnes.map(escHtml).join(', ')})` : ''}${ecarteesIgnorees ? `, ${ecarteesIgnorees} formation(s) ignorée(s) ces 2 derniers mois, non reproposée(s)` : ''}.</p>`
           );
         } catch(err){
           document.getElementById('planningResults').innerHTML = '<p class="planning-empty" style="color:var(--red);">Erreur : ' + err.message + '</p>';
