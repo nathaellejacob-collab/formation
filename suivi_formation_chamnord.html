@@ -2512,7 +2512,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         html += bullet('« ➕ Ajouter un alternant » crée son profil et génère automatiquement son planning sur plusieurs mois, à partir de sa date de début');
         html += bullet('Les semaines vont du <strong>dimanche au samedi</strong>. Si l\'alternant commence en milieu de semaine, la première semaine est partielle (ex. départ un jeudi : jeudi, vendredi, samedi) et l\'objectif de 35 h ne s\'applique qu\'aux semaines complètes. « ➕ Ajouter une semaine » complète d\'abord la semaine en cours jusqu\'au samedi, puis ajoute des semaines entières');
         html += bullet('Dans le planning, clique directement sur une case (statut, horaires, pauses, formation, formateur) pour la modifier — Entrée (ou le choix dans un menu déroulant) enregistre aussitôt ; le 💾 en bout de ligne enregistre si besoin');
-        html += bullet('« 🔄 Recalculer les formations » réattribue automatiquement les formations prévues à partir des jours travaillés, sans toucher aux statuts ni aux horaires déjà saisis');
+        html += bullet('« 🔄 Recalculer les formations » réattribue automatiquement les formations prévues à partir des jours travaillés, sans toucher aux statuts ni aux horaires déjà saisis. Une formation n\'existe que sur un jour travaillé : un jour d\'école ou de repos n\'en porte jamais, et passer un jour en école ou en repos retire sa formation');
         html += bullet('« ➕ Ajouter une semaine » prolonge le planning si le parcours dépasse la durée prévue ; le 🗑️ sur l\'en-tête d\'une semaine la supprime entièrement');
         html += bullet('« 🖨️ Télécharger en PDF » génère un planning simple et lisible à remettre à l\'alternant, qui n\'a pas accès au site');
         html += bullet('« 🧭 Voir/modifier le parcours de formation » : glisse les formations et les postes de la rotation pour changer leur ordre ; rattache chaque formation au poste réel correspondant dans « Postes &amp; Polyvalence »');
@@ -5328,6 +5328,13 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     const quart1 = (peutAvoirHoraires && j.heureDebut1 && j.heureFin1) ? `${j.heureDebut1}–${j.heureFin1}` : '—';
     const quart2 = (peutAvoirHoraires && j.heureDebut2 && j.heureFin2) ? `${j.heureDebut2}–${j.heureFin2}` : '—';
     const editAttr = canManageAlternant ? 'class="cell-editable" tabindex="0"' : '';
+    // Une formation n'existe que sur un jour TRAVAILLÉ : sur un jour d'école ou de
+    // repos, rien n'est affiché (même si une ancienne valeur traîne) et ces deux
+    // cases ne sont pas modifiables.
+    const travaille = j.statut === 'travail';
+    const editFormation = (canManageAlternant && travaille) ? 'class="cell-editable" tabindex="0"' : '';
+    const formationAffichee = travaille ? (j.formation || '') : '';
+    const formateurAffiche = travaille ? (j.formateur || '') : '';
     return `<tr data-date="${j.date}">
       <td style="white-space:nowrap;">${frDate(parseDate(j.date))}</td>
       <td style="text-transform:capitalize;">${j.jour}</td>
@@ -5336,8 +5343,8 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       <td ${editAttr} data-champ="quart2" data-date="${j.date}">${quart2}</td>
       <td ${editAttr} data-champ="pauses" data-date="${j.date}">${(j.statut === 'travail' || j.statut === 'ecole') ? (j.nbPauses || 0) : '—'}</td>
       <td><span class="cout-pill">${j.heures} h</span></td>
-      <td ${editAttr} data-champ="formation" data-date="${j.date}">${j.formation ? j.formation.split(' + ').map(f => `<span class="action-pill amber" style="display:inline-block;margin:1px 3px 1px 0;">${TYPE_ICONS_ALT.formation} ${f}</span>`).join('') : '—'}</td>
-      <td ${editAttr} data-champ="formateur" data-date="${j.date}">${j.formateur || '—'}</td>
+      <td ${editFormation} data-champ="formation" data-date="${j.date}">${formationAffichee ? formationAffichee.split(' + ').map(f => `<span class="action-pill amber" style="display:inline-block;margin:1px 3px 1px 0;">${TYPE_ICONS_ALT.formation} ${f}</span>`).join('') : '—'}</td>
+      <td ${editFormation} data-champ="formateur" data-date="${j.date}">${formateurAffiche || '—'}</td>
       ${canManageAlternant ? `<td><button type="button" class="save-jour-alternant-btn" data-date="${j.date}" style="border:none;background:none;cursor:pointer;" title="Enregistrer">💾</button></td>` : ''}
     </tr>`;
   }
@@ -5358,7 +5365,10 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         heureDebut2: j.heureDebut2, heureFin2: j.heureFin2, nbPauses: j.nbPauses,
         formation: j.formation, integrationFormateur: j.formateur,
       };
-      if(champ === 'statut') payload.statut = valeur;
+      if(champ === 'statut'){
+        payload.statut = valeur;
+        if(valeur !== 'travail'){ payload.formation = ''; payload.integrationFormateur = ''; } // école / repos : plus de formation
+      }
       else if(champ === 'quart1'){ payload.heureDebut1 = valeur.debut; payload.heureFin1 = valeur.fin; }
       else if(champ === 'quart2'){ payload.heureDebut2 = valeur.debut; payload.heureFin2 = valeur.fin; }
       else if(champ === 'pauses') payload.nbPauses = valeur;
@@ -5480,8 +5490,8 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
           <td>${STATUT_LABELS_ALT[j.statut] || j.statut}</td>
           <td>${quart1}${quart2}</td>
           <td>${j.heures} h</td>
-          <td>${j.formation || '—'}</td>
-          <td>${j.formateur || '—'}</td>
+          <td>${j.statut === 'travail' ? (j.formation || '—') : '—'}</td>
+          <td>${j.statut === 'travail' ? (j.formateur || '—') : '—'}</td>
         </tr>`;
       }).join('');
       return `<tr style="background:#f2f0e8;"><td colspan="7" style="font-weight:700;">${libelle}</td></tr>
