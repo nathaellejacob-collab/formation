@@ -1108,12 +1108,12 @@
     <p>Choisis ton poste pour voir la liste correspondante.</p>
 
     <div id="postePickList" class="auth-formateur-list">
-      <button type="button" class="auth-formateur-btn" data-postes="Responsable de zone">Responsable de zone</button>
+      <button type="button" class="auth-formateur-btn" data-postes="ADM">ADM</button>
       <button type="button" class="auth-formateur-btn" data-postes="Directeur/Directrice">Directeur/Directrice</button>
       <button type="button" class="auth-formateur-btn" data-postes="Directeur adjoint/Directrice adjointe">Directeur adjoint/Directrice adjointe</button>
       <button type="button" class="auth-formateur-btn" data-postes="Assistant/Assistante de direction">Assistant/Assistante de direction</button>
       <button type="button" class="auth-formateur-btn" data-postes="Manager">Manager</button>
-      <button type="button" class="auth-formateur-btn" data-postes="ADM">ADM</button>
+      <button type="button" class="auth-formateur-btn" data-postes="Responsable de zone">Responsable de zone</button>
       <button type="button" class="auth-formateur-btn" data-postes="Formateur/Formatrice">Formateur/Formatrice</button>
     </div>
   </div>
@@ -1689,12 +1689,12 @@
       <input type="text" id="newFormateurCode" required placeholder="Ex : 4 chiffres, choisis-en un" autocomplete="off">
       <label for="newFormateurRole">Poste</label>
       <select id="newFormateurRole">
-        <option value="Responsable de zone">Responsable de zone</option>
+        <option value="ADM">ADM</option>
         <option value="Directeur/Directrice">Directeur/Directrice</option>
         <option value="Directeur adjoint/Directrice adjointe">Directeur adjoint/Directrice adjointe</option>
         <option value="Assistant/Assistante de direction">Assistant/Assistante de direction</option>
         <option value="Manager">Manager</option>
-        <option value="ADM">ADM</option>
+        <option value="Responsable de zone">Responsable de zone</option>
         <option value="Formateur/Formatrice" selected>Formateur/Formatrice</option>
       </select>
       <p style="font-size:11.5px;color:var(--ink-soft);margin-top:-4px;">Tous les postes sauf "Formateur/Formatrice" ont accès à l'espace responsable de la formation. Seuls Formateur/Formatrice et Responsable de zone peuvent être planifiés pour former des équipiers.</p>
@@ -1788,7 +1788,7 @@
 </div><!-- /#appRoot -->
 
 <script>
-const HIERARCHIE_PROFILS = ['Responsable', 'Responsable de zone', 'Directeur/Directrice', 'Directeur adjoint/Directrice adjointe', 'Assistant/Assistante de direction', 'Manager', 'ADM', 'Formateur/Formatrice', 'Formateur', 'Formatrice'];
+const HIERARCHIE_PROFILS = ['Responsable', 'ADM', 'Directeur/Directrice', 'Directeur adjoint/Directrice adjointe', 'Assistant/Assistante de direction', 'Manager', 'Responsable de zone', 'Formateur/Formatrice', 'Formateur', 'Formatrice'];
 function trierProfilsParHierarchie(liste){
   const rang = r => { let x = String(r || '').trim(); if(x === 'Formateur' || x === 'Formatrice') x = 'Formateur/Formatrice'; const i = HIERARCHIE_PROFILS.indexOf(x); return i === -1 ? HIERARCHIE_PROFILS.length : i; };
   return liste.slice().sort((a, b) => rang(a.role) - rang(b.role) || String(a.nom).localeCompare(String(b.nom), 'fr', { sensitivity: 'base' }));
