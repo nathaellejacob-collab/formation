@@ -4308,28 +4308,51 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     if(/équipier|gestion|profil|formateur|date d'entrée|renommage|disponibilit/.test(a)) return ['👥', 'Équipe & profils'];
     return ['⚙️', 'Autres'];
   }
+  // Texte du détail, en phrases claires. Plusieurs informations = plusieurs lignes (séparées par \n).
   function journalDetailLisible(e){
-    const d = (e.detail || '').toString();
+    const d = (e.detail || '').toString().trim();
     const act = e.action || '';
+    const dateFr = iso => frDate(parseDate(iso));
+    const isoVersFr = t => t.replace(/\b(\d{4}-\d{2}-\d{2})\b/g, (m, iso) => dateFr(iso));
+    const moisFr = m => MONTH_NAMES_FR_JOURNAL[Number(m.slice(5, 7)) - 1] + ' ' + m.slice(0, 4);
+    if(!d) return '';
     if(act === 'Modification formation' || act === 'Modification formation (gestion)'){
-      const k = d.indexOf(' → ');
+      const k = d.indexOf('→');
       if(k !== -1){
-        const champ = d.slice(0, k).trim(), val = d.slice(k + 3).trim();
+        const champ = d.slice(0, k).trim(), val = d.slice(k + 1).trim();
         const lib = FORMATION_FAIT_LABELS[champ] || champ.replace(/ \(Fait\)$/, '').replace(/Butoir$/, ' (échéance)');
-        if(/^\d{4}-\d{2}-\d{2}$/.test(val)) return `${lib} : fait le ${frDate(parseDate(val))}`;
-        if(val === '' || val === 'null') return `${lib} : date effacée`;
-        return `${lib} : ${val}`;
+        if(/^\d{4}-\d{2}-\d{2}$/.test(val)) return `${lib}\nFait le ${dateFr(val)}`;
+        if(val === '' || val === 'null') return `${lib}\nDate effacée`;
+        return `${lib}\n${val}`;
       }
     }
     if(act === 'Modification polyvalence'){
       const k = d.lastIndexOf(' → ');
       if(k !== -1){
         const poste = d.slice(0, k).trim(), etat = d.slice(k + 3).trim();
-        return etat === 'maîtrisé' ? `✓ ${poste} : coché maîtrisé` : `✗ ${poste} : décoché`;
+        return `${poste}\n${etat === 'maîtrisé' ? '✓ Coché « maîtrisé »' : '✗ Décoché (non maîtrisé)'}`;
       }
     }
-    return d;
+    if(act === 'Date de formation planifiée') return d.startsWith('→') ? 'Date prévue : ' + isoVersFr(d.replace(/^→\s*/, '')) : 'Date prévue retirée';
+    if(act === 'Génération planning mensuel' || act === 'Complément planning mensuel'){
+      const m = d.match(/^(.*?)\s—\s(\d{4}-\d{2})$/);
+      if(m) return `${m[1]}\nMois : ${moisFr(m[2])}`;
+    }
+    if(/^Coût de formation/.test(act)){
+      const m = d.match(/^(.*?)(?: \((Formation initiale|Suivi de formation)\))?\s—\s([\d.]+) €$/);
+      if(m) return `${m[1]}${m[2] ? '\n' + m[2] : ''}\nCoût : ${m[3].replace('.', ',')} €`;
+    }
+    if(act === 'Intégration opérationnelle renseignée') return 'Formateur : ' + d;
+    if(act === 'Renommage équipier' || act === 'Renommage membre gestion') return 'Nouveau nom : ' + d.replace(/^→\s*/, '');
+    if(act === "Modification date d'entrée") return "Nouvelle date d'entrée : " + isoVersFr(d.replace(/^→\s*/, ''));
+    if(/^Modification (disponibilité|compétence formateur|restriction poste)/.test(act)){
+      const k = d.lastIndexOf(' → ');
+      if(k !== -1) return `${d.slice(0, k).trim()}\n→ ${d.slice(k + 3).trim()}`;
+    }
+    // Cas général : dates en français, une information par ligne.
+    return isoVersFr(d).split(' · ').join('\n');
   }
+  const MONTH_NAMES_FR_JOURNAL = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
   function journalJourLibelle(ddmmyyyy){
     const [j, m, y] = ddmmyyyy.split('/').map(Number);
     const dt = new Date(y, m - 1, j);
@@ -4363,7 +4386,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       return;
     }
     const nbCols = isGerant ? 6 : 5;
-    let html = '<thead><tr><th>Heure</th>' + (isGerant ? '<th>Restaurant</th>' : '') + '<th>Qui</th><th>Ce qui a été fait</th><th>Concerné</th><th>Détail</th></tr></thead><tbody>';
+    let html = '<thead><tr><th>Heure</th>' + (isGerant ? '<th>Restaurant</th>' : '') + '<th>Qui</th><th>Ce qui a été fait</th><th>Concerné</th><th>Précisions</th></tr></thead><tbody>';
     let jourCourant = null;
     lignes.forEach(e => {
       const [jour, heure] = String(e.date || '').split(' ');
@@ -4377,7 +4400,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         + `<td>${esc(e.formateur)}</td>`
         + `<td><span class="action-pill ${journalPillClass(e.action)}">${icone} ${esc(e.action)}</span></td>`
         + `<td><strong>${esc(e.cible ? displayName(e.cible) : '')}</strong></td>`
-        + `<td>${esc(journalDetailLisible(e))}</td></tr>`;
+        + `<td>${journalDetailLisible(e).split('\n').map((l, i) => i === 0 && journalDetailLisible(e).includes('\n') ? '<strong>' + esc(l) + '</strong>' : esc(l)).join('<br>') || '<span style="color:var(--ink-soft);">—</span>'}</td></tr>`;
     });
     table.innerHTML = html + '</tbody>';
   }
