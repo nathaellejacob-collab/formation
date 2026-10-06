@@ -322,6 +322,43 @@
     font-size:12.5px; color:var(--navy-2); margin:8px 0; line-height:1.5;
   }
   .guide-bullet{font-size:13px; line-height:1.6; margin:5px 0 5px 4px; color:var(--ink);}
+
+  .modal-card-wide{max-width:780px;}
+  .guide-hero{background:linear-gradient(135deg,var(--navy-2),var(--navy)); color:#fff; border-radius:12px; padding:16px 18px; margin:6px 0 12px;}
+  .guide-hero-t{font-size:17px; font-weight:800; margin-bottom:3px;}
+  .guide-hero-s{font-size:12.5px; opacity:0.92; line-height:1.5;}
+  .guide-nav{display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px;}
+  .guide-chip{appearance:none; cursor:pointer; border:1px solid var(--c); color:var(--c); background:#fff; border-radius:999px; padding:4px 11px; font-size:12px; font-weight:700;}
+  .guide-chip:hover{background:var(--c); color:#fff;}
+  .guide-toolbar{display:flex; gap:8px; justify-content:flex-end; margin-bottom:6px;}
+  .guide-toolbar button{appearance:none; border:none; background:none; cursor:pointer; color:var(--ink-soft); font-size:12px; text-decoration:underline;}
+  details.guide-sec{border:1px solid var(--line); border-left:5px solid var(--c); border-radius:10px; background:#fff; margin-bottom:10px; overflow:hidden;}
+  details.guide-sec > summary{list-style:none; cursor:pointer; display:flex; align-items:center; gap:12px; padding:12px 14px; background:#faf9f4;}
+  details.guide-sec > summary::-webkit-details-marker{display:none;}
+  .guide-sec-ico{font-size:22px; line-height:1;}
+  .guide-sec-txt{display:flex; flex-direction:column; flex:1; min-width:0;}
+  .guide-sec-titre{font-weight:800; color:var(--navy); font-size:14.5px;}
+  .guide-sec-resume{font-size:12px; color:var(--ink-soft); margin-top:1px;}
+  .guide-sec-chev{font-size:22px; color:var(--c); transition:transform .15s; line-height:1;}
+  details.guide-sec[open] > summary .guide-sec-chev{transform:rotate(90deg);}
+  details.guide-sec[open] > summary{border-bottom:1px solid var(--line);}
+  .guide-sec-body{padding:6px 16px 14px;}
+  .guide-sub{font-weight:800; font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--c); margin:14px 0 6px;}
+  .guide-p{font-size:13px; line-height:1.65; margin:8px 0; color:var(--ink);}
+  .guide-list{margin:6px 0 6px 2px; padding-left:18px; font-size:13px; line-height:1.65; color:var(--ink);}
+  .guide-list li{margin:4px 0;}
+  ol.guide-steps{list-style:none; counter-reset:g; margin:6px 0; padding:0;}
+  ol.guide-steps li{counter-increment:g; position:relative; padding:5px 0 5px 34px; font-size:13px; line-height:1.6; color:var(--ink);}
+  ol.guide-steps li::before{content:counter(g); position:absolute; left:0; top:5px; width:23px; height:23px; border-radius:50%; background:var(--c); color:#fff; font-weight:800; font-size:12px; display:flex; align-items:center; justify-content:center;}
+  .guide-callout{display:flex; gap:10px; border-radius:9px; padding:10px 12px; margin:10px 0; font-size:12.5px; line-height:1.55;}
+  .guide-callout-ico{font-size:16px; line-height:1.3;}
+  .guide-callout.tip{background:var(--green-bg); border:1px solid var(--green-line);}
+  .guide-callout.warn{background:#fdf1de; border:1px solid var(--amber);}
+  .guide-callout.info{background:var(--teal-bg); border:1px solid var(--teal-line);}
+  .guide-pill{display:inline-block; border-radius:999px; padding:1px 9px; font-size:12px; font-weight:700;}
+  .guide-pill.red{background:var(--red-bg); color:var(--red);}
+  .guide-pill.amber{background:#fdf1de; color:var(--amber-dark);}
+  .guide-pill.green{background:var(--green-bg); color:var(--green);}
   .modal-card-wide .modal-head-row{
     position:sticky; top:0; z-index:2; background:var(--panel);
     margin:-26px -26px 16px; padding:26px 26px 14px; border-bottom:1px solid var(--line);
@@ -2520,97 +2557,221 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     function renderGuideContent(){
       const peutEtrePlanifie = canBeScheduledRole(sessionRole) || isGerant;
       const accesResponsable = isResponsableLevelRole(sessionRole) || isGerant;
+      const profil = isGerant ? 'Gérant' : (sessionRole || 'Formateur');
 
-      const sectionHeader = (title, color) => `<div class="guide-section-header" style="background:${color};">${title}</div>`;
-      const tabCard = (color, name, desc) => `<div class="guide-tab-card" style="border-left-color:${color};"><div class="guide-tab-name">${name}</div><div class="guide-tab-desc">${desc}</div></div>`;
-      const bullet = (text) => `<div class="guide-bullet">• ${text}</div>`;
-      const note = (text) => `<div class="guide-note">${text}</div>`;
+      // ----- Petits éléments de mise en page -----
+      const steps = (liste) => '<ol class="guide-steps">' + liste.map(t => `<li>${t}</li>`).join('') + '</ol>';
+      const tip = (t) => `<div class="guide-callout tip"><span class="guide-callout-ico">💡</span><div>${t}</div></div>`;
+      const warn = (t) => `<div class="guide-callout warn"><span class="guide-callout-ico">⚠️</span><div>${t}</div></div>`;
+      const info = (t) => `<div class="guide-callout info"><span class="guide-callout-ico">ℹ️</span><div>${t}</div></div>`;
+      const para = (t) => `<p class="guide-p">${t}</p>`;
+      const sub = (t) => `<div class="guide-sub">${t}</div>`;
+      const list = (items) => '<ul class="guide-list">' + items.map(t => `<li>${t}</li>`).join('') + '</ul>';
+      const pill = (cls, t) => `<span class="guide-pill ${cls}">${t}</span>`;
 
-      let html = '';
-      let n = 1;
+      const sections = [];
+      const section = (id, icon, color, titre, resume, corps) => sections.push({ id, icon, color, titre, resume, corps });
 
-      html += sectionHeader(n++ + ' — Se connecter', 'var(--amber-dark)');
-      html += bullet('Ouvre le site (déjà accessible sur l\'ordinateur formation et la tablette formation) et choisis « Mon restaurant »');
-      html += bullet('Sélectionne ton restaurant, puis entre le mot de passe du restaurant');
-      html += bullet('Choisis ton poste, puis clique sur ton prénom dans la liste et entre ton code personnel');
+      // ----- 1. Démarrer -----
+      section('demarrer', '🚀', 'var(--amber-dark)', 'Démarrer', 'Se connecter et comprendre les couleurs',
+        sub('Se connecter')
+        + steps([
+          'Ouvre le site (déjà accessible sur l\'ordinateur formation et la tablette formation) et choisis <strong>« Mon restaurant »</strong>.',
+          'Sélectionne ton restaurant, puis entre le <strong>mot de passe du restaurant</strong>.',
+          'Choisis ton poste, puis clique sur ton prénom dans la liste et entre ton <strong>code personnel</strong>. Un code peut commencer par 0.',
+        ])
+        + sub('Les couleurs')
+        + para(`${pill('red', 'Rouge')} en retard &nbsp; ${pill('amber', 'Orange')} échéance sous 30 jours &nbsp; ${pill('green', 'Vert')} à jour`)
+        + (isGerant ? tip('En haut de la page, le <strong>sélecteur de restaurant</strong> te fait passer d\'un restaurant à l\'autre. Tout ce que tu vois et fais s\'applique au restaurant sélectionné.') : ''));
 
-      html += sectionHeader(n++ + ' — Les onglets', 'var(--navy-2)');
-      html += tabCard('var(--amber-dark)', 'Formations obligatoires', 'La liste des équipiers et l\'état de leurs formations à jour (sécurité, hygiène, MTSRI, culture service...). Couleur rouge/orange/vert selon l\'échéance. Recherche par nom ; clique sur une formation précise ou sur une carte « En retard »/« Échéance sous 30 j »/« À jour » pour filtrer et faire apparaître le tri par urgence.');
-      html += tabCard('var(--teal)', 'Postes &amp; Polyvalence', 'Le tableau des postes déjà maîtrisés par chaque équipier (Production et Service), et le taux de polyvalence global de chacun.');
-      html += tabCard('var(--plum)', 'Équipe de gestion', 'Le même principe que « Formations obligatoires », pour l\'équipe de gestion (sans le suivi à 4 semaines ni à 60 jours).');
-      html += tabCard('var(--amber-dark)', 'Planification', peutEtrePlanifie
-        ? (accesResponsable ? 'Les formations prévues ce mois-ci. Tu peux générer de nouvelles propositions et en ignorer si besoin.' : 'Les formations prévues ce mois-ci : qui doit former qui, sur quel poste. C\'est ton Responsable formation qui génère ces propositions ; toi, tu les consultes.')
-        : 'Les formations prévues ce mois-ci pour les équipiers. Tu peux générer de nouvelles propositions et en ignorer si besoin.');
-      html += tabCard('var(--green)', 'Coût de la formation', 'Enregistre le coût de chaque formation (temps tablette + temps d\'accompagnement, formation initiale ou suivi), avec l\'historique du mois, le récapitulatif annuel et les taux horaires.');
-      html += tabCard('var(--teal)', 'Suivi intégration opérationnel', 'Attribue, pour chaque nouvel équipier et chaque mois, le formateur qui a réalisé son intégration opérationnelle. Un encadré récapitule le nombre d\'intégrations réalisées par formateur sur le mois affiché.');
-      html += tabCard('var(--plum)', 'Alternant', accesResponsable
-        ? 'Le planning des alternants : parcours de formation Cuisine puis Comptoir, planning semaine par semaine avec édition directe dans chaque case (un jour avec plusieurs formations : un formateur par formation), téléchargement du planning en PDF pour l\'alternant (qui n\'a pas accès au site).'
-        : 'Le planning et le parcours de formation des alternants, en consultation. Tu peux télécharger leur planning en PDF, mais pas le modifier — seuls le gérant et le Responsable formation le peuvent.');
-      if(accesResponsable){
-        html += tabCard('var(--teal)', 'Activité', 'Le journal des actions récentes (ajouts, suppressions, validations) sur le restaurant, et l\'extraction mensuelle des formations validées (formations obligatoires et vérifications sur poste), imprimable ou exportable.');
-      }
-      if(isGerant){
-        html += tabCard('var(--navy-2)', 'Comparaison', 'Vue d\'ensemble de tous les restaurants : taux de polyvalence, équilibre Production/Service, tableau comparatif complet (effectifs, formations en retard, taux de polyvalence).');
-      }
+      // ----- 2. Formations obligatoires -----
+      section('formations', '📘', 'var(--amber-dark)', 'Formations obligatoires', 'Sécurité, hygiène, MTSRI, culture service…',
+        para('La liste des équipiers et l\'état de leurs formations à jour, avec une couleur selon l\'échéance. L\'onglet « Équipe de gestion » fonctionne de la même façon pour l\'équipe de gestion (sans le suivi à 4 semaines ni à 60 jours).')
+        + list([
+          'Cherche un équipier avec la <strong>barre de recherche</strong>.',
+          'Clique sur une formation précise, ou sur une carte « En retard », « Échéance sous 30 j » ou « À jour », pour filtrer. Le <strong>tri par urgence</strong> apparaît alors.',
+        ])
+        + (peutEtrePlanifie ? sub('Valider une formation')
+          + steps([
+            'Clique sur la ligne de l\'équipier pour ouvrir sa fiche.',
+            'Repère la formation : si un lien <strong>« Voir la fiche »</strong> apparaît, télécharge-le.',
+            'Enregistre la fiche dans le dossier habituel de l\'ordinateur ou de la tablette formation, puis fais-la <strong>signer par l\'équipier</strong>.',
+            'Reviens sur le site et indique la date dans <strong>« Fait le »</strong>. Pour un poste, coche la case du poste dans « Postes &amp; Polyvalence ».',
+          ])
+          + warn('Enregistre d\'abord la fiche signée, ensuite seulement change la date ou coche le poste. Chaque validation est notée dans le journal d\'activité.') : ''));
 
+      // ----- 3. Postes & polyvalence -----
+      section('polyvalence', '🎯', 'var(--teal)', 'Postes & Polyvalence', 'Qui maîtrise quel poste',
+        para('Le tableau des postes déjà maîtrisés par chaque équipier (Production et Service) et son <strong>taux de polyvalence</strong>.')
+        + (peutEtrePlanifie ? list([
+          'Une fois la fiche du poste signée, <strong>coche la case</strong> du poste pour l\'équipier.',
+          'Si ce poste était prévu dans la Planification du mois, la proposition passe automatiquement en <strong>« Réalisée »</strong>.',
+          'Si tu décoches par erreur, la proposition repasse en attente.',
+        ]) : ''));
+
+      // ----- 4. Planification -----
+      section('planification', '🗓️', 'var(--amber-dark)', 'Planification', 'Qui forme qui, sur quel poste, ce mois-ci',
+        para(peutEtrePlanifie && !accesResponsable
+          ? 'Les formations prévues ce mois-ci : <strong>qui doit former qui, sur quel poste</strong>. C\'est ton Responsable formation qui génère les propositions ; toi, tu les consultes et tu indiques la date prévue.'
+          : 'Les formations prévues ce mois-ci : <strong>qui doit former qui, sur quel poste</strong>.')
+        + list([
+          'Choisis le mois avec <strong>« Mois affiché »</strong>.',
+          'Indique la <strong>date prévue</strong> sur chaque proposition.',
+          'Le bouton <strong>« 🖨️ Imprimer / PDF »</strong> sort la liste du mois, classée par formateur.',
+        ])
+        + (accesResponsable ? sub('Générer et gérer les propositions')
+          + steps([
+            'Clique <strong>« 🧮 Générer le planning du mois »</strong> (mois en cours ou mois suivant).',
+            '<strong>« ✗ Ignorer »</strong> retire une proposition, même une formation déjà réalisée. Sa place se libère et « Générer » pourra en proposer une nouvelle.',
+            'Quand une vérification regroupe plusieurs postes (ex. « Assemblage et Présentation »), choisis dans le menu de la proposition le <strong>poste concerné</strong>. Le nom exact de la vérification ne change pas : c\'est lui qui la valide quand elle est cochée dans Postes &amp; Polyvalence.',
+            '<strong>« Restrictions par équipier »</strong> : indique les postes à ne jamais proposer à quelqu\'un.',
+          ])
+          + sub('Les règles de la génération automatique')
+          + info('Ordre de priorité : <strong>1)</strong> les personnes arrivées dans les 2 derniers mois, <strong>2)</strong> zone par zone (« Cuisine » puis « Comptoir »), <strong>3)</strong> dans l\'ordre de formation défini pour chaque zone, <strong>4)</strong> sinon le taux de polyvalence le plus faible, <strong>5)</strong> en dernier recours les formations « Autres ».')
+          + list([
+            'Maximum <strong>2 formations par formateur</strong> et <strong>2 par équipier</strong> sur un mois.',
+            'Un même poste n\'est <strong>jamais proposé plus de 3 fois</strong> sur le mois.',
+            'Une formation déjà proposée (en attente, ignorée ou réalisée) n\'est pas reproposée à la même personne pendant <strong>2 mois</strong>. Passé ce délai, elle peut être reproposée.',
+          ]) : '')
+        + (isGerant ? sub('Réservé au gérant : ordre de formation par filière')
+          + para('Dans « 🧭 Ordre de formation par filière », <strong>glisse un poste</strong> pour le ranger dans Cuisine ou Comptoir, dans l\'ordre où il doit être appris, ou le sortir de toute filière. Cet ordre guide les propositions automatiques.')
+          + para('Sous chaque vérification, <strong>« ✏️ Postes »</strong> définit les postes qu\'elle regroupe (ajouter, renommer, retirer, réordonner). Exemple : « Initiation &amp; Assemblage » regroupe Initiation et Assemblage.') : ''));
+
+      // ----- 5. Coût de la formation -----
       if(peutEtrePlanifie){
-        html += sectionHeader(n++ + ' — Valider une formation ou un poste', 'var(--teal)');
-        html += bullet('Clique sur la ligne de l\'équipier concerné pour ouvrir sa fiche');
-        html += bullet('Repère la formation ou le poste concerné : si un lien « Voir la fiche » apparaît, télécharge-le directement via le site');
-        html += note('Enregistre la fiche dans le dossier habituel de l\'ordinateur/tablette formation, comme d\'habitude — puis fais-la signer par l\'équipier.');
-        html += bullet('Une fois la fiche signée : reviens sur le site et indique la date dans « Fait le » (formation obligatoire), ou coche la case du poste (Polyvalence)');
+        section('cout', '💶', 'var(--green)', 'Coût de la formation', 'Enregistrer ce que coûte chaque formation',
+          steps([
+            'Choisis la <strong>date</strong>, le <strong>formateur</strong> (n\'importe quel profil du restaurant peut avoir formé), l\'<strong>équipier formé</strong> et la <strong>formation</strong>.',
+            'Précise s\'il s\'agit d\'une <strong>formation initiale</strong> ou d\'un <strong>suivi de formation</strong>. Ce choix est obligatoire, sauf pour l\'intégration opérationnelle.',
+            'Indique le <strong>temps tablette</strong> et le <strong>temps d\'accompagnement</strong> en minutes. Le coût se calcule tout seul.',
+            'Clique <strong>Enregistrer</strong>.',
+          ])
+          + warn('Une formation <strong>initiale</strong> ne peut être enregistrée qu\'une seule fois par équipier et par formation. Pour une nouvelle session sur le même sujet, choisis « Suivi de formation ». Un suivi a lui aussi un coût : simplement, il n\'y a pas de temps tablette.')
+          + list([
+            '<strong>Historique :</strong> les entrées du mois sont classées par date, quel que soit l\'ordre de saisie. Le Responsable peut corriger (✏️) ou supprimer (🗑️) une entrée.',
+            '<strong>Récapitulatif annuel :</strong> les mois de l\'année en cours et de l\'année précédente, côte à côte.',
+            '<strong>🖨️ Imprimer / PDF :</strong> sort l\'historique du mois avec son total.',
+            '<strong>Taux horaires :</strong> modifiables par le gérant uniquement.',
+          ])
+          + tip('Quand tu enregistres une <strong>intégration opérationnelle</strong>, le nom du formateur est <strong>reporté automatiquement</strong> dans « Suivi intégration opérationnel », sur la ligne de l\'équipier. Si le nom de l\'équipier est mal écrit, une alerte te le dit et rien n\'est reporté.'));
 
-        html += sectionHeader(n++ + ' — Enregistrer le coût d\'une formation', 'var(--green)');
-        html += bullet('Dans « Coût de la formation », choisis le formateur, l\'équipier formé et la formation ou le poste concerné');
-        html += bullet('Indique le temps passé sur la tablette et le temps d\'accompagnement (en minutes) — le coût se calcule automatiquement');
-        html += bullet('Précise obligatoirement s\'il s\'agit d\'une <strong>formation initiale</strong> ou d\'un <strong>suivi de formation</strong>');
-        html += note('Une formation initiale ne peut être enregistrée qu\'une seule fois par équipier et par formation. Pour une nouvelle session sur le même sujet, choisis « Suivi de formation ».');
-
-        html += sectionHeader(n++ + ' — Suivi intégration opérationnel', 'var(--teal)');
-        html += bullet('Choisis le mois concerné, puis sélectionne le formateur qui a réalisé l\'intégration de chaque nouvel équipier');
-        html += bullet('L\'enregistrement est automatique dès que tu choisis un nom dans le menu déroulant');
+        section('integration', '🤝', 'var(--teal)', 'Suivi intégration opérationnel', 'Qui a intégré chaque nouvel équipier',
+          para('Pour chaque nouvel équipier, le formateur qui a réalisé son intégration opérationnelle.')
+          + list([
+            'Choisis le <strong>mois d\'entrée</strong> des équipiers.',
+            'Le formateur est rempli <strong>automatiquement</strong> dès qu\'une intégration est enregistrée dans « Coût de la formation ». Tu peux aussi le choisir à la main dans le menu : l\'enregistrement est immédiat.',
+            'Un encadré compte les intégrations réalisées par formateur sur le mois affiché.',
+            'L\'historique reste visible même si l\'équipier est supprimé ensuite. Seules l\'année en cours et l\'année précédente sont conservées.',
+          ]));
       }
 
+      // ----- 6. Alternant -----
+      section('alternant', '🎓', 'var(--plum)', 'Alternant', 'Parcours et planning de l\'alternant',
+        accesResponsable
+          ? para('Le planning de l\'alternant se génère tout seul à partir de sa date de début : <strong>Cuisine</strong> d\'abord, puis <strong>Comptoir</strong>. Les semaines vont du <strong>dimanche au samedi</strong>.')
+            + sub('Créer et remplir le planning')
+            + steps([
+              'Clique <strong>« ➕ Ajouter un alternant »</strong> : son profil est créé et son planning généré.',
+              'Si l\'alternant commence en milieu de semaine, la première semaine est partielle (ex. un jeudi : jeudi, vendredi, samedi). L\'objectif de <strong>35 h</strong> ne compte que sur les semaines complètes.',
+              'Clique <strong>directement sur une case</strong> (statut, horaires, pauses, formation, formateur) pour la modifier. Entrée, ou le choix dans un menu, enregistre aussitôt. Le 💾 en bout de ligne enregistre aussi.',
+              'Un jour avec <strong>plusieurs formations</strong> : la case Formateur propose un menu par formation. Clique « ✓ Valider » après avoir choisi.',
+              'Le formateur se choisit <strong>jour par jour</strong> : une formation n\'est jamais liée à un formateur une fois pour toutes.',
+            ])
+            + info('Une formation n\'existe que sur un <strong>jour travaillé</strong>. Un jour d\'école ou de repos n\'en porte jamais, et passer un jour en école ou en repos retire sa formation.')
+            + sub('Les boutons')
+            + list([
+              '<strong>🔄 Recalculer les formations :</strong> réattribue les formations à partir des jours travaillés, sans toucher aux statuts ni aux horaires. Un formateur déjà choisi reste sur sa formation tant qu\'elle est encore prévue ce jour-là.',
+              '<strong>➕ Ajouter une semaine :</strong> prolonge le planning (complète d\'abord la semaine en cours jusqu\'au samedi). Le 🗑️ sur l\'en-tête d\'une semaine la supprime.',
+              '<strong>🖨️ Télécharger en PDF :</strong> un planning simple à remettre à l\'alternant, qui n\'a pas accès au site.',
+              '<strong>🧭 Voir/modifier le parcours de formation :</strong> glisse les formations et les postes de la rotation pour changer leur ordre, et rattache chaque formation au poste réel de « Postes &amp; Polyvalence ».',
+              '<strong>⚙️ Paramétrage du parcours alternant :</strong> les horaires des périodes du restaurant (Ouverture, Rush midi, Fermeture…), qui servent à proposer les bonnes formations selon le jour travaillé.',
+            ])
+          : para('Le planning et le parcours de formation des alternants, <strong>en consultation</strong>.')
+            + list([
+              'Tu peux <strong>télécharger le planning en PDF</strong>, mais pas le modifier : seuls le gérant et le Responsable formation le peuvent.',
+              'Pour chaque jour travaillé, tu vois la ou les formations prévues et le formateur de chacune.',
+            ]));
+
+      // ----- 7. Activité -----
       if(accesResponsable){
-        html += sectionHeader(n++ + ' — Alternant : parcours et planning', 'var(--plum)');
-        html += bullet('« ➕ Ajouter un alternant » crée son profil et génère automatiquement son planning sur plusieurs mois, à partir de sa date de début');
-        html += bullet('Les semaines vont du <strong>dimanche au samedi</strong>. Si l\'alternant commence en milieu de semaine, la première semaine est partielle (ex. départ un jeudi : jeudi, vendredi, samedi) et l\'objectif de 35 h ne s\'applique qu\'aux semaines complètes. « ➕ Ajouter une semaine » complète d\'abord la semaine en cours jusqu\'au samedi, puis ajoute des semaines entières');
-        html += bullet('Dans le planning, clique directement sur une case (statut, horaires, pauses, formation, formateur) pour la modifier — Entrée (ou le choix dans un menu déroulant) enregistre aussitôt ; le 💾 en bout de ligne enregistre si besoin');
-        html += bullet('« 🔄 Recalculer les formations » réattribue automatiquement les formations prévues à partir des jours travaillés, sans toucher aux statuts ni aux horaires déjà saisis. Une formation n\'existe que sur un jour travaillé : un jour d\'école ou de repos n\'en porte jamais, et passer un jour en école ou en repos retire sa formation');
-        html += bullet('« ➕ Ajouter une semaine » prolonge le planning si le parcours dépasse la durée prévue ; le 🗑️ sur l\'en-tête d\'une semaine la supprime entièrement');
-        html += bullet('« 🖨️ Télécharger en PDF » génère un planning simple et lisible à remettre à l\'alternant, qui n\'a pas accès au site');
-        html += bullet('« 🧭 Voir/modifier le parcours de formation » : glisse les formations et les postes de la rotation pour changer leur ordre ; rattache chaque formation au poste réel correspondant dans « Postes &amp; Polyvalence »');
-        html += bullet('« ⚙️ Paramétrage du parcours alternant » (repliée par défaut) : les horaires des périodes du restaurant (Ouverture, Rush midi, Fermeture...), utilisées pour proposer automatiquement les bonnes formations selon le jour travaillé');
+        section('activite', '📋', 'var(--teal)', 'Activité', 'Journal et extraction du mois',
+          sub('Extraction des formations validées dans le mois')
+          + list([
+            'Choisis le <strong>mois</strong>. Deux parties s\'affichent : <strong>Formations sur poste</strong> (postes cochés « maîtrisé ») et <strong>Formations obligatoires</strong> (dates saisies), classées par équipier.',
+            'Si une validation est corrigée ou annulée dans le mois, seul le <strong>dernier état</strong> compte.',
+            '<strong>🖨️ Imprimer / PDF</strong> et <strong>⬇️ Export Excel (CSV)</strong> sortent la liste du mois.',
+          ])
+          + sub('Journal d\'activité')
+          + list([
+            'Les actions récentes du restaurant, regroupées par jour, les plus récentes en premier.',
+            'Utilise la <strong>recherche</strong> et les deux filtres (type d\'action, personne) pour retrouver une action.',
+            'La colonne « Précisions » détaille ce qui a changé, en phrases simples.',
+          ]));
       }
 
-      if(accesResponsable){
-        html += sectionHeader(n++ + ' — Fonctions Responsable de la formation', 'var(--plum)');
-        html += bullet('« 👥 Gérer les profils » : ajoute, modifie ou désactive un formateur/profil, définis son poste (qui détermine son accès)');
-        html += bullet('Depuis « Planification » : « Générer » propose de nouvelles formations pour le mois, « Ignorer » retire une proposition — y compris une formation déjà réalisée (✓ Réalisée) — et libère sa place : « Générer » pourra alors en proposer une nouvelle. Un équipier ne reçoit jamais plus de 2 formations par mois, et un même poste n\'est jamais proposé plus de 3 fois sur le mois. Une formation déjà proposée (en attente, ignorée ou réalisée) n\'est pas reproposée à la même personne pendant 2 mois (le mois de la proposition et le suivant), même si elle n\'a pas été validée ; passé ce délai, elle peut être proposée de nouveau pour être planifiée');
-        html += bullet('Ordre de priorité des propositions : 1) les personnes arrivées dans les 2 derniers mois, 2) zone par zone (« Cuisine » puis « Comptoir »), 3) dans l\'ordre de formation défini pour chaque zone, 4) sans étape de zone à faire, le taux de polyvalence le plus faible en Production ou en Service, 5) en dernier recours, les formations « Autres »');
-        html += bullet('Quand une vérification regroupe plusieurs postes (ex. « Assemblage et Présentation » : comptoir, drive, OAT), choisis dans le menu de la proposition le poste concerné par la formation. Le nom exact de la vérification ne change pas : c\'est lui qui la valide automatiquement quand elle est cochée dans « Postes &amp; Polyvalence »');
-        html += bullet('Quand une vérification couvre plusieurs postes (ex. « Assemblage et Présentation » : comptoir, drive, OAT), le poste concerné s\'affiche sur la proposition et se choisit dans son menu « Poste à préciser » — le nom exact de la vérification ne change jamais, c\'est lui qui la valide automatiquement quand le poste est coché dans Postes &amp; Polyvalence');
-        html += bullet('« Restrictions par équipier » (dans Planification) : indique les postes à ne jamais proposer à quelqu\'un');
-      }
-
+      // ----- 8. Comparaison (gérant) -----
       if(isGerant){
-        html += sectionHeader(n++ + ' — Fonctions du gérant', 'var(--navy-2)');
-        html += bullet('Le sélecteur de restaurant en haut de page permet de passer d\'un restaurant à l\'autre — tout ce que tu fais s\'applique au restaurant actuellement sélectionné');
-        html += bullet('« ➕ Ajouter une formation » : seul le gérant peut créer un nouveau poste ou une nouvelle formation obligatoire (les modifier, les retirer, les supprimer définitivement) — les autres postes peuvent les suivre et les valider, mais pas en créer de nouvelles');
-        html += bullet('« 🧭 Ordre de formation par filière » (dans Planification) : glisse un poste pour le ranger dans Cuisine ou Comptoir, dans l\'ordre où il doit être appris, ou le sortir de toute filière — ça détermine l\'ordre des propositions automatiques de la Planification');
-        html += bullet('Sous chaque vérification de ce même panneau, « ✏️ Postes » permet de définir les postes qu\'elle regroupe : ajouter, renommer, retirer, réordonner par glisser-déposer. Une nouvelle proposition reçoit d\'office le premier poste de la liste ; le Responsable peut le changer dans le menu de la proposition');
-        html += bullet('« ✏️ Postes » (sur chaque vérification, dans « Ordre de formation par filière ») : ajoute, renomme, retire ou réordonne les postes que couvre une vérification — ex. « Initiation &amp; Assemblage » : Initiation, Assemblage. Le nom exact de la vérification est conservé');
-        html += bullet('« ⚙️ Gérer les restaurants » : ajoute ou supprime un restaurant, modifie son email de contact (alertes hebdomadaires), et renseigne ton propre email pour recevoir le récapitulatif tous restaurants confondus chaque lundi');
+        section('comparaison', '📊', 'var(--navy-2)', 'Comparaison', 'Tous les restaurants côte à côte',
+          para('Vue d\'ensemble de tous les restaurants : taux de polyvalence, équilibre Production/Service et tableau comparatif complet (effectifs, formations en retard, taux de polyvalence).'));
       }
 
-      html += sectionHeader(n++ + ' — Bon à savoir', 'var(--amber-dark)');
-      html += bullet('<span style="color:var(--red);font-weight:700;">Rouge</span> = en retard &nbsp; <span style="color:var(--amber-dark);font-weight:700;">Orange</span> = échéance sous 30 jours &nbsp; <span style="color:var(--green);font-weight:700;">Vert</span> = à jour');
-      html += bullet('Utilise les filtres « En retard » / « Échéance sous 30 j » en haut de la liste pour te concentrer sur l\'urgent — le tri par urgence apparaît automatiquement dès qu\'une formation ou un filtre est sélectionné');
-      html += bullet('La barre de recherche permet de retrouver un équipier directement par son nom');
-      html += bullet('Suivi intégration opérationnel et Alternant ne conservent que l\'année en cours et l\'année précédente — les données plus anciennes sont retirées automatiquement');
-      html += bullet('Un souci, une question ? Adresse-toi à ton Responsable formation ou ton Directeur/Directrice.');
+      // ----- 9. Responsable : profils -----
+      if(accesResponsable){
+        section('profils', '👥', 'var(--plum)', 'Gérer les profils', 'Formateurs, responsables, accès',
+          steps([
+            'Clique <strong>« 👥 Gérer les profils »</strong>.',
+            'Ajoute un profil : nom, <strong>code personnel</strong> (4 chiffres conseillés, il peut commencer par 0) et <strong>poste</strong>.',
+            'Tu peux ensuite modifier le code (🔑), désactiver ou réactiver un profil.',
+          ])
+          + para('Le poste détermine l\'accès : tous sauf « Formateur/Formatrice » ont l\'<strong>espace responsable</strong> (gérer les profils, planning, activité). Seuls Formateur/Formatrice et Responsable de zone peuvent être planifiés pour former.')
+          + para('Les profils sont toujours classés par hiérarchie : <strong>ADM, Directeur, Directeur adjoint, Assistant de direction, Manager, Responsable de zone, Formateur</strong>.')
+          + para('Le taux horaire (utilisé pour le coût de la formation) se règle automatiquement selon le poste.'));
+      }
 
-      guideContent.innerHTML = html;
+      // ----- 10. Gérant -----
+      if(isGerant){
+        section('gerant', '🛠️', 'var(--navy-2)', 'Fonctions du gérant', 'Ce que seul le gérant peut faire',
+          list([
+            '<strong>➕ Ajouter une formation :</strong> seul le gérant crée un nouveau poste ou une nouvelle formation obligatoire, et peut les modifier, les retirer ou les supprimer définitivement. Les autres profils peuvent les suivre et les valider.',
+            '<strong>🧭 Ordre de formation par filière</strong> et <strong>✏️ Postes</strong> (dans Planification) : voir la section Planification.',
+            '<strong>⚙️ Gérer les restaurants :</strong> ajoute ou supprime un restaurant, modifie son email de contact (alertes hebdomadaires), et renseigne ton propre email pour recevoir le récapitulatif de tous les restaurants chaque lundi.',
+            '<strong>Taux horaires</strong> du coût de la formation : modifiables par le gérant uniquement.',
+          ]));
+      }
+
+      // ----- 11. Bon à savoir -----
+      section('bon-a-savoir', '✨', 'var(--amber-dark)', 'Bon à savoir', 'Les petits réflexes utiles',
+        list([
+          'Utilise <strong>« En retard »</strong> et <strong>« Échéance sous 30 j »</strong> en haut de la liste pour te concentrer sur l\'urgent.',
+          'Suivi intégration opérationnel et Alternant ne gardent que l\'<strong>année en cours et l\'année précédente</strong> : les données plus anciennes sont retirées automatiquement.',
+          'Les boutons <strong>🖨️ Imprimer / PDF</strong> ouvrent une page propre : dans la fenêtre d\'impression, choisis « Enregistrer au format PDF ».',
+          'Un souci, une question ? Adresse-toi à ton Responsable formation ou ton Directeur/Directrice.',
+        ]));
+
+      // ----- Assemblage -----
+      const nav = sections.map(s => `<button type="button" class="guide-chip" data-target="guide-sec-${s.id}" style="--c:${s.color};">${s.icon} ${s.titre}</button>`).join('');
+      const corps = sections.map((s, i) => `<details class="guide-sec" id="guide-sec-${s.id}" style="--c:${s.color};" ${i === 0 ? 'open' : ''}>
+          <summary><span class="guide-sec-ico">${s.icon}</span><span class="guide-sec-txt"><span class="guide-sec-titre">${s.titre}</span><span class="guide-sec-resume">${s.resume}</span></span><span class="guide-sec-chev">›</span></summary>
+          <div class="guide-sec-body">${s.corps}</div>
+        </details>`).join('');
+
+      guideContent.innerHTML = `<div class="guide-hero">
+          <div class="guide-hero-t">Bienvenue sur Crew Academy</div>
+          <div class="guide-hero-s">Ce guide est adapté à ton poste : <strong>${profil}</strong>. Clique sur un thème pour le déplier.</div>
+        </div>
+        <div class="guide-nav">${nav}</div>
+        <div class="guide-toolbar"><button type="button" id="guideOpenAll">Tout déplier</button><button type="button" id="guideCloseAll">Tout replier</button></div>
+        ${corps}`;
+
+      const toutes = () => guideContent.querySelectorAll('details.guide-sec');
+      guideContent.querySelector('#guideOpenAll').addEventListener('click', () => toutes().forEach(d => { d.open = true; }));
+      guideContent.querySelector('#guideCloseAll').addEventListener('click', () => toutes().forEach(d => { d.open = false; }));
+      guideContent.querySelectorAll('.guide-chip').forEach(btn => btn.addEventListener('click', () => {
+        const cible = guideContent.querySelector('#' + btn.dataset.target);
+        if(!cible) return;
+        cible.open = true;
+        cible.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }));
     }
 
     showGuideBtn.addEventListener('click', () => {
