@@ -2480,7 +2480,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       html += tabCard('var(--green)', 'Coût de la formation', 'Enregistre le coût de chaque formation (temps tablette + temps d\'accompagnement, formation initiale ou suivi), avec l\'historique du mois, le récapitulatif annuel et les taux horaires.');
       html += tabCard('var(--teal)', 'Suivi intégration opérationnel', 'Attribue, pour chaque nouvel équipier et chaque mois, le formateur qui a réalisé son intégration opérationnelle. Un encadré récapitule le nombre d\'intégrations réalisées par formateur sur le mois affiché.');
       html += tabCard('var(--plum)', 'Alternant', accesResponsable
-        ? 'Le planning des alternants : parcours de formation Cuisine puis Comptoir, planning semaine par semaine avec édition directe dans chaque case, téléchargement du planning en PDF pour l\'alternant (qui n\'a pas accès au site).'
+        ? 'Le planning des alternants : parcours de formation Cuisine puis Comptoir, planning semaine par semaine avec édition directe dans chaque case (un jour avec plusieurs formations : un formateur par formation), téléchargement du planning en PDF pour l\'alternant (qui n\'a pas accès au site).'
         : 'Le planning et le parcours de formation des alternants, en consultation. Tu peux télécharger leur planning en PDF, mais pas le modifier — seuls le gérant et le Responsable formation le peuvent.');
       if(accesResponsable){
         html += tabCard('var(--teal)', 'Activité', 'Le journal des actions récentes (ajouts, suppressions, validations) sur le restaurant.');
@@ -5319,6 +5319,55 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     }
   }
 
+  // ── Formateurs par formation ──
+  // Format stocké : "ALEX" (même formateur pour tout le jour) ou
+  // "Formation Open :: ALEX | Formation Livraison :: SARA".
+  function piecesFormationAlt(formation){
+    const vues = new Set();
+    return String(formation || '').split(' + ').map(x => x.trim()).filter(x => x && !vues.has(x) && vues.add(x));
+  }
+  function lireFormateursJourAlt(brut){
+    const s = String(brut || '').trim();
+    if(!s) return { parDefaut:'', parFormation:{} };
+    if(s.indexOf(' :: ') === -1) return { parDefaut:s, parFormation:{} };
+    const parFormation = {};
+    s.split(' | ').forEach(p => {
+      const k = p.indexOf(' :: ');
+      if(k === -1) return;
+      const f = p.slice(0,k).trim(), n = p.slice(k+4).trim();
+      if(f && n) parFormation[f] = n;
+    });
+    return { parDefaut:'', parFormation };
+  }
+  function formateurDeFormationAlt(lecture, formation){
+    return lecture.parFormation[formation] || lecture.parDefaut || '';
+  }
+  function ecrireFormateursJourAlt(formation, noms){
+    const pieces = piecesFormationAlt(formation);
+    const liste = pieces.map(f => noms[f] || '');
+    if(liste.every(n => !n)) return '';
+    if(liste.every(n => n === liste[0])) return liste[0];
+    return pieces.filter((f,i) => liste[i]).map(f => f + ' :: ' + noms[f]).join(' | ');
+  }
+  // Texte affiché : un seul nom si identique pour tout le jour, sinon "Formation : Nom" par ligne.
+  function formateurJourHtmlAlt(formation, brut){
+    const pieces = piecesFormationAlt(formation);
+    const lecture = lireFormateursJourAlt(brut);
+    const noms = pieces.map(f => formateurDeFormationAlt(lecture, f));
+    if(!noms.some(Boolean)) return '—';
+    if(pieces.length <= 1 || noms.every(n => n === noms[0])) return escapeHtmlAlt(noms.find(Boolean));
+    return pieces.map((f,i) => `<div class="formateur-par-formation"><span style="color:#6b7280;font-size:12px;">${escapeHtmlAlt(f)} :</span> ${noms[i] ? escapeHtmlAlt(noms[i]) : '—'}</div>`).join('');
+  }
+  function formateurJourTexteAlt(formation, brut){
+    const pieces = piecesFormationAlt(formation);
+    const lecture = lireFormateursJourAlt(brut);
+    const noms = pieces.map(f => formateurDeFormationAlt(lecture, f));
+    if(!noms.some(Boolean)) return '—';
+    if(pieces.length <= 1 || noms.every(n => n === noms[0])) return noms.find(Boolean);
+    return pieces.map((f,i) => `${f} : ${noms[i] || '—'}`).join(' · ');
+  }
+  function escapeHtmlAlt(t){ return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
   // Jour "Repos" (rien encore configuré) : la ligne est directement
   // modifiable dans le tableau, sans passer par le crayon — dès qu'un
   // statut Travail/École est choisi, les champs horaires apparaissent dans
@@ -5334,7 +5383,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     const travaille = j.statut === 'travail';
     const editFormation = (canManageAlternant && travaille) ? 'class="cell-editable" tabindex="0"' : '';
     const formationAffichee = travaille ? (j.formation || '') : '';
-    const formateurAffiche = travaille ? (j.formateur || '') : '';
+    const formateurAffiche = travaille ? formateurJourHtmlAlt(j.formation, j.formateur) : '—';
     return `<tr data-date="${j.date}">
       <td style="white-space:nowrap;">${frDate(parseDate(j.date))}</td>
       <td style="text-transform:capitalize;">${j.jour}</td>
@@ -5344,7 +5393,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       <td ${editAttr} data-champ="pauses" data-date="${j.date}">${(j.statut === 'travail' || j.statut === 'ecole') ? (j.nbPauses || 0) : '—'}</td>
       <td><span class="cout-pill">${j.heures} h</span></td>
       <td ${editFormation} data-champ="formation" data-date="${j.date}">${formationAffichee ? formationAffichee.split(' + ').map(f => `<span class="action-pill amber" style="display:inline-block;margin:1px 3px 1px 0;">${TYPE_ICONS_ALT.formation} ${f}</span>`).join('') : '—'}</td>
-      <td ${editFormation} data-champ="formateur" data-date="${j.date}">${formateurAffiche || '—'}</td>
+      <td ${editFormation} data-champ="formateur" data-date="${j.date}">${formateurAffiche}</td>
       ${canManageAlternant ? `<td><button type="button" class="save-jour-alternant-btn" data-date="${j.date}" style="border:none;background:none;cursor:pointer;" title="Enregistrer">💾</button></td>` : ''}
     </tr>`;
   }
@@ -5422,9 +5471,24 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
           const inp = td.querySelector('input'); inp.focus(); inp.select();
           inp.addEventListener('keydown', (e) => { if(e.key === 'Enter') enregistrerChamp(date, 'formation', inp.value.trim(), td); });
         } else if(champ === 'formateur'){
-          td.innerHTML = `<select class="inline-edit-input"><option value="">—</option>${alternantFormateursCache.map(f => `<option value="${f.nom.replace(/"/g,'&quot;')}" ${f.nom===j.formateur?'selected':''}>${f.nom}</option>`).join('')}</select>`;
-          const sel = td.querySelector('select'); sel.focus();
-          sel.addEventListener('change', () => enregistrerChamp(date, 'formateur', sel.value, td));
+          const pieces = piecesFormationAlt(j.formation);
+          if(!pieces.length) return; // aucune formation ce jour-là : rien à attribuer
+          const lecture = lireFormateursJourAlt(j.formateur);
+          const opts = (courant) => `<option value="">—</option>${alternantFormateursCache.map(f => `<option value="${escapeHtmlAlt(f.nom)}" ${f.nom===courant?'selected':''}>${escapeHtmlAlt(f.nom)}</option>`).join('')}`;
+          td.innerHTML = pieces.map((f,i) => `<div class="formateur-par-formation">${pieces.length > 1 ? `<label style="color:#6b7280;font-size:12px;">${escapeHtmlAlt(f)}</label> ` : ''}<select class="inline-edit-input formateur-select" data-formation="${escapeHtmlAlt(f)}">${opts(formateurDeFormationAlt(lecture, f))}</select></div>`).join('')
+            + (pieces.length > 1 ? `<button type="button" class="btn-valider-formateurs" style="margin-top:4px;">✓ Valider</button>` : '');
+          const selects = td.querySelectorAll('select');
+          selects[0].focus();
+          const valider = () => {
+            const noms = {};
+            selects.forEach(sel => { noms[sel.dataset.formation] = sel.value; });
+            enregistrerChamp(date, 'formateur', ecrireFormateursJourAlt(j.formation, noms), td);
+          };
+          if(pieces.length === 1) selects[0].addEventListener('change', valider);
+          else {
+            td.querySelector('.btn-valider-formateurs').addEventListener('click', (e) => { e.stopPropagation(); valider(); });
+            selects.forEach(sel => sel.addEventListener('keydown', (e) => { if(e.key === 'Enter') valider(); }));
+          }
         }
       });
     });
@@ -5447,7 +5511,10 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         } else if(champ === 'statut'){
           enregistrerChamp(date, 'statut', td.value, parentTd);
         } else if(champ === 'formateur'){
-          enregistrerChamp(date, 'formateur', td.value, parentTd);
+          const j = alternantPlanningCache.find(x => x.date === date);
+          const noms = {};
+          parentTd.querySelectorAll('select').forEach(sel => { noms[sel.dataset.formation] = sel.value; });
+          enregistrerChamp(date, 'formateur', ecrireFormateursJourAlt(j ? j.formation : '', noms), parentTd);
         }
       });
     });
@@ -5491,7 +5558,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
           <td>${quart1}${quart2}</td>
           <td>${j.heures} h</td>
           <td>${j.statut === 'travail' ? (j.formation || '—') : '—'}</td>
-          <td>${j.statut === 'travail' ? (j.formateur || '—') : '—'}</td>
+          <td>${j.statut === 'travail' ? escapeHtmlAlt(formateurJourTexteAlt(j.formation, j.formateur)) : '—'}</td>
         </tr>`;
       }).join('');
       return `<tr style="background:#f2f0e8;"><td colspan="7" style="font-weight:700;">${libelle}</td></tr>
