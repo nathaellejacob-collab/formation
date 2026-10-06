@@ -1108,12 +1108,12 @@
     <p>Choisis ton poste pour voir la liste correspondante.</p>
 
     <div id="postePickList" class="auth-formateur-list">
-      <button type="button" class="auth-formateur-btn" data-postes="ADM">ADM</button>
+      <button type="button" class="auth-formateur-btn" data-postes="Responsable de zone">Responsable de zone</button>
       <button type="button" class="auth-formateur-btn" data-postes="Directeur/Directrice">Directeur/Directrice</button>
       <button type="button" class="auth-formateur-btn" data-postes="Directeur adjoint/Directrice adjointe">Directeur adjoint/Directrice adjointe</button>
       <button type="button" class="auth-formateur-btn" data-postes="Assistant/Assistante de direction">Assistant/Assistante de direction</button>
       <button type="button" class="auth-formateur-btn" data-postes="Manager">Manager</button>
-      <button type="button" class="auth-formateur-btn" data-postes="Responsable de zone">Responsable de zone</button>
+      <button type="button" class="auth-formateur-btn" data-postes="ADM">ADM</button>
       <button type="button" class="auth-formateur-btn" data-postes="Formateur/Formatrice">Formateur/Formatrice</button>
     </div>
   </div>
@@ -1156,8 +1156,8 @@
     <div class="today-chip">Aujourd'hui : <b id="todayLabel"></b></div>
   </div>
   <nav class="tabnav">
-    <button class="tab-btn active" data-tab="formations">Formations obligatoires</button>
     <button class="tab-btn" data-tab="polyvalence">Postes &amp; Polyvalence</button>
+    <button class="tab-btn active" data-tab="formations">Formations obligatoires</button>
     <button class="tab-btn" data-tab="gestion">Équipe de gestion</button>
     <button class="tab-btn" id="tabComparaisonBtn" data-tab="comparaison" style="display:none;">Comparaison</button>
     <button class="tab-btn" data-tab="planification">Planification</button>
@@ -1320,8 +1320,30 @@
 <section id="tab-activite" style="display:none;">
   <div class="panel-block">
     <div class="panel-head">
+      <h3>✅ Extraction des formations validées dans le mois</h3>
+      <p>Les formations obligatoires dont le formateur a saisi une date, et les vérifications sur poste cochées « maîtrisé », sur le mois choisi. Si une validation est corrigée ou annulée dans le mois, seul le dernier état est gardé.</p>
+    </div>
+    <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:8px;">
+      <label for="validationsMoisSelect" style="font-size:12px; font-weight:700; color:var(--ink-soft);">Mois :</label>
+      <select id="validationsMoisSelect"></select>
+      <button type="button" id="imprimerValidationsBtn" class="verif-folder-btn">🖨️ Imprimer / PDF</button>
+      <button type="button" id="exporterValidationsBtn" class="verif-folder-btn">⬇️ Export Excel (CSV)</button>
+    </div>
+    <p id="validationsSub" style="font-size:12.5px; color:var(--ink-soft); margin:0 0 8px;"></p>
+    <div class="matrix-wrap">
+      <table class="matrix-table" id="validationsTable"></table>
+    </div>
+  </div>
+
+  <div class="panel-block">
+    <div class="panel-head">
       <h3>📋 Journal d'activité</h3>
       <p id="activiteSub">Les 150 dernières actions enregistrées.</p>
+    </div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
+      <input type="search" id="journalSearch" placeholder="🔎 Chercher (nom, action…)" style="flex:1; min-width:180px;">
+      <select id="journalCategorie"><option value="">Toutes les actions</option></select>
+      <select id="journalQui"><option value="">Tout le monde</option></select>
     </div>
     <div class="matrix-wrap">
       <table class="matrix-table" id="activiteTable"></table>
@@ -1352,6 +1374,7 @@
       <button type="button" id="generatePlanningBtn" class="planning-generate-btn">🧮 Générer le planning du mois</button>
       <label for="planningMonthSelect" style="font-size:12px; font-weight:700; color:var(--ink-soft);">Mois affiché :</label>
       <select id="planningMonthSelect" class="planning-month-select"></select>
+      <button type="button" id="imprimerPlanningBtn" class="verif-folder-btn">🖨️ Imprimer / PDF</button>
     </div>
     <div id="planningSummary" class="planning-summary"></div>
     <div id="planningResults"></div>
@@ -1440,6 +1463,7 @@
     <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
       <label for="coutMonthSelect" style="font-size:12px; font-weight:700; color:var(--ink-soft);">Mois affiché :</label>
       <select id="coutMonthSelect"></select>
+      <button type="button" id="imprimerCoutBtn" class="verif-folder-btn">🖨️ Imprimer / PDF</button>
     </div>
     <div id="coutFormationTableWrap"></div>
   </div>
@@ -1665,13 +1689,13 @@
       <input type="text" id="newFormateurCode" required placeholder="Ex : 4 chiffres, choisis-en un" autocomplete="off">
       <label for="newFormateurRole">Poste</label>
       <select id="newFormateurRole">
-        <option value="Formateur/Formatrice">Formateur/Formatrice</option>
+        <option value="Responsable de zone">Responsable de zone</option>
         <option value="Directeur/Directrice">Directeur/Directrice</option>
         <option value="Directeur adjoint/Directrice adjointe">Directeur adjoint/Directrice adjointe</option>
         <option value="Assistant/Assistante de direction">Assistant/Assistante de direction</option>
         <option value="Manager">Manager</option>
         <option value="ADM">ADM</option>
-        <option value="Responsable de zone">Responsable de zone</option>
+        <option value="Formateur/Formatrice" selected>Formateur/Formatrice</option>
       </select>
       <p style="font-size:11.5px;color:var(--ink-soft);margin-top:-4px;">Tous les postes sauf "Formateur/Formatrice" ont accès à l'espace responsable de la formation. Seuls Formateur/Formatrice et Responsable de zone peuvent être planifiés pour former des équipiers.</p>
       <p style="font-size:11.5px;color:var(--ink-soft);margin-top:-4px;">Le taux horaire (utilisé pour le coût de la formation) se règle automatiquement selon le poste : 0,25 €/min pour Directeur à Manager/ADM, 0,225 €/min pour Responsable de zone, 0,204 €/min pour Formateur/Formatrice.</p>
@@ -1764,6 +1788,39 @@
 </div><!-- /#appRoot -->
 
 <script>
+const HIERARCHIE_PROFILS = ['Responsable', 'Responsable de zone', 'Directeur/Directrice', 'Directeur adjoint/Directrice adjointe', 'Assistant/Assistante de direction', 'Manager', 'ADM', 'Formateur/Formatrice', 'Formateur', 'Formatrice'];
+function trierProfilsParHierarchie(liste){
+  const rang = r => { let x = String(r || '').trim(); if(x === 'Formateur' || x === 'Formatrice') x = 'Formateur/Formatrice'; const i = HIERARCHIE_PROFILS.indexOf(x); return i === -1 ? HIERARCHIE_PROFILS.length : i; };
+  return liste.slice().sort((a, b) => rang(a.role) - rang(b.role) || String(a.nom).localeCompare(String(b.nom), 'fr', { sensitivity: 'base' }));
+}
+
+// Ouvre une page propre, prête à imprimer (ou à enregistrer en PDF via l'impression du navigateur).
+function ouvrirPageImpression(titre, sousTitre, corpsHtml){
+  const esc = t => String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const win = window.open('', '_blank');
+  if(!win){ alert("Le navigateur a bloqué l'ouverture de la page d'impression : autorise les fenêtres pop-up pour ce site."); return; }
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(titre)}</title>
+    <style>
+      body{ font-family: Arial, Helvetica, sans-serif; padding:24px; color:#1a1a1a; }
+      h1{ font-size:20px; margin-bottom:2px; }
+      p.sub{ color:#666; margin-top:0; margin-bottom:18px; font-size:13px; }
+      table{ width:100%; border-collapse:collapse; font-size:12.5px; margin-bottom:16px; }
+      th, td{ border:1px solid #ccc; padding:6px 8px; text-align:left; vertical-align:top; }
+      th{ background:#eee; }
+      tr{ page-break-inside:avoid; }
+      tr.groupe td{ background:#f2f0e8; font-weight:700; }
+      tr.total td{ font-weight:700; background:#faf7ee; }
+      @media print { body{ padding:0; } }
+    </style></head><body>
+    <h1>${esc(titre)}</h1>
+    <p class="sub">${esc(sousTitre)}</p>
+    ${corpsHtml}
+    </body></html>`);
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 300);
+}
+
 function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFormateur, sessionRole){
   const today = new Date();
   today.setHours(0,0,0,0);
@@ -2483,7 +2540,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         ? 'Le planning des alternants : parcours de formation Cuisine puis Comptoir, planning semaine par semaine avec édition directe dans chaque case (un jour avec plusieurs formations : un formateur par formation), téléchargement du planning en PDF pour l\'alternant (qui n\'a pas accès au site).'
         : 'Le planning et le parcours de formation des alternants, en consultation. Tu peux télécharger leur planning en PDF, mais pas le modifier — seuls le gérant et le Responsable formation le peuvent.');
       if(accesResponsable){
-        html += tabCard('var(--teal)', 'Activité', 'Le journal des actions récentes (ajouts, suppressions, validations) sur le restaurant.');
+        html += tabCard('var(--teal)', 'Activité', 'Le journal des actions récentes (ajouts, suppressions, validations) sur le restaurant, et l\'extraction mensuelle des formations validées (formations obligatoires et vérifications sur poste), imprimable ou exportable.');
       }
       if(isGerant){
         html += tabCard('var(--navy-2)', 'Comparaison', 'Vue d\'ensemble de tous les restaurants : taux de polyvalence, équilibre Production/Service, tableau comparatif complet (effectifs, formations en retard, taux de polyvalence).');
@@ -2637,7 +2694,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
 
     function renderFormateurList(list){
       formateurManageList.innerHTML = list.length
-        ? list.map(f => {
+        ? trierProfilsParHierarchie(list).map(f => {
             const neFormePas = !canBeScheduledRole(f.role);
             const tauxDisplay = `${f.tauxHoraire} €/min`;
             return `<div class="poste-upload-item">
@@ -4118,9 +4175,186 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
   });
 
   // ================= JOURNAL D'ACTIVITÉ =================
-  async function renderActivite(){
+  // ---- Extraction des formations validées dans le mois ----
+  let validationsCache = [];
+  const validationsMoisSelect = document.getElementById('validationsMoisSelect');
+  function populateValidationsMois(){
+    if(validationsMoisSelect.options.length) return;
+    const d = new Date(); d.setDate(1);
+    const opts = [];
+    for(let i = 0; i < 13; i++){
+      const key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+      const lib = MOIS_LABELS_FR[d.getMonth()].replace(/^./, c => c.toUpperCase()) + ' ' + d.getFullYear();
+      opts.push(`<option value="${key}">${lib}${i === 0 ? ' (en cours)' : ''}</option>`);
+      d.setMonth(d.getMonth() - 1);
+    }
+    validationsMoisSelect.innerHTML = opts.join('');
+  }
+  function validationsColonnes(){
+    return (isGerant ? [['restaurant','Restaurant']] : []).concat([['equipier','Équipier'],['type','Type'],['libelle','Formation / Poste'],['dateFormation','Date de formation'],['formateur','Saisi par'],['dateSaisie','Saisi le']]);
+  }
+  function validationsValeur(v, cle){
+    if(cle === 'dateFormation') return v.dateFormation ? frDate(parseDate(v.dateFormation)) : '—';
+    if(cle === 'equipier') return displayName(v.equipier);
+    return v[cle] || '—';
+  }
+  function validationsTries(){
+    return validationsCache.slice().sort((a, b) => (a.restaurant || '').localeCompare(b.restaurant || '', 'fr') || displayName(a.equipier).localeCompare(displayName(b.equipier), 'fr') || a.type.localeCompare(b.type, 'fr') || a.libelle.localeCompare(b.libelle, 'fr'));
+  }
+  async function chargerValidationsMois(){
+    populateValidationsMois();
+    const table = document.getElementById('validationsTable');
+    const sub = document.getElementById('validationsSub');
+    table.innerHTML = '<tbody><tr><td style="padding:16px; color:var(--ink-soft);">Chargement…</td></tr></tbody>';
+    try{
+      const res = await fetch(APPS_SCRIPT_URL, {
+        method: 'POST', headers: {'Content-Type': 'text/plain;charset=utf-8'},
+        body: JSON.stringify(authBody({ sheet: 'get_validations_mois', targetRestaurant: currentRestaurant, mois: validationsMoisSelect.value }))
+      });
+      const data = await res.json();
+      if(!data.ok) throw new Error(data.error || 'Erreur de chargement');
+      validationsCache = data.validations || [];
+      const nbF = validationsCache.filter(v => v.type === 'Formation obligatoire').length;
+      const nbP = validationsCache.length - nbF;
+      sub.textContent = validationsCache.length
+        ? `${validationsCache.length} validation${validationsCache.length > 1 ? 's' : ''} : ${nbF} formation${nbF > 1 ? 's' : ''} obligatoire${nbF > 1 ? 's' : ''}, ${nbP} vérification${nbP > 1 ? 's' : ''} sur poste.`
+        : '';
+      const cols = validationsColonnes();
+      const esc = t => String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+      table.innerHTML = '<thead><tr>' + cols.map(c => `<th>${c[1]}</th>`).join('') + '</tr></thead><tbody>' + (validationsCache.length
+        ? validationsTries().map(v => '<tr>' + cols.map(c => `<td>${esc(validationsValeur(v, c[0]))}</td>`).join('') + '</tr>').join('')
+        : `<tr><td colspan="${cols.length}" style="padding:16px; color:var(--ink-soft); text-align:center;">Aucune formation validée sur ce mois.</td></tr>`) + '</tbody>';
+    } catch(err){
+      validationsCache = [];
+      table.innerHTML = '<tbody><tr><td style="padding:16px; color:var(--red);">Erreur : ' + err.message + '</td></tr></tbody>';
+    }
+  }
+  validationsMoisSelect && validationsMoisSelect.addEventListener('change', chargerValidationsMois);
+  const imprimerValidationsBtn = document.getElementById('imprimerValidationsBtn');
+  imprimerValidationsBtn && imprimerValidationsBtn.addEventListener('click', () => {
+    if(!validationsCache.length){ alert('Aucune formation validée à imprimer pour ce mois.'); return; }
+    const cols = validationsColonnes();
+    const esc = t => String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+    const corps = '<table><thead><tr>' + cols.map(c => `<th>${c[1]}</th>`).join('') + '</tr></thead><tbody>'
+      + validationsTries().map(v => '<tr>' + cols.map(c => `<td>${esc(validationsValeur(v, c[0]))}</td>`).join('') + '</tr>').join('') + '</tbody></table>';
+    const lib = validationsMoisSelect.options[validationsMoisSelect.selectedIndex].text.replace(' (en cours)', '');
+    ouvrirPageImpression('Formations validées — ' + lib, isGerant ? 'Tous les restaurants' : currentRestaurant, corps);
+  });
+  const exporterValidationsBtn = document.getElementById('exporterValidationsBtn');
+  exporterValidationsBtn && exporterValidationsBtn.addEventListener('click', () => {
+    if(!validationsCache.length){ alert('Aucune formation validée à exporter pour ce mois.'); return; }
+    const cols = validationsColonnes();
+    const csv = v => '"' + String(v).replace(/"/g, '""') + '"';
+    const lignes = [cols.map(c => csv(c[1])).join(';')].concat(validationsTries().map(v => cols.map(c => csv(validationsValeur(v, c[0]))).join(';')));
+    const blob = new Blob(['\ufeff' + lignes.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'formations_validees_' + validationsMoisSelect.value + '.csv';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
+
+  // ---- Journal d'activité : regroupé par jour, filtrable, détails en phrases lisibles ----
+  const FORMATION_FAIT_LABELS = { secuFait:'Prévention & Sécurité', hygieneFait:'Hygiène & Sécurité alim.', mtsriFait:'MTSRI', cultureFait:'Culture Service', suivi4sFait:'Suivi à 4 semaines', suivi60jFait:'Suivi à 60 jours', enArret:"Arrêt maladie", enConges:'Congés payés' };
+  function journalCategorie(action){
+    const a = (action || '').toLowerCase();
+    if(/coût|cout|intégration/.test(a)) return ['💶', 'Coût & intégration'];
+    if(/alternant|parcours|période opérationnelle|rotation/.test(a)) return ['🎓', 'Alternant'];
+    if(/planning|planifi|vérification|poste de formation|remplacement/.test(a) && !/polyvalence/.test(a)) return ['🗓️', 'Planification'];
+    if(/polyvalence|compétence|restriction|poste/.test(a)) return ['🎯', 'Postes & polyvalence'];
+    if(/formation|fiche|arrêt|retour d|congés/.test(a)) return ['📘', 'Formations obligatoires'];
+    if(/équipier|gestion|profil|formateur|date d'entrée|renommage|disponibilit/.test(a)) return ['👥', 'Équipe & profils'];
+    return ['⚙️', 'Autres'];
+  }
+  function journalDetailLisible(e){
+    const d = (e.detail || '').toString();
+    const act = e.action || '';
+    if(act === 'Modification formation' || act === 'Modification formation (gestion)'){
+      const k = d.indexOf(' → ');
+      if(k !== -1){
+        const champ = d.slice(0, k).trim(), val = d.slice(k + 3).trim();
+        const lib = FORMATION_FAIT_LABELS[champ] || champ.replace(/ \(Fait\)$/, '').replace(/Butoir$/, ' (échéance)');
+        if(/^\d{4}-\d{2}-\d{2}$/.test(val)) return `${lib} : fait le ${frDate(parseDate(val))}`;
+        if(val === '' || val === 'null') return `${lib} : date effacée`;
+        return `${lib} : ${val}`;
+      }
+    }
+    if(act === 'Modification polyvalence'){
+      const k = d.lastIndexOf(' → ');
+      if(k !== -1){
+        const poste = d.slice(0, k).trim(), etat = d.slice(k + 3).trim();
+        return etat === 'maîtrisé' ? `✓ ${poste} : coché maîtrisé` : `✗ ${poste} : décoché`;
+      }
+    }
+    return d;
+  }
+  function journalJourLibelle(ddmmyyyy){
+    const [j, m, y] = ddmmyyyy.split('/').map(Number);
+    const dt = new Date(y, m - 1, j);
+    const auj = new Date(); auj.setHours(0, 0, 0, 0);
+    const diff = Math.round((auj - dt) / 86400000);
+    const long = dt.toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+    const cap = long.charAt(0).toUpperCase() + long.slice(1);
+    return diff === 0 ? "Aujourd'hui — " + cap : diff === 1 ? 'Hier — ' + cap : cap;
+  }
+
+  let journalEntriesCache = [];
+  function renderJournalTable(){
     const table = document.getElementById('activiteTable');
     const sub = document.getElementById('activiteSub');
+    const q = (document.getElementById('journalSearch').value || '').trim().toLowerCase();
+    const cat = document.getElementById('journalCategorie').value;
+    const qui = document.getElementById('journalQui').value;
+    const esc = t => String(t == null ? '' : t).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+    const lignes = journalEntriesCache.filter(e => {
+      if(cat && journalCategorie(e.action)[1] !== cat) return false;
+      if(qui && (e.formateur || '') !== qui) return false;
+      if(q && !([e.action, e.cible, e.formateur, journalDetailLisible(e), e.restaurant].join(' ').toLowerCase().includes(q))) return false;
+      return true;
+    });
+    const total = journalEntriesCache.length;
+    sub.textContent = lignes.length === total
+      ? `${total} action${total > 1 ? 's' : ''} récente${total > 1 ? 's' : ''}${isGerant ? ' (tous restaurants)' : ''} — les plus récentes en premier.`
+      : `${lignes.length} action${lignes.length > 1 ? 's' : ''} affichée${lignes.length > 1 ? 's' : ''} sur ${total}.`;
+    if(!lignes.length){
+      table.innerHTML = '<tbody><tr><td style="padding:16px; color:var(--ink-soft); text-align:center;">Aucune action ne correspond.</td></tr></tbody>';
+      return;
+    }
+    const nbCols = isGerant ? 6 : 5;
+    let html = '<thead><tr><th>Heure</th>' + (isGerant ? '<th>Restaurant</th>' : '') + '<th>Qui</th><th>Ce qui a été fait</th><th>Concerné</th><th>Détail</th></tr></thead><tbody>';
+    let jourCourant = null;
+    lignes.forEach(e => {
+      const [jour, heure] = String(e.date || '').split(' ');
+      if(jour !== jourCourant){
+        jourCourant = jour;
+        html += `<tr class="journal-jour"><td colspan="${nbCols}" style="background:#f2f0e8; font-weight:700; font-size:12.5px;">${esc(journalJourLibelle(jour))}</td></tr>`;
+      }
+      const [icone] = journalCategorie(e.action);
+      html += `<tr><td style="white-space:nowrap; color:var(--ink-soft);">${esc(heure || '')}</td>`
+        + (isGerant ? `<td>${esc(e.restaurant)}</td>` : '')
+        + `<td>${esc(e.formateur)}</td>`
+        + `<td><span class="action-pill ${journalPillClass(e.action)}">${icone} ${esc(e.action)}</span></td>`
+        + `<td><strong>${esc(e.cible ? displayName(e.cible) : '')}</strong></td>`
+        + `<td>${esc(journalDetailLisible(e))}</td></tr>`;
+    });
+    table.innerHTML = html + '</tbody>';
+  }
+  function journalPillClass(action){
+    const a = action.toLowerCase();
+    if(a.includes('suppress')) return 'red';
+    if(a.includes('ajout') || a.includes('validé') || a.includes('réactiv')) return 'green';
+    if(a.includes('corrig') || a.includes('modif')) return 'amber';
+    if(a.includes('arrêt') || a.includes('congés') || a.includes('désactiv')) return 'plum';
+    return 'gray';
+  }
+  ['journalSearch', 'journalCategorie', 'journalQui'].forEach(id => {
+    const el = document.getElementById(id);
+    el && el.addEventListener(id === 'journalSearch' ? 'input' : 'change', renderJournalTable);
+  });
+
+  async function renderActivite(){
+    chargerValidationsMois();
+    const table = document.getElementById('activiteTable');
     table.innerHTML = '<tbody><tr><td style="padding:16px; color:var(--ink-soft);">Chargement…</td></tr></tbody>';
     try{
       const res = await fetch(APPS_SCRIPT_URL, {
@@ -4130,32 +4364,18 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       });
       const data = await res.json();
       if(!data.ok) throw new Error(data.error || 'Erreur de chargement');
-      const entries = data.entries || [];
-      sub.textContent = entries.length + ' action' + (entries.length > 1 ? 's' : '') + ' enregistrée' + (entries.length > 1 ? 's' : '') + (isGerant ? ' (tous restaurants)' : '');
-
-      const cols = isGerant
-        ? [['date','Date'],['restaurant','Restaurant'],['formateur','Formateur'],['action','Action'],['cible','Concerné'],['detail','Détail']]
-        : [['date','Date'],['formateur','Formateur'],['action','Action'],['cible','Concerné'],['detail','Détail']];
-
-      function actionPillClass(action){
-        const a = action.toLowerCase();
-        if(a.includes('suppress')) return 'red';
-        if(a.includes('ajout') || a.includes('validé') || a.includes('réactiv')) return 'green';
-        if(a.includes('corrig') || a.includes('modif')) return 'amber';
-        if(a.includes('arrêt') || a.includes('congés') || a.includes('désactiv')) return 'plum';
-        return 'gray';
-      }
-
-      const thead = '<thead><tr>' + cols.map(c => `<th>${c[1]}</th>`).join('') + '</tr></thead>';
-      const tbody = '<tbody>' + (entries.length
-        ? entries.map(e => '<tr>' + cols.map(c => {
-            const val = (e[c[0]] || '').toString().replace(/</g,'&lt;');
-            if(c[0] === 'action' && val) return `<td><span class="action-pill ${actionPillClass(val)}">${val}</span></td>`;
-            return `<td>${val}</td>`;
-          }).join('') + '</tr>').join('')
-        : '<tr><td colspan="' + cols.length + '" style="padding:16px; color:var(--ink-soft); text-align:center;">Aucune action enregistrée pour l\'instant.</td></tr>'
-      ) + '</tbody>';
-      table.innerHTML = thead + tbody;
+      journalEntriesCache = data.entries || [];
+      const selCat = document.getElementById('journalCategorie');
+      const cats = Array.from(new Set(journalEntriesCache.map(e => journalCategorie(e.action)[1]))).sort((a, b) => a.localeCompare(b, 'fr'));
+      const catCourante = selCat.value;
+      selCat.innerHTML = '<option value="">Toutes les actions</option>' + cats.map(c => `<option value="${c}">${c}</option>`).join('');
+      selCat.value = cats.includes(catCourante) ? catCourante : '';
+      const selQui = document.getElementById('journalQui');
+      const quis = Array.from(new Set(journalEntriesCache.map(e => e.formateur).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'fr'));
+      const quiCourant = selQui.value;
+      selQui.innerHTML = '<option value="">Tout le monde</option>' + quis.map(c => `<option value="${String(c).replace(/"/g,'&quot;')}">${String(c).replace(/</g,'&lt;')}</option>`).join('');
+      selQui.value = quis.includes(quiCourant) ? quiCourant : '';
+      renderJournalTable();
     } catch(err){
       table.innerHTML = '<tbody><tr><td style="padding:16px; color:var(--red);">Erreur : ' + err.message + '</td></tr></tbody>';
     }
@@ -4653,6 +4873,26 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     }
     addCoutFormationForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
+
+  // Version imprimable de l'historique du coût de la formation pour le mois affiché.
+  const imprimerCoutBtn = document.getElementById('imprimerCoutBtn');
+  imprimerCoutBtn && imprimerCoutBtn.addEventListener('click', () => {
+    const moisKey = coutMonthSelect.value;
+    const rows = coutEntriesCache.filter(e => e.date && e.date.slice(0, 7) === moisKey).sort((a, b) => a.date.localeCompare(b.date));
+    if(!rows.length){ alert('Aucune entrée à imprimer pour ce mois.'); return; }
+    const esc = t => String(t == null || t === '' ? '—' : t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const total = rows.reduce((s, r) => s + r.cout, 0);
+    const [y, m] = moisKey.split('-');
+    const libelleMois = MOIS_LABELS_FR[Number(m) - 1].replace(/^./, c => c.toUpperCase()) + ' ' + y;
+    const lignes = rows.map(r => `<tr>
+      <td>${frDate(parseDate(r.date))}</td><td>${esc(r.formateur)}</td><td>${esc(r.equipier)}</td><td>${esc(r.formation)}</td>
+      <td>${r.typeSession ? (r.typeSession === 'suivi' ? 'Suivi' : 'Initiale') : '—'}</td>
+      <td>${r.tempsTablette ? r.tempsTablette + ' min' : '—'}</td><td>${r.tempsAccompagnement ? r.tempsAccompagnement + ' min' : '—'}</td>
+      <td>${r.cout ? r.cout.toFixed(2) + ' €' : '—'}</td></tr>`).join('');
+    const corps = `<table><thead><tr><th>Date</th><th>Formateur</th><th>Équipier</th><th>Formation</th><th>Type</th><th>Temps tablette</th><th>Temps accompagnement</th><th>Coût</th></tr></thead>
+      <tbody>${lignes}<tr class="total"><td colspan="7">TOTAL DU MOIS</td><td>${total.toFixed(2)} €</td></tr></tbody></table>`;
+    ouvrirPageImpression('Coût de la formation — ' + libelleMois, currentRestaurant, corps);
+  });
 
   function renderCoutTable(moisKey){
     const canManage = isGerant || isResponsableLevelRole(sessionRole);
@@ -6037,13 +6277,16 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         const data = await res.json();
         if(!data.ok) throw new Error(data.error || "Échec de l'enregistrement");
         coutEntriesCache = data.couts || [];
+        if(data.integrationSync === true) integrationLoadedOnce = false; // le suivi sera rechargé à la prochaine ouverture
         const moisAffiche = coutDateInput.value.slice(0, 7);
+        const integrationNonReportee = data.integrationSync === false;
         resetCoutForm();
         populateCoutMonthSelect();
         coutMonthSelect.value = moisAffiche;
         renderCoutTable(moisAffiche);
         renderCoutAnnuel();
         renderCoutStats();
+        if(integrationNonReportee) alert("Coût enregistré, mais l'équipier n'a pas été retrouvé dans la liste du restaurant (ou n'a pas de date d'entrée) : le formateur n'a pas pu être reporté dans « Suivi intégration opérationnel ». Vérifie l'orthographe du nom.");
       } catch(err){
         coutFormationError.textContent = err.message;
         coutFormationError.style.display = 'block';
@@ -6763,6 +7006,33 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
 
   let currentViewedMonth = null;
 
+  // Version imprimable de la planification du mois affiché (sans boutons ni champs de saisie).
+  const imprimerPlanningBtn = document.getElementById('imprimerPlanningBtn');
+  imprimerPlanningBtn && imprimerPlanningBtn.addEventListener('click', () => {
+    const mois = currentViewedMonth || document.getElementById('planningMonthSelect').value;
+    const liste = (lastPlanningProposals || []).filter(p => p.statut !== 'Ignoré')
+      .sort((a, b) => a.formateur.localeCompare(b.formateur, 'fr') || displayName(a.equipier).localeCompare(displayName(b.equipier), 'fr'));
+    if(!liste.length){ alert('Aucune formation planifiée à imprimer pour ce mois.'); return; }
+    const esc = t => String(t == null ? '' : t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    let dernier = null, lignes = '';
+    liste.forEach(p => {
+      if(p.formateur !== dernier){
+        dernier = p.formateur;
+        const nb = liste.filter(x => x.formateur === dernier).length;
+        lignes += `<tr class="groupe"><td colspan="5">${esc(dernier)} — ${nb} formation${nb > 1 ? 's' : ''}</td></tr>`;
+      }
+      lignes += `<tr>
+        <td>${esc(displayName(p.equipier))}</td>
+        <td>${esc(p.posteLabel)}${p.sousPoste ? ' › ' + esc(p.sousPoste) : ''}</td>
+        <td>${p.dateFormation ? frDate(parseDate(p.dateFormation)) : '—'}</td>
+        <td>${p.statut === 'Validé' ? 'Réalisée ✓' : 'En attente'}</td>
+        <td style="width:90px;"></td>
+      </tr>`;
+    });
+    const corps = `<table><thead><tr><th>Équipier</th><th>Formation</th><th>Date prévue</th><th>Statut</th><th>Notes</th></tr></thead><tbody>${lignes}</tbody></table>`;
+    ouvrirPageImpression('Planification des formations — ' + monthLabel(mois), currentRestaurant, corps);
+  });
+
   function populateMonthSelect(months, currentMonth, selected, nextMonth){
     const select = document.getElementById('planningMonthSelect');
     const allMonths = Array.from(new Set([currentMonth, nextMonth, ...months].filter(Boolean))).sort().reverse();
@@ -7077,7 +7347,7 @@ const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz0Dg-wg4Y4XFo7
         body: JSON.stringify({sheet: 'get_formateurs', restaurant})
       });
       const data = await res.json();
-      const noms = (data.formateurs || []).filter(n => postes.includes(n.role));
+      const noms = trierProfilsParHierarchie((data.formateurs || []).filter(n => postes.includes(n.role)));
       if(noms.length){
         formateurListEl.innerHTML = noms.map(n => `<button type="button" class="auth-formateur-btn" data-nom="${n.nom.replace(/"/g,'&quot;')}">${n.nom}</button>`).join('');
         formateurListEl.querySelectorAll('.auth-formateur-btn').forEach(btn => {
