@@ -1330,8 +1330,13 @@
       <button type="button" id="exporterValidationsBtn" class="verif-folder-btn">⬇️ Export Excel (CSV)</button>
     </div>
     <p id="validationsSub" style="font-size:12.5px; color:var(--ink-soft); margin:0 0 8px;"></p>
+    <h4 style="margin:14px 0 6px; font-size:14px;">🎯 Formations sur poste</h4>
     <div class="matrix-wrap">
-      <table class="matrix-table" id="validationsTable"></table>
+      <table class="matrix-table" id="validationsPosteTable"></table>
+    </div>
+    <h4 style="margin:18px 0 6px; font-size:14px;">📘 Formations obligatoires</h4>
+    <div class="matrix-wrap">
+      <table class="matrix-table" id="validationsObligTable"></table>
     </div>
   </div>
 
@@ -4190,22 +4195,36 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     }
     validationsMoisSelect.innerHTML = opts.join('');
   }
-  function validationsColonnes(){
-    return (isGerant ? [['restaurant','Restaurant']] : []).concat([['equipier','Équipier'],['type','Type'],['libelle','Formation / Poste'],['dateFormation','Date de formation'],['formateur','Saisi par'],['dateSaisie','Saisi le']]);
+  const TYPE_POSTE = 'Vérification sur poste', TYPE_OBLIG = 'Formation obligatoire';
+  function validationsColonnes(type){
+    // Le type est donné par le titre de la partie : pas de colonne « Type ».
+    const dateCol = type === TYPE_POSTE ? [['dateSaisie','Validé le']] : [['dateFormation','Date de formation']];
+    return (isGerant ? [['restaurant','Restaurant']] : []).concat([['equipier','Équipier'],['libelle', type === TYPE_POSTE ? 'Poste' : 'Formation']], dateCol, [['formateur','Saisi par']]);
   }
   function validationsValeur(v, cle){
     if(cle === 'dateFormation') return v.dateFormation ? frDate(parseDate(v.dateFormation)) : '—';
+    if(cle === 'dateSaisie') return (v.dateSaisie || '').split(' ')[0] || '—';
     if(cle === 'equipier') return displayName(v.equipier);
     return v[cle] || '—';
   }
-  function validationsTries(){
-    return validationsCache.slice().sort((a, b) => (a.restaurant || '').localeCompare(b.restaurant || '', 'fr') || displayName(a.equipier).localeCompare(displayName(b.equipier), 'fr') || a.type.localeCompare(b.type, 'fr') || a.libelle.localeCompare(b.libelle, 'fr'));
+  function validationsTries(type){
+    return validationsCache.filter(v => v.type === type).sort((a, b) => (a.restaurant || '').localeCompare(b.restaurant || '', 'fr') || displayName(a.equipier).localeCompare(displayName(b.equipier), 'fr') || a.libelle.localeCompare(b.libelle, 'fr'));
+  }
+  const escVal = t => String(t == null ? '' : t).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+  function validationsTableHtml(type, vide){
+    const cols = validationsColonnes(type);
+    const lignes = validationsTries(type);
+    return '<thead><tr>' + cols.map(c => `<th>${c[1]}</th>`).join('') + '</tr></thead><tbody>' + (lignes.length
+      ? lignes.map(v => '<tr>' + cols.map(c => `<td>${escVal(validationsValeur(v, c[0]))}</td>`).join('') + '</tr>').join('')
+      : `<tr><td colspan="${cols.length}" style="padding:14px; color:var(--ink-soft); text-align:center;">${vide}</td></tr>`) + '</tbody>';
   }
   async function chargerValidationsMois(){
     populateValidationsMois();
-    const table = document.getElementById('validationsTable');
+    const tPoste = document.getElementById('validationsPosteTable');
+    const tOblig = document.getElementById('validationsObligTable');
     const sub = document.getElementById('validationsSub');
-    table.innerHTML = '<tbody><tr><td style="padding:16px; color:var(--ink-soft);">Chargement…</td></tr></tbody>';
+    const attente = '<tbody><tr><td style="padding:16px; color:var(--ink-soft);">Chargement…</td></tr></tbody>';
+    tPoste.innerHTML = attente; tOblig.innerHTML = attente;
     try{
       const res = await fetch(APPS_SCRIPT_URL, {
         method: 'POST', headers: {'Content-Type': 'text/plain;charset=utf-8'},
@@ -4214,38 +4233,37 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       const data = await res.json();
       if(!data.ok) throw new Error(data.error || 'Erreur de chargement');
       validationsCache = data.validations || [];
-      const nbF = validationsCache.filter(v => v.type === 'Formation obligatoire').length;
+      const nbF = validationsCache.filter(v => v.type === TYPE_OBLIG).length;
       const nbP = validationsCache.length - nbF;
       sub.textContent = validationsCache.length
-        ? `${validationsCache.length} validation${validationsCache.length > 1 ? 's' : ''} : ${nbF} formation${nbF > 1 ? 's' : ''} obligatoire${nbF > 1 ? 's' : ''}, ${nbP} vérification${nbP > 1 ? 's' : ''} sur poste.`
+        ? `${validationsCache.length} validation${validationsCache.length > 1 ? 's' : ''} : ${nbP} formation${nbP > 1 ? 's' : ''} sur poste, ${nbF} formation${nbF > 1 ? 's' : ''} obligatoire${nbF > 1 ? 's' : ''}.`
         : '';
-      const cols = validationsColonnes();
-      const esc = t => String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;');
-      table.innerHTML = '<thead><tr>' + cols.map(c => `<th>${c[1]}</th>`).join('') + '</tr></thead><tbody>' + (validationsCache.length
-        ? validationsTries().map(v => '<tr>' + cols.map(c => `<td>${esc(validationsValeur(v, c[0]))}</td>`).join('') + '</tr>').join('')
-        : `<tr><td colspan="${cols.length}" style="padding:16px; color:var(--ink-soft); text-align:center;">Aucune formation validée sur ce mois.</td></tr>`) + '</tbody>';
+      tPoste.innerHTML = validationsTableHtml(TYPE_POSTE, 'Aucune formation sur poste validée sur ce mois.');
+      tOblig.innerHTML = validationsTableHtml(TYPE_OBLIG, 'Aucune formation obligatoire validée sur ce mois.');
     } catch(err){
       validationsCache = [];
-      table.innerHTML = '<tbody><tr><td style="padding:16px; color:var(--red);">Erreur : ' + err.message + '</td></tr></tbody>';
+      const msg = '<tbody><tr><td style="padding:16px; color:var(--red);">Erreur : ' + escVal(err.message) + '</td></tr></tbody>';
+      tPoste.innerHTML = msg; tOblig.innerHTML = '';
     }
   }
   validationsMoisSelect && validationsMoisSelect.addEventListener('change', chargerValidationsMois);
   const imprimerValidationsBtn = document.getElementById('imprimerValidationsBtn');
   imprimerValidationsBtn && imprimerValidationsBtn.addEventListener('click', () => {
     if(!validationsCache.length){ alert('Aucune formation validée à imprimer pour ce mois.'); return; }
-    const cols = validationsColonnes();
-    const esc = t => String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;');
-    const corps = '<table><thead><tr>' + cols.map(c => `<th>${c[1]}</th>`).join('') + '</tr></thead><tbody>'
-      + validationsTries().map(v => '<tr>' + cols.map(c => `<td>${esc(validationsValeur(v, c[0]))}</td>`).join('') + '</tr>').join('') + '</tbody></table>';
     const lib = validationsMoisSelect.options[validationsMoisSelect.selectedIndex].text.replace(' (en cours)', '');
+    const corps = '<h2 style="font-size:15px; margin:14px 0 6px;">Formations sur poste</h2><table>' + validationsTableHtml(TYPE_POSTE, 'Aucune formation sur poste validée sur ce mois.') + '</table>'
+      + '<h2 style="font-size:15px; margin:18px 0 6px;">Formations obligatoires</h2><table>' + validationsTableHtml(TYPE_OBLIG, 'Aucune formation obligatoire validée sur ce mois.') + '</table>';
     ouvrirPageImpression('Formations validées — ' + lib, isGerant ? 'Tous les restaurants' : currentRestaurant, corps);
   });
   const exporterValidationsBtn = document.getElementById('exporterValidationsBtn');
   exporterValidationsBtn && exporterValidationsBtn.addEventListener('click', () => {
     if(!validationsCache.length){ alert('Aucune formation validée à exporter pour ce mois.'); return; }
-    const cols = validationsColonnes();
     const csv = v => '"' + String(v).replace(/"/g, '""') + '"';
-    const lignes = [cols.map(c => csv(c[1])).join(';')].concat(validationsTries().map(v => cols.map(c => csv(validationsValeur(v, c[0]))).join(';')));
+    const partie = (titre, type) => {
+      const cols = validationsColonnes(type);
+      return [csv(titre), cols.map(c => csv(c[1])).join(';')].concat(validationsTries(type).map(v => cols.map(c => csv(validationsValeur(v, c[0]))).join(';')));
+    };
+    const lignes = partie('Formations sur poste', TYPE_POSTE).concat([''], partie('Formations obligatoires', TYPE_OBLIG));
     const blob = new Blob(['\ufeff' + lignes.join('\r\n')], { type: 'text/csv;charset=utf-8' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
