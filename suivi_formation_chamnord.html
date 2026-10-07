@@ -4342,6 +4342,10 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     });
   });
 
+  // À l'ouverture du site (après connexion), on arrive sur « Postes & Polyvalence ».
+  const premierOngletBtn = document.querySelector('.tab-btn[data-tab="polyvalence"]');
+  if(premierOngletBtn) premierOngletBtn.click();
+
   // ================= JOURNAL D'ACTIVITÉ =================
   // ---- Extraction des formations validées dans le mois ----
   let validationsCache = [];
