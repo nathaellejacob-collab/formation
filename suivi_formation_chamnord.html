@@ -1554,7 +1554,7 @@
 </section>
 
 <section id="tab-alternant" style="display:none;">
-  <div class="panel-block">
+  <div class="panel-block" id="alternantParametrageBlock">
     <div class="panel-head">
       <h3>⚙️ Paramétrage du parcours alternant</h3>
       <p>Périodes opérationnelles, correspondance des postes et parcours de formation — renseignés une seule fois, modifiables par le Responsable formation.</p>
@@ -2686,7 +2686,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
               '<strong>🧭 Voir/modifier le parcours de formation :</strong> glisse les formations et les postes de la rotation pour changer leur ordre, et rattache chaque formation au poste réel de « Postes &amp; Polyvalence ».',
               '<strong>⚙️ Paramétrage du parcours alternant :</strong> les horaires des périodes du restaurant (Ouverture, Rush midi, Fermeture…), qui servent à proposer les bonnes formations selon le jour travaillé.',
             ])
-          : para('Le planning et le parcours de formation des alternants, <strong>en consultation</strong>.')
+          : para('Le planning des alternants, <strong>en consultation</strong>.')
             + list([
               'Tu peux <strong>télécharger le planning en PDF</strong>, mais pas le modifier : seuls le gérant et le Responsable formation le peuvent.',
               'Pour chaque jour travaillé, tu vois la ou les formations prévues et le formateur de chacune.',
@@ -6099,6 +6099,8 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     if(!canManageAlternant){
       showAddAlternantFormBtn && (showAddAlternantFormBtn.style.display = 'none');
     }
+    const paramBlock = document.getElementById('alternantParametrageBlock');
+    if(paramBlock) paramBlock.style.display = canManageAlternant ? '' : 'none';
     await loadAlternants();
     const resF = await fetch(APPS_SCRIPT_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(authBody({ sheet:'get_formateurs_for_integration', targetRestaurant: currentRestaurant })) });
     alternantFormateursCache = (await resF.json()).formateurs || [];
