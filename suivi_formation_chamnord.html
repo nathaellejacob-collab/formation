@@ -2736,6 +2736,8 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         section('comparaison', '📊', 'var(--navy-2)', 'Comparaison', 'Tous les restaurants côte à côte',
           para('Vue d\'ensemble de tous les restaurants : taux de polyvalence, équilibre Production/Service et tableau comparatif complet (effectifs, formations en retard, taux de polyvalence).')
           + list([
+            '<strong>Taux de polyvalence :</strong> le même calcul que le « Taux de polyvalence global » de l\'onglet Postes &amp; Polyvalence. Pour chaque poste Production et Service, on prend la part des équipiers formés, puis on fait la moyenne. Les postes « Autres » (ouverture, fermeture, plonge…) n\'y entrent pas.',
+            '<strong>Effectif total</strong> = équipiers + équipe de gestion. <strong>Formations en retard</strong> et <strong>Échéance &lt; 30 j</strong> comptent les personnes (équipiers et gestion) dont la formation la plus urgente est en retard ou à échéance sous 30 jours.',
             'Clique sur l\'en-tête d\'une colonne pour trier les restaurants (par exemple par nombre de formations en retard).',
             'Pour agir sur un restaurant, choisis-le dans le sélecteur en haut de la page.',
           ]));
@@ -4668,7 +4670,6 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       else if(e.worst === 'orange') orange++;
       else green++; // 'green' ou 'gray' (rien de préoccupant) compté comme à jour
     });
-    const polyAvg = empR.length ? empR.reduce((s,e) => s + e.polyPct, 0) / empR.length : 0;
 
     // Taux de maîtrise Production vs Service — pour repérer un déséquilibre
     // entre les deux familles à l'échelle du restaurant.
@@ -4682,6 +4683,14 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
     }
     const prodAvg = famRate(prodIdx);
     const servAvg = famRate(servIdx);
+
+    // Taux de polyvalence : même règle que le « Taux de polyvalence global » de
+    // l'onglet Postes & Polyvalence — moyenne, sur les postes Production et
+    // Service (hors « Autres »), de la part d'équipiers formés à chaque poste.
+    const coreIdx = POSTES.map((p,i) => p.group !== 'autres' ? i : -1).filter(i => i !== -1);
+    const polyAvg = (coreIdx.length && empR.length)
+      ? coreIdx.reduce((sum,i) => sum + empR.filter(e => e.skills[i]).length / empR.length, 0) / coreIdx.length
+      : 0;
 
     return { restaurant: r, totalEmployees: empR.length, totalManagers: mgrR.length, total: all.length, red, orange, green, polyAvg, prodAvg, servAvg };
   }
@@ -4726,7 +4735,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       <div class="panel-block">
         <div class="panel-head">
           <h3>Taux de polyvalence par restaurant</h3>
-          <p>Moyenne des équipiers de chaque restaurant, du plus fort au plus faible.</p>
+          <p>Même calcul que le « Taux de polyvalence global » de l'onglet Postes &amp; Polyvalence : part des équipiers formés, en moyenne sur les postes Production et Service (hors « Autres »). Classé du plus fort au plus faible.</p>
         </div>
         <div class="bar-chart">${polyBars || '<p style="color:var(--ink-soft);font-size:13px;">Aucune donnée.</p>'}</div>
       </div>
