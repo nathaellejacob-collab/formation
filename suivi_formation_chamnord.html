@@ -2580,6 +2580,12 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
           'Sélectionne ton restaurant, puis entre le <strong>mot de passe du restaurant</strong>.',
           'Choisis ton poste, puis clique sur ton prénom dans la liste et entre ton <strong>code personnel</strong>. Un code peut commencer par 0.',
         ])
+        + sub('Se repérer sur le site')
+        + list([
+          'Les <strong>onglets</strong> en haut donnent accès à chaque thème (Postes &amp; Polyvalence, Formations obligatoires, Planification, Alternant…). Clique sur un onglet pour y aller.',
+          'Pour changer de personne, ferme l\'onglet puis rouvre le site : tu te reconnectes avec ton poste, ton prénom et ton code. Pendant la connexion, « ← Changer de poste » et « ← Choisir un autre nom » permettent de revenir en arrière.',
+          'Ce guide reste accessible à tout moment avec le bouton <strong>« 📖 Guide d\'utilisation »</strong>. Les thèmes se déplient d\'un clic, et « Tout déplier » les ouvre tous.',
+        ])
         + sub('Les couleurs')
         + para(`${pill('red', 'Rouge')} en retard &nbsp; ${pill('amber', 'Orange')} échéance sous 30 jours &nbsp; ${pill('green', 'Vert')} à jour`)
         + (isGerant ? tip('En haut de la page, le <strong>sélecteur de restaurant</strong> te fait passer d\'un restaurant à l\'autre. Tout ce que tu vois et fais s\'applique au restaurant sélectionné.') : ''));
@@ -2590,7 +2596,16 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         + list([
           'Cherche un équipier avec la <strong>barre de recherche</strong>.',
           'Clique sur une formation précise, ou sur une carte « En retard », « Échéance sous 30 j » ou « À jour », pour filtrer. Le <strong>tri par urgence</strong> apparaît alors.',
+          'Les boutons de tri classent la liste par urgence, par prénom ou par date d\'entrée.',
+          'Clique sur la ligne d\'un équipier pour ouvrir <strong>sa fiche</strong> : les dates de ses formations, ses suivis à 4 semaines et à 60 jours, et les fiches à télécharger.',
         ])
+        + (accesResponsable ? sub('Gérer les équipiers')
+          + steps([
+            'Clique <strong>« + Ajouter un équipier »</strong> : renseigne son nom (NOM Prénom), son restaurant, sa date d\'entrée et, si tu veux, ses disponibilités habituelles.',
+            'Dans sa fiche, <strong>« ✏️ Modifier le profil »</strong> corrige le nom ou la date d\'entrée, et <strong>« 🕐 Disponibilités »</strong> règle ses créneaux habituels.',
+            '<strong>« 🏥 Déclarer un arrêt maladie »</strong> ou <strong>« 🌴 Déclarer en congés payés »</strong> écarte la personne des propositions de planification. Clique « De retour » à la fin de l\'absence.',
+            '<strong>« Supprimer »</strong> retire définitivement l\'équipier : à réserver aux erreurs de saisie ou aux départs.',
+          ]) : '')
         + (peutEtrePlanifie ? sub('Valider une formation')
           + steps([
             'Clique sur la ligne de l\'équipier pour ouvrir sa fiche.',
@@ -2603,7 +2618,13 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       // ----- 3. Postes & polyvalence -----
       section('polyvalence', '🎯', 'var(--teal)', 'Postes & Polyvalence', 'Qui maîtrise quel poste',
         para('Le tableau des postes déjà maîtrisés par chaque équipier (Production et Service) et son <strong>taux de polyvalence</strong>.')
+        + list([
+          'En haut, le <strong>taux de maîtrise par poste</strong> montre la part des équipiers formés sur chaque poste, du plus fragile au plus solide : tu repères vite où il manque du monde.',
+          'Dans la <strong>matrice de polyvalence</strong>, un point = un poste maîtrisé. Clique sur le titre d\'une colonne pour trier, ou cherche un nom pour le retrouver.',
+          'Les boutons « Trier par » classent par date d\'entrée, par polyvalence (croissante ou décroissante) ou par prénom.',
+        ])
         + (peutEtrePlanifie ? list([
+          'Le bouton <strong>📤</strong>, à côté du score de l\'équipier dans la matrice, ouvre « Fiches signées » : envoie une photo ou un PDF de la fiche signée pour chaque poste validé.',
           'Une fois la fiche du poste signée, <strong>coche la case</strong> du poste pour l\'équipier.',
           'Si ce poste était prévu dans la Planification du mois, la proposition passe automatiquement en <strong>« Réalisée »</strong>.',
           'Si tu décoches par erreur, la proposition repasse en attente.',
@@ -2624,7 +2645,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
             'Clique <strong>« 🧮 Générer le planning du mois »</strong> (mois en cours ou mois suivant).',
             '<strong>« ✗ Ignorer »</strong> retire une proposition, même une formation déjà réalisée. Sa place se libère et « Générer » pourra en proposer une nouvelle.',
             'Quand une vérification regroupe plusieurs postes (ex. « Assemblage et Présentation »), choisis dans le menu de la proposition le <strong>poste concerné</strong>. Le nom exact de la vérification ne change pas : c\'est lui qui la valide quand elle est cochée dans Postes &amp; Polyvalence.',
-            '<strong>« Restrictions par équipier »</strong> : indique les postes à ne jamais proposer à quelqu\'un.',
+            '<strong>« Restrictions par équipier »</strong> : clique « 🚫 Voir/gérer les restrictions par équipier » pour ouvrir un tableau équipiers × postes. Clique sur le point d\'un poste pour l\'interdire à cet équipier (reclique pour le retirer). La génération en tient compte automatiquement.',
           ])
           + sub('Les règles de la génération automatique')
           + info('Ordre de priorité : <strong>1)</strong> les personnes arrivées dans les 2 derniers mois, <strong>2)</strong> zone par zone (« Cuisine » puis « Comptoir »), <strong>3)</strong> dans l\'ordre de formation défini pour chaque zone, <strong>4)</strong> sinon le taux de polyvalence le plus faible, <strong>5)</strong> en dernier recours les formations « Autres ».')
@@ -2652,6 +2673,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
             '<strong>Récapitulatif annuel :</strong> les mois de l\'année en cours et de l\'année précédente, côte à côte.',
             '<strong>🖨️ Imprimer / PDF :</strong> sort l\'historique du mois avec son total.',
             '<strong>Taux horaires :</strong> modifiables par le gérant uniquement.',
+            '<strong>« Plus d\'options »</strong> regroupe le 📊 Récapitulatif annuel, les ⚙️ Taux horaires et les 📎 Fiches temps de formation tablette (des PDF de référence ajoutés par le gérant).',
           ])
           + tip('Quand tu enregistres une <strong>intégration opérationnelle</strong>, le nom du formateur est <strong>reporté automatiquement</strong> dans « Suivi intégration opérationnel », sur la ligne de l\'équipier. Si le nom de l\'équipier est mal écrit, une alerte te le dit et rien n\'est reporté.'));
 
@@ -2712,7 +2734,11 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       // ----- 8. Comparaison (gérant) -----
       if(isGerant){
         section('comparaison', '📊', 'var(--navy-2)', 'Comparaison', 'Tous les restaurants côte à côte',
-          para('Vue d\'ensemble de tous les restaurants : taux de polyvalence, équilibre Production/Service et tableau comparatif complet (effectifs, formations en retard, taux de polyvalence).'));
+          para('Vue d\'ensemble de tous les restaurants : taux de polyvalence, équilibre Production/Service et tableau comparatif complet (effectifs, formations en retard, taux de polyvalence).')
+          + list([
+            'Clique sur l\'en-tête d\'une colonne pour trier les restaurants (par exemple par nombre de formations en retard).',
+            'Pour agir sur un restaurant, choisis-le dans le sélecteur en haut de la page.',
+          ]));
       }
 
       // ----- 9. Responsable : profils -----
@@ -2722,6 +2748,8 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
             'Clique <strong>« 👥 Gérer les profils »</strong>.',
             'Ajoute un profil : nom, <strong>code personnel</strong> (4 chiffres conseillés, il peut commencer par 0) et <strong>poste</strong>.',
             'Tu peux ensuite modifier le code (🔑), désactiver ou réactiver un profil.',
+            'Pour un formateur, <strong>« 🎯 Postes qu\'il/elle peut former »</strong> coche les postes qu\'il peut former, et <strong>« 🕐 Disponibilités »</strong> règle ses créneaux.',
+            '<strong>« Désactiver »</strong> suffit pour un vrai départ : l\'historique est conservé. <strong>« 🗑️ Supprimer définitivement »</strong> est réservé aux profils ajoutés par erreur.',
           ])
           + para('Le poste détermine l\'accès : tous sauf « Formateur/Formatrice » ont l\'<strong>espace responsable</strong> (gérer les profils, planning, activité). Seuls Formateur/Formatrice et Responsable de zone peuvent être planifiés pour former.')
           + para('Les profils sont toujours classés par hiérarchie : <strong>ADM, Directeur, Directeur adjoint, Assistant de direction, Manager, Responsable de zone, Formateur</strong>.')
@@ -2734,7 +2762,12 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
           list([
             '<strong>➕ Ajouter une formation :</strong> seul le gérant crée un nouveau poste ou une nouvelle formation obligatoire, et peut les modifier, les retirer ou les supprimer définitivement. Les autres profils peuvent les suivre et les valider.',
             '<strong>🧭 Ordre de formation par filière</strong> et <strong>✏️ Postes</strong> (dans Planification) : voir la section Planification.',
-            '<strong>⚙️ Gérer les restaurants :</strong> ajoute ou supprime un restaurant, modifie son email de contact (alertes hebdomadaires), et renseigne ton propre email pour recevoir le récapitulatif de tous les restaurants chaque lundi.',
+            '<strong>Créer un poste</strong> (« 🍔 Formation sur poste ») : donne son nom, choisis sa famille (Production, Service ou Autres) et ajoute si tu veux sa fiche de vérification en PDF. Il s\'applique à tous les restaurants.',
+            '<strong>Créer une formation obligatoire</strong> (« 📋 Formation obligatoire ») : donne son nom, son échéance (elle se renouvelle tous les X mois ou jours, ou elle est ponctuelle), à qui elle s\'applique (équipiers, équipe de gestion, ou les deux) et sa fiche PDF si besoin.',
+            '<strong>Retirer ou supprimer :</strong> « Retirer » masque la formation mais garde l\'historique, et tu peux la réactiver. « Supprimer définitivement » efface son historique sur tous les restaurants : c\'est irréversible.',
+            '<strong>⚙️ Gérer les restaurants :</strong> pour ajouter un restaurant, saisis son nom, un mot de passe (celui que son équipe utilisera pour se connecter) et un email de contact facultatif pour ses alertes, puis « Ajouter le restaurant ». Tu peux aussi supprimer un restaurant ou changer son email.',
+            '<strong>✉️ Ton email d\'alerte :</strong> dans la même fenêtre, renseigne ton propre email pour recevoir chaque lundi le récapitulatif des retards et échéances de tous les restaurants.',
+            '<strong>💶 Taux horaire équipier :</strong> une valeur unique, partagée par tous les restaurants, utilisée dans « Coût de la formation » (ex. SMIC horaire ÷ 60, en €/minute).',
             '<strong>Taux horaires</strong> du coût de la formation : modifiables par le gérant uniquement.',
           ]));
       }
