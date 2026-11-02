@@ -232,6 +232,16 @@
   .certif-kpis{display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px;}
   .certif-kpi{padding:8px 14px; background:#faf9f4; border:1px solid var(--line); border-radius:10px; font-size:12px; color:var(--ink-soft);}
   .certif-kpi b{display:block; font-size:20px; color:var(--navy-2);}
+  #certifTableWrap table.matrix-table thead th{text-align:center; vertical-align:middle;}
+  #certifTableWrap table.matrix-table td{text-align:center; vertical-align:middle;}
+  #certifTableWrap table.matrix-table td:first-child{text-align:left;}
+  .certif-input{text-align:center;}
+  #certifTableWrap th[data-tip]{position:relative; cursor:help;}
+  #certifTableWrap th[data-tip]:hover::after{
+    content:attr(data-tip); position:absolute; top:100%; left:50%; transform:translateX(-50%); z-index:30;
+    width:220px; padding:8px 10px; background:var(--navy-2,#1f2a44); color:#fff; font-size:12px; font-weight:400;
+    line-height:1.4; text-align:left; text-transform:none; letter-spacing:0; border-radius:8px; box-shadow:0 4px 14px rgba(0,0,0,.25); white-space:normal; pointer-events:none;
+  }
   .certif-legend{margin-top:14px; font-size:12px; color:var(--ink-soft); line-height:1.7;}
   .certif-legend b{color:var(--ink);}
 
@@ -1581,7 +1591,6 @@
       <button type="submit" class="restriction-toggle-btn" style="margin-bottom:0;">➕ Ajouter</button>
     </form>
     <div id="certifTableWrap"></div>
-    <div class="certif-legend" id="certifLegend"></div>
   </div>
 </section>
 
@@ -5637,11 +5646,11 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
 
   // ---------------- Certification des formateurs ----------------
   const CERTIF_STEPS = [
-    {key:'certificat', label:"Certificat d'aptitude obtenu le...",  court:'Certificat', aide:"Certificat d'aptitude obtenu le..."},
+    {key:'certificat', label:"Certificat d'aptitude obtenu le...",  court:'Certificat', aide:"Date d'obtention du certificat d'aptitude"},
     {key:'phase1',     label:'Phase 1',        court:'Phase 1',    aide:'Phase 1 : modules formateurs Crew Academy validés sur Campus'},
     {key:'phase2',     label:'Phase 2',      court:'Phase 2',    aide:'Phase 2 : validation pratique des compétences avec le Responsable formation'},
     {key:'phase3',     label:'Phase 3',   court:'Phase 3',    aide:'Phase 3 : observation en situation de formation par le Responsable formation'},
-    {key:'avenant',    label:'Avenant formateur au...',       court:'Avenant',    aide:'Avenant formateur au...'}
+    {key:'avenant',    label:'Avenant formateur au...',       court:'Avenant',    aide:"Date de l'avenant formateur"}
   ];
   const CERTIF_PROB = ['prob1','prob2','prob3','prob4'];
   let certifRecords = [];
@@ -5703,8 +5712,6 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       ? "Le parcours de certification de chaque formateur, étape par étape. Renseigne la date de chaque étape : une date à venir est affichée comme « prévue », puis comptée comme réalisée une fois passée."
       : "Ton parcours de certification, étape par étape.";
     certifAddForm.style.display = edit ? 'flex' : 'none';
-    document.getElementById('certifLegend').innerHTML = CERTIF_STEPS.map(st => `<b>${st.court}</b> — ${st.aide.replace(/^Phase \d : /, '').replace(/^./, c => c.toUpperCase())}`).join('<br>')
-      + '<br><b>Formations probatoires</b> — 4 formations planifiées pendant la période probatoire<br><b>Certification</b> — validée par la direction de la formation';
     if(!certifRecords.length){
       certifTableWrap.innerHTML = '<p style="color:var(--ink-soft);font-size:13px;">' + (edit
         ? 'Aucun formateur dans le suivi pour l\'instant. Saisis un nom ci-dessus pour commencer.'
@@ -5733,7 +5740,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       </tr>`;
     }).join('');
     certifTableWrap.innerHTML = `<div class="matrix-wrap"><table class="matrix-table">
-      <thead><tr><th>Formateur</th><th>Avancement</th>${CERTIF_STEPS.map(stp => `<th title="${stp.aide}">${stp.label}</th>`).join('')}<th title="4 formations planifiées pendant la période probatoire">Formations probatoires</th><th title="Certifié par la direction de la formation le">Certifié le</th>${edit ? '<th></th>' : ''}</tr></thead>
+      <thead><tr><th>Formateur</th><th>Avancement</th>${CERTIF_STEPS.map(stp => `<th data-tip="${stp.aide}">${stp.label}</th>`).join('')}<th data-tip="4 formations planifiées pendant la période probatoire">Formations probatoires</th><th data-tip="Certifié par la direction de la formation le...">Certifié le</th>${edit ? '<th></th>' : ''}</tr></thead>
       <tbody>${lignes}</tbody></table></div>`;
     if(!edit) return;
     certifTableWrap.querySelectorAll('.certif-input').forEach(inp => {
