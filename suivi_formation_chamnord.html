@@ -2610,7 +2610,9 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       const pill = (cls, t) => `<span class="guide-pill ${cls}">${t}</span>`;
 
       const sections = [];
-      const section = (id, icon, color, titre, resume, corps) => sections.push({ id, icon, color, titre, resume, corps });
+      // Couleurs attribuées dans l'ordre d'affichage, en cycle : deux thèmes qui se suivent n'ont jamais la même (peu importe ce que le rôle masque).
+      const guideCouleurs = ['var(--amber-dark)', 'var(--teal)', 'var(--green)', 'var(--plum)', 'var(--navy-2)'];
+      const section = (id, icon, color, titre, resume, corps) => sections.push({ id, icon, color: guideCouleurs[sections.length % guideCouleurs.length], titre, resume, corps });
 
       // ----- 1. Démarrer -----
       section('demarrer', '🚀', 'var(--amber-dark)', 'Démarrer', 'Se connecter et comprendre les couleurs',
