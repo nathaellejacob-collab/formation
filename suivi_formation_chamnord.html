@@ -221,6 +221,20 @@
   .action-pill.plum{background:var(--plum-bg); color:var(--plum); border:1px solid var(--plum-line);}
   .action-pill.gray{background:var(--gray-bg); color:var(--gray); border:1px solid #dcdfe2;}
 
+  /* ---------- CERTIFICATION FORMATEURS ---------- */
+  .certif-input{
+    font:inherit; font-size:12px; padding:5px 6px; border:1px solid var(--line); border-radius:6px; background:#fff;
+    color:var(--ink); max-width:150px;
+  }
+  .certif-input.datetime{max-width:176px; margin-bottom:4px; display:block;}
+  .certif-cell-prevue{color:var(--ink-soft); font-style:italic;}
+  .certif-sub{display:block; font-size:11px; color:var(--ink-soft); margin-top:3px; font-weight:400; white-space:normal;}
+  .certif-kpis{display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px;}
+  .certif-kpi{padding:8px 14px; background:#faf9f4; border:1px solid var(--line); border-radius:10px; font-size:12px; color:var(--ink-soft);}
+  .certif-kpi b{display:block; font-size:20px; color:var(--navy-2);}
+  .certif-legend{margin-top:14px; font-size:12px; color:var(--ink-soft); line-height:1.7;}
+  .certif-legend b{color:var(--ink);}
+
   /* ---------- MAIN ---------- */
   main{
     max-width:1200px;
@@ -1200,6 +1214,7 @@
     <button class="tab-btn" data-tab="planification">Planification</button>
     <button class="tab-btn" data-tab="cout-formation">Coût de la formation</button>
     <button class="tab-btn" data-tab="integration">Suivi intégration opérationnel</button>
+    <button class="tab-btn" data-tab="certification">Certification formateurs</button>
     <button class="tab-btn" data-tab="alternant">Alternant</button>
     <button class="tab-btn" data-tab="activite">Activité</button>
   </nav>
@@ -1550,6 +1565,23 @@
     </div>
     <div id="integrationSummaryWrap"></div>
     <div id="integrationTableWrap"></div>
+  </div>
+</section>
+
+<section id="tab-certification" style="display:none;">
+  <div class="panel-block">
+    <div class="panel-head">
+      <h3>🏅 Certification des formateurs</h3>
+      <p id="certifIntro">Le parcours de certification de chaque formateur, étape par étape : certificat d'aptitude, phases 1 à 3, avenant, formations de la période probatoire, puis certification finale.</p>
+    </div>
+    <div id="certifSummary"></div>
+    <form id="certifAddForm" style="display:none; align-items:center; gap:8px; margin-bottom:14px; flex-wrap:wrap;">
+      <label for="certifAddSelect" style="font-size:12px; font-weight:700; color:var(--ink-soft);">Ajouter un formateur au suivi :</label>
+      <select id="certifAddSelect"></select>
+      <button type="submit" class="restriction-toggle-btn" style="margin-bottom:0;">➕ Ajouter</button>
+    </form>
+    <div id="certifTableWrap"></div>
+    <div class="certif-legend" id="certifLegend"></div>
   </div>
 </section>
 
@@ -2686,6 +2718,28 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
             'L\'historique reste visible même si l\'équipier est supprimé ensuite. Seules l\'année en cours et l\'année précédente sont conservées.',
           ]));
       }
+
+      // ----- 5 bis. Certification des formateurs -----
+      section('certification', '🏅', 'var(--plum)', 'Certification formateurs', 'Le parcours pour devenir formateur certifié',
+        accesResponsable
+          ? para('Le suivi de chaque formateur sur son parcours de certification, étape par étape, pour savoir en un coup d\'œil où il en est.')
+            + sub('Les étapes du parcours')
+            + list([
+              '<strong>Certificat d\'aptitude</strong> obtenu, puis <strong>Phase 1</strong> : modules formateurs Crew Academy validés sur Campus.',
+              '<strong>Phase 2</strong> : validation pratique des compétences avec le Responsable formation. <strong>Phase 3</strong> : observation en situation de formation.',
+              '<strong>Avenant formateur</strong>, puis les <strong>4 formations planifiées pendant la période probatoire</strong> (date et heure).',
+              '<strong>Certification finale</strong>, validée par la direction de la formation.',
+            ])
+            + sub('Utiliser l\'onglet')
+            + steps([
+              'Choisis un profil dans « Ajouter un formateur au suivi », puis clique <strong>➕ Ajouter</strong>.',
+              'Renseigne la date de chaque étape dans la ligne du formateur : elle s\'enregistre dès que tu la choisis. Pour les formations probatoires, indique aussi l\'heure.',
+              'Une date à venir est affichée comme « <strong>prévue</strong> » et comptée comme réalisée une fois passée.',
+              'La colonne <strong>Avancement</strong> indique la prochaine étape. Quand les 4 formations probatoires sont faites, le formateur passe en « Prêt pour la certification ».',
+              'Le <strong>🗑️</strong> retire un formateur du suivi (sa fiche est supprimée).',
+            ])
+            + tip('Les actions sont notées dans le journal d\'activité, sous « Certification formateurs ».')
+          : para('Ton parcours de certification, <strong>en consultation</strong> : tu vois tes étapes, leurs dates et ta prochaine étape. C\'est ton Responsable formation qui renseigne les dates.'));
 
       // ----- 6. Alternant -----
       section('alternant', '🎓', 'var(--plum)', 'Alternant', 'Parcours et planning de l\'alternant',
@@ -4322,6 +4376,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
   const tabPlanification = document.getElementById('tab-planification');
   const tabCoutFormation = document.getElementById('tab-cout-formation');
   const tabIntegration = document.getElementById('tab-integration');
+  const tabCertification = document.getElementById('tab-certification');
   const tabAlternant = document.getElementById('tab-alternant');
   const statsWrap = document.getElementById('statsWrap');
   const statsRowEl = document.getElementById('statsRow');
@@ -4355,8 +4410,9 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       tabPlanification.style.display = tab === 'planification' ? '' : 'none';
       tabCoutFormation.style.display = tab === 'cout-formation' ? '' : 'none';
       tabIntegration.style.display = tab === 'integration' ? '' : 'none';
+      tabCertification.style.display = tab === 'certification' ? '' : 'none';
       tabAlternant.style.display = tab === 'alternant' ? '' : 'none';
-      statsWrap.style.display = (tab === 'polyvalence' || tab === 'comparaison' || tab === 'activite' || tab === 'planification' || tab === 'cout-formation' || tab === 'integration' || tab === 'alternant') ? 'none' : '';
+      statsWrap.style.display = (tab === 'polyvalence' || tab === 'comparaison' || tab === 'activite' || tab === 'planification' || tab === 'cout-formation' || tab === 'integration' || tab === 'certification' || tab === 'alternant') ? 'none' : '';
       statsRowEl.style.display = tab === 'formations' ? '' : 'none';
       statsRowGestionEl.style.display = tab === 'gestion' ? '' : 'none';
       if(tab === 'comparaison'){ renderComparaisonCharts(); renderComparaison(); }
@@ -4366,6 +4422,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
         integrationLoadedOnce = true;
         initIntegrationTab();
       }
+      if(tab === 'certification'){ initCertifTab(); }
       if(tab === 'alternant' && !alternantLoadedOnce){
         alternantLoadedOnce = true;
         initAlternantTab();
@@ -4499,6 +4556,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
   const FORMATION_FAIT_LABELS = { secuFait:'Prévention & Sécurité', hygieneFait:'Hygiène & Sécurité alim.', mtsriFait:'MTSRI', cultureFait:'Culture Service', suivi4sFait:'Suivi à 4 semaines', suivi60jFait:'Suivi à 60 jours', enArret:"Arrêt maladie", enConges:'Congés payés' };
   function journalCategorie(action){
     const a = (action || '').toLowerCase();
+    if(/certification/.test(a)) return ['🏅', 'Certification formateurs'];
     if(/coût|cout|intégration/.test(a)) return ['💶', 'Coût & intégration'];
     if(/alternant|parcours|période opérationnelle|rotation/.test(a)) return ['🎓', 'Alternant'];
     if(/planning|planifi|vérification|poste de formation|remplacement/.test(a) && !/polyvalence/.test(a)) return ['🗓️', 'Planification'];
@@ -5576,6 +5634,171 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
   }
 
   integrationMonthSelect && integrationMonthSelect.addEventListener('change', () => renderIntegrationTable(integrationMonthSelect.value));
+
+  // ---------------- Certification des formateurs ----------------
+  const CERTIF_STEPS = [
+    {key:'certificat', label:"Certificat d'aptitude",  court:'Certificat', aide:"Certificat d'aptitude obtenu le"},
+    {key:'phase1',     label:'Phase 1 · Campus',        court:'Phase 1',    aide:'Phase 1 : modules formateurs Crew Academy validés sur Campus'},
+    {key:'phase2',     label:'Phase 2 · Pratique',      court:'Phase 2',    aide:'Phase 2 : validation pratique des compétences avec le Responsable formation'},
+    {key:'phase3',     label:'Phase 3 · Observation',   court:'Phase 3',    aide:'Phase 3 : observation en situation de formation par le Responsable formation'},
+    {key:'avenant',    label:'Avenant formateur',       court:'Avenant',    aide:'Avenant formateur au'}
+  ];
+  const CERTIF_PROB = ['prob1','prob2','prob3','prob4'];
+  let certifRecords = [];
+  let certifCanEdit = false;
+  let certifProfils = [];
+  const certifTableWrap = document.getElementById('certifTableWrap');
+  const certifSummary = document.getElementById('certifSummary');
+  const certifAddForm = document.getElementById('certifAddForm');
+  const certifAddSelect = document.getElementById('certifAddSelect');
+
+  // Une date est « passée » si elle est atteinte (jour entier pour une date simple, heure comprise pour une formation probatoire).
+  function certifPassee(v){
+    if(!v) return false;
+    const d = v.length > 10 ? new Date(v) : new Date(v + 'T23:59:59');
+    return !isNaN(d) && d <= new Date();
+  }
+  function certifDateLibelle(v){
+    if(!v) return '—';
+    const d = parseDate(v.slice(0, 10));
+    return frDate(d) + (v.length > 10 ? ' à ' + v.slice(11, 16).replace(':', 'h') : '');
+  }
+  function certifStatut(rec){
+    const faites = CERTIF_STEPS.filter(st => certifPassee(rec[st.key]));
+    const probFaites = CERTIF_PROB.filter(k => certifPassee(rec[k])).length;
+    const probPrevues = CERTIF_PROB.filter(k => rec[k]).length;
+    const prochaine = CERTIF_STEPS.find(st => !certifPassee(rec[st.key]));
+    if(rec.certifie && certifPassee(rec.certifie)){
+      return {cls:'green', libelle:'✅ Certifié', sub:'le ' + certifDateLibelle(rec.certifie), rang:3};
+    }
+    if(!faites.length && !probPrevues && !rec.certifie){
+      return {cls:'gray', libelle:'Pas commencé', sub:'', rang:0};
+    }
+    if(prochaine){
+      const prevue = rec[prochaine.key] ? ' (prévue le ' + certifDateLibelle(rec[prochaine.key]) + ')' : '';
+      return {cls:'amber', libelle:'En cours · ' + faites.length + '/' + CERTIF_STEPS.length + ' étapes', sub:'Prochaine étape : ' + prochaine.court + prevue, rang:1};
+    }
+    if(probFaites >= CERTIF_PROB.length){
+      return {cls:'plum', libelle:'🎯 Prêt pour la certification', sub:'4 formations probatoires réalisées', rang:2};
+    }
+    return {cls:'amber', libelle:'Période probatoire · ' + probFaites + '/' + CERTIF_PROB.length, sub:'formations réalisées' + (rec.certifie ? ' · certification prévue le ' + certifDateLibelle(rec.certifie) : ''), rang:1};
+  }
+
+  function renderCertifSummary(){
+    const sts = certifRecords.map(certifStatut);
+    const n = (cls) => sts.filter(x => x.cls === cls).length;
+    if(!certifRecords.length){ certifSummary.innerHTML = ''; return; }
+    certifSummary.innerHTML = `<div class="certif-kpis">
+      <div class="certif-kpi"><b>${certifRecords.length}</b>formateur${certifRecords.length > 1 ? 's' : ''} suivi${certifRecords.length > 1 ? 's' : ''}</div>
+      <div class="certif-kpi"><b style="color:var(--green);">${n('green')}</b>certifié${n('green') > 1 ? 's' : ''}</div>
+      <div class="certif-kpi"><b style="color:var(--amber-dark);">${n('amber')}</b>en cours</div>
+      <div class="certif-kpi"><b style="color:var(--plum);">${n('plum')}</b>prêt${n('plum') > 1 ? 's' : ''} pour la certification</div>
+    </div>`;
+  }
+
+  function renderCertifTable(){
+    renderCertifSummary();
+    const edit = certifCanEdit;
+    document.getElementById('certifIntro').textContent = edit
+      ? "Le parcours de certification de chaque formateur, étape par étape. Renseigne la date de chaque étape : une date à venir est affichée comme « prévue », puis comptée comme réalisée une fois passée."
+      : "Ton parcours de certification, étape par étape.";
+    certifAddForm.style.display = edit ? 'flex' : 'none';
+    if(edit){
+      const deja = new Set(certifRecords.map(x => x.nom));
+      const dispo = certifProfils.filter(p => !deja.has(p.nom));
+      certifAddSelect.innerHTML = '<option value="">— Choisir un profil —</option>' + dispo.map(p => `<option value="${p.nom.replace(/"/g,'&quot;')}">${displayName(p.nom)}</option>`).join('');
+    }
+    document.getElementById('certifLegend').innerHTML = CERTIF_STEPS.map(st => `<b>${st.court}</b> — ${st.aide.replace(/^Phase \d : /, '').replace(/^./, c => c.toUpperCase())}`).join('<br>')
+      + '<br><b>Formations probatoires</b> — 4 formations planifiées pendant la période probatoire (date et heure)<br><b>Certification</b> — validée par la direction de la formation';
+    if(!certifRecords.length){
+      certifTableWrap.innerHTML = '<p style="color:var(--ink-soft);font-size:13px;">' + (edit
+        ? 'Aucun formateur dans le suivi pour l\'instant. Choisis un profil ci-dessus pour commencer.'
+        : 'Ta fiche de certification n\'a pas encore été créée par ton Responsable formation.') + '</p>';
+      return;
+    }
+    const cellDate = (rec, key, type) => {
+      const v = rec[key] || '';
+      const safe = rec.nom.replace(/"/g,'&quot;');
+      if(edit){
+        return `<input type="${type === 'dt' ? 'datetime-local' : 'date'}" class="certif-input ${type === 'dt' ? 'datetime' : ''}" data-nom="${safe}" data-champ="${key}" value="${v}">`;
+      }
+      if(!v) return '<span style="color:var(--ink-soft);">—</span>';
+      return certifPassee(v) ? certifDateLibelle(v) : `<span class="certif-cell-prevue">${certifDateLibelle(v)}<span class="certif-sub">prévue</span></span>`;
+    };
+    const lignes = certifRecords.slice().sort((a, b) => certifStatut(b).rang - certifStatut(a).rang || a.nom.localeCompare(b.nom, 'fr')).map(rec => {
+      const st = certifStatut(rec);
+      const safe = rec.nom.replace(/"/g,'&quot;');
+      return `<tr>
+        <td><b>${displayName(rec.nom)}</b></td>
+        <td><span class="action-pill ${st.cls}">${st.libelle}</span>${st.sub ? `<span class="certif-sub">${st.sub}</span>` : ''}</td>
+        ${CERTIF_STEPS.map(stp => `<td>${cellDate(rec, stp.key, 'd')}</td>`).join('')}
+        <td>${CERTIF_PROB.map(k => cellDate(rec, k, 'dt')).join('')}</td>
+        <td>${cellDate(rec, 'certifie', 'd')}</td>
+        ${edit ? `<td><button type="button" class="certif-delete-btn" data-nom="${safe}" title="Retirer du suivi" style="border:none;background:none;color:var(--red);cursor:pointer;">🗑️</button></td>` : ''}
+      </tr>`;
+    }).join('');
+    certifTableWrap.innerHTML = `<div class="matrix-wrap"><table class="matrix-table">
+      <thead><tr><th>Formateur</th><th>Avancement</th>${CERTIF_STEPS.map(stp => `<th title="${stp.aide}">${stp.label}</th>`).join('')}<th title="4 formations planifiées pendant la période probatoire">Formations probatoires</th><th title="Certifié par la direction de la formation le">Certifié le</th>${edit ? '<th></th>' : ''}</tr></thead>
+      <tbody>${lignes}</tbody></table></div>`;
+    if(!edit) return;
+    certifTableWrap.querySelectorAll('.certif-input').forEach(inp => {
+      inp.addEventListener('change', () => certifSauver(inp.dataset.nom, {[inp.dataset.champ]: inp.value}, inp));
+    });
+    certifTableWrap.querySelectorAll('.certif-delete-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const nom = btn.dataset.nom;
+        if(!window.confirm('Retirer ' + displayName(nom) + ' du suivi de certification ?\n\nSa fiche (toutes les dates saisies) sera supprimée.')) return;
+        await certifAppel({sheet:'delete_certification_formateur', nom});
+      });
+    });
+  }
+
+  async function certifAppel(corps){
+    try{
+      const res = await fetch(APPS_SCRIPT_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body: JSON.stringify(authBody(Object.assign({targetRestaurant: currentRestaurant}, corps))) });
+      const data = await res.json();
+      if(!data.ok) throw new Error(data.error || 'Échec');
+      certifRecords = data.records || [];
+      certifCanEdit = !!data.canEdit;
+      renderCertifTable();
+      return true;
+    } catch(err){
+      alert('Erreur : ' + err.message);
+      renderCertifTable(); // remet l'affichage dans l'état enregistré
+      return false;
+    }
+  }
+  function certifSauver(nom, champs, inp){
+    if(inp) inp.disabled = true;
+    return certifAppel({sheet:'update_certification_formateur', nom, champs});
+  }
+
+  certifAddForm.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    if(!certifAddSelect.value) return;
+    await certifAppel({sheet:'add_certification_formateur', nom: certifAddSelect.value});
+  });
+
+  async function initCertifTab(){
+    certifTableWrap.innerHTML = '<p style="color:var(--ink-soft);font-size:13px;">Chargement…</p>';
+    try{
+      const [resRec, resProfils] = await Promise.all([
+        fetch(APPS_SCRIPT_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(authBody({ sheet:'get_certification_formateurs', targetRestaurant: currentRestaurant })) }),
+        fetch(APPS_SCRIPT_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(authBody({ sheet:'get_formateurs_for_integration', targetRestaurant: currentRestaurant })) }),
+      ]);
+      const dRec = await resRec.json();
+      if(!dRec.ok) throw new Error(dRec.error || 'Échec du chargement');
+      certifRecords = dRec.records || [];
+      certifCanEdit = !!dRec.canEdit;
+      certifProfils = (await resProfils.json()).formateurs || [];
+      renderCertifTable();
+    } catch(err){
+      certifTableWrap.innerHTML = '<p style="color:var(--red);font-size:13px;">Erreur de chargement : ' + err.message + '</p>';
+    }
+  }
+  refreshFns.push(() => { if(tabCertification.style.display !== 'none') initCertifTab(); });
+
 
   // ---------------- Alternant ----------------
   const JOURS_SEMAINE_FR = ['lundi','mardi','mercredi','jeudi','vendredi','samedi','dimanche'];
