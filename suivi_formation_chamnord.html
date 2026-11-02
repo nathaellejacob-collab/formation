@@ -2730,9 +2730,8 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       }
 
       // ----- 5 bis. Certification des formateurs -----
-      section('certification', '🏅', 'var(--plum)', 'Certification formateurs', 'Le parcours pour devenir formateur certifié',
-        accesResponsable
-          ? para('Le suivi de chaque formateur sur son parcours de certification, étape par étape, pour savoir en un coup d\'œil où il en est.')
+      if(accesResponsable) section('certification', '🏅', 'var(--plum)', 'Certification formateurs', 'Le parcours pour devenir formateur certifié',
+          para('Le suivi de chaque formateur sur son parcours de certification, étape par étape, pour savoir en un coup d\'œil où il en est.')
             + sub('Les étapes du parcours')
             + list([
               '<strong>Certificat d\'aptitude</strong> obtenu, puis <strong>Phase 1</strong> : modules formateurs Crew Academy validés sur Campus.',
@@ -2748,8 +2747,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
               'La colonne <strong>Avancement</strong> indique la prochaine étape. Quand les 4 formations probatoires sont faites, le formateur passe en « Prêt pour la certification ».',
               'Le <strong>🗑️</strong> retire un formateur du suivi (sa fiche est supprimée).',
             ])
-            + tip('Comme le reste du site, seules l\'année en cours et l\'année précédente sont conservées : une fiche dont toutes les dates sont plus anciennes est supprimée automatiquement. Les actions sont notées dans le journal d\'activité, sous « Certification formateurs ».')
-          : para('Ton parcours de certification, <strong>en consultation</strong> : tu vois tes étapes, leurs dates et ta prochaine étape. C\'est ton Responsable formation qui renseigne les dates.'));
+            + tip('Comme le reste du site, seules l\'année en cours et l\'année précédente sont conservées : une fiche dont toutes les dates sont plus anciennes est supprimée automatiquement. Les actions sont notées dans le journal d\'activité, sous « Certification formateurs ».'));
 
       // ----- 6. Alternant -----
       section('alternant', '🎓', 'var(--plum)', 'Alternant', 'Parcours et planning de l\'alternant',
@@ -4402,6 +4400,12 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
   const tabActiviteBtn = document.querySelector('.tab-btn[data-tab="activite"]');
   if(tabActiviteBtn && !canSeeActivite){
     tabActiviteBtn.style.display = 'none';
+  }
+
+  // Certification des formateurs : réservée au gérant et au Responsable formation (onglet invisible pour un simple formateur).
+  const tabCertifBtn = document.querySelector('.tab-btn[data-tab="certification"]');
+  if(tabCertifBtn && !canSeeActivite){
+    tabCertifBtn.style.display = 'none';
   }
 
   let coutFormationLoadedOnce = false;
