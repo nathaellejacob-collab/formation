@@ -2727,13 +2727,13 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
             + list([
               '<strong>Certificat d\'aptitude</strong> obtenu, puis <strong>Phase 1</strong> : modules formateurs Crew Academy validés sur Campus.',
               '<strong>Phase 2</strong> : validation pratique des compétences avec le Responsable formation. <strong>Phase 3</strong> : observation en situation de formation.',
-              '<strong>Avenant formateur</strong>, puis les <strong>4 formations planifiées pendant la période probatoire</strong> (date et heure).',
+              '<strong>Avenant formateur</strong>, puis les <strong>4 formations planifiées pendant la période probatoire</strong>.',
               '<strong>Certification finale</strong>, validée par la direction de la formation.',
             ])
             + sub('Utiliser l\'onglet')
             + steps([
               'Tape le nom du formateur (Prénom NOM) dans « Ajouter un formateur au suivi », puis clique <strong>➕ Ajouter</strong>. S\'il correspond à un profil existant, sa fiche lui sera accessible en consultation.',
-              'Renseigne la date de chaque étape dans la ligne du formateur : elle s\'enregistre dès que tu la choisis. Pour les formations probatoires, indique aussi l\'heure.',
+              'Renseigne la date de chaque étape dans la ligne du formateur : elle s\'enregistre dès que tu la choisis.',
               'Une date à venir est affichée comme « <strong>prévue</strong> » et comptée comme réalisée une fois passée.',
               'La colonne <strong>Avancement</strong> indique la prochaine étape. Quand les 4 formations probatoires sont faites, le formateur passe en « Prêt pour la certification ».',
               'Le <strong>🗑️</strong> retire un formateur du suivi (sa fiche est supprimée).',
@@ -5637,11 +5637,11 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
 
   // ---------------- Certification des formateurs ----------------
   const CERTIF_STEPS = [
-    {key:'certificat', label:"Certificat d'aptitude",  court:'Certificat', aide:"Certificat d'aptitude obtenu le"},
-    {key:'phase1',     label:'Phase 1 · Campus',        court:'Phase 1',    aide:'Phase 1 : modules formateurs Crew Academy validés sur Campus'},
-    {key:'phase2',     label:'Phase 2 · Pratique',      court:'Phase 2',    aide:'Phase 2 : validation pratique des compétences avec le Responsable formation'},
-    {key:'phase3',     label:'Phase 3 · Observation',   court:'Phase 3',    aide:'Phase 3 : observation en situation de formation par le Responsable formation'},
-    {key:'avenant',    label:'Avenant formateur',       court:'Avenant',    aide:'Avenant formateur au'}
+    {key:'certificat', label:"Certificat d'aptitude obtenu le...",  court:'Certificat', aide:"Certificat d'aptitude obtenu le..."},
+    {key:'phase1',     label:'Phase 1',        court:'Phase 1',    aide:'Phase 1 : modules formateurs Crew Academy validés sur Campus'},
+    {key:'phase2',     label:'Phase 2',      court:'Phase 2',    aide:'Phase 2 : validation pratique des compétences avec le Responsable formation'},
+    {key:'phase3',     label:'Phase 3',   court:'Phase 3',    aide:'Phase 3 : observation en situation de formation par le Responsable formation'},
+    {key:'avenant',    label:'Avenant formateur au...',       court:'Avenant',    aide:'Avenant formateur au...'}
   ];
   const CERTIF_PROB = ['prob1','prob2','prob3','prob4'];
   let certifRecords = [];
@@ -5652,16 +5652,16 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
   const certifAddForm = document.getElementById('certifAddForm');
   const certifAddInput = document.getElementById('certifAddInput');
 
-  // Une date est « passée » si elle est atteinte (jour entier pour une date simple, heure comprise pour une formation probatoire).
+  // Une date est « passée » si elle est atteinte (jour entier).
   function certifPassee(v){
     if(!v) return false;
-    const d = v.length > 10 ? new Date(v) : new Date(v + 'T23:59:59');
+    const d = new Date(v.slice(0, 10) + 'T23:59:59');
     return !isNaN(d) && d <= new Date();
   }
   function certifDateLibelle(v){
     if(!v) return '—';
     const d = parseDate(v.slice(0, 10));
-    return frDate(d) + (v.length > 10 ? ' à ' + v.slice(11, 16).replace(':', 'h') : '');
+    return frDate(d);
   }
   function certifStatut(rec){
     const faites = CERTIF_STEPS.filter(st => certifPassee(rec[st.key]));
@@ -5704,7 +5704,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       : "Ton parcours de certification, étape par étape.";
     certifAddForm.style.display = edit ? 'flex' : 'none';
     document.getElementById('certifLegend').innerHTML = CERTIF_STEPS.map(st => `<b>${st.court}</b> — ${st.aide.replace(/^Phase \d : /, '').replace(/^./, c => c.toUpperCase())}`).join('<br>')
-      + '<br><b>Formations probatoires</b> — 4 formations planifiées pendant la période probatoire (date et heure)<br><b>Certification</b> — validée par la direction de la formation';
+      + '<br><b>Formations probatoires</b> — 4 formations planifiées pendant la période probatoire<br><b>Certification</b> — validée par la direction de la formation';
     if(!certifRecords.length){
       certifTableWrap.innerHTML = '<p style="color:var(--ink-soft);font-size:13px;">' + (edit
         ? 'Aucun formateur dans le suivi pour l\'instant. Saisis un nom ci-dessus pour commencer.'
@@ -5712,10 +5712,10 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       return;
     }
     const cellDate = (rec, key, type) => {
-      const v = rec[key] || '';
+      const v = (rec[key] || '').slice(0, 10);
       const safe = rec.nom.replace(/"/g,'&quot;');
       if(edit){
-        return `<input type="${type === 'dt' ? 'datetime-local' : 'date'}" class="certif-input ${type === 'dt' ? 'datetime' : ''}" data-nom="${safe}" data-champ="${key}" value="${v}">`;
+        return `<input type="date" class="certif-input ${type === 'dt' ? 'datetime' : ''}" data-nom="${safe}" data-champ="${key}" value="${v}">`;
       }
       if(!v) return '<span style="color:var(--ink-soft);">—</span>';
       return certifPassee(v) ? certifDateLibelle(v) : `<span class="certif-cell-prevue">${certifDateLibelle(v)}<span class="certif-sub">prévue</span></span>`;
