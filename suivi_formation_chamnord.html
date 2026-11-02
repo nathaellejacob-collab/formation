@@ -1576,8 +1576,8 @@
     </div>
     <div id="certifSummary"></div>
     <form id="certifAddForm" style="display:none; align-items:center; gap:8px; margin-bottom:14px; flex-wrap:wrap;">
-      <label for="certifAddSelect" style="font-size:12px; font-weight:700; color:var(--ink-soft);">Ajouter un formateur au suivi :</label>
-      <select id="certifAddSelect"></select>
+      <label for="certifAddInput" style="font-size:12px; font-weight:700; color:var(--ink-soft);">Ajouter un formateur au suivi :</label>
+      <input type="text" id="certifAddInput" placeholder="Prénom NOM" autocomplete="off" style="font:inherit; font-size:13px; padding:7px 10px; border:1px solid var(--line); border-radius:8px; min-width:220px;">
       <button type="submit" class="restriction-toggle-btn" style="margin-bottom:0;">➕ Ajouter</button>
     </form>
     <div id="certifTableWrap"></div>
@@ -2732,7 +2732,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
             ])
             + sub('Utiliser l\'onglet')
             + steps([
-              'Choisis un profil dans « Ajouter un formateur au suivi », puis clique <strong>➕ Ajouter</strong>.',
+              'Tape le nom du formateur (Prénom NOM) dans « Ajouter un formateur au suivi », puis clique <strong>➕ Ajouter</strong>. S\'il correspond à un profil existant, sa fiche lui sera accessible en consultation.',
               'Renseigne la date de chaque étape dans la ligne du formateur : elle s\'enregistre dès que tu la choisis. Pour les formations probatoires, indique aussi l\'heure.',
               'Une date à venir est affichée comme « <strong>prévue</strong> » et comptée comme réalisée une fois passée.',
               'La colonne <strong>Avancement</strong> indique la prochaine étape. Quand les 4 formations probatoires sont faites, le formateur passe en « Prêt pour la certification ».',
@@ -5650,7 +5650,7 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
   const certifTableWrap = document.getElementById('certifTableWrap');
   const certifSummary = document.getElementById('certifSummary');
   const certifAddForm = document.getElementById('certifAddForm');
-  const certifAddSelect = document.getElementById('certifAddSelect');
+  const certifAddInput = document.getElementById('certifAddInput');
 
   // Une date est « passée » si elle est atteinte (jour entier pour une date simple, heure comprise pour une formation probatoire).
   function certifPassee(v){
@@ -5703,16 +5703,11 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
       ? "Le parcours de certification de chaque formateur, étape par étape. Renseigne la date de chaque étape : une date à venir est affichée comme « prévue », puis comptée comme réalisée une fois passée."
       : "Ton parcours de certification, étape par étape.";
     certifAddForm.style.display = edit ? 'flex' : 'none';
-    if(edit){
-      const deja = new Set(certifRecords.map(x => x.nom));
-      const dispo = certifProfils.filter(p => !deja.has(p.nom));
-      certifAddSelect.innerHTML = '<option value="">— Choisir un profil —</option>' + dispo.map(p => `<option value="${p.nom.replace(/"/g,'&quot;')}">${displayName(p.nom)}</option>`).join('');
-    }
     document.getElementById('certifLegend').innerHTML = CERTIF_STEPS.map(st => `<b>${st.court}</b> — ${st.aide.replace(/^Phase \d : /, '').replace(/^./, c => c.toUpperCase())}`).join('<br>')
       + '<br><b>Formations probatoires</b> — 4 formations planifiées pendant la période probatoire (date et heure)<br><b>Certification</b> — validée par la direction de la formation';
     if(!certifRecords.length){
       certifTableWrap.innerHTML = '<p style="color:var(--ink-soft);font-size:13px;">' + (edit
-        ? 'Aucun formateur dans le suivi pour l\'instant. Choisis un profil ci-dessus pour commencer.'
+        ? 'Aucun formateur dans le suivi pour l\'instant. Saisis un nom ci-dessus pour commencer.'
         : 'Ta fiche de certification n\'a pas encore été créée par ton Responsable formation.') + '</p>';
       return;
     }
@@ -5776,22 +5771,19 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
 
   certifAddForm.addEventListener('submit', async (ev) => {
     ev.preventDefault();
-    if(!certifAddSelect.value) return;
-    await certifAppel({sheet:'add_certification_formateur', nom: certifAddSelect.value});
+    const nom = certifAddInput.value.trim();
+    if(!nom) return;
+    if(await certifAppel({sheet:'add_certification_formateur', nom})) certifAddInput.value = '';
   });
 
   async function initCertifTab(){
     certifTableWrap.innerHTML = '<p style="color:var(--ink-soft);font-size:13px;">Chargement…</p>';
     try{
-      const [resRec, resProfils] = await Promise.all([
-        fetch(APPS_SCRIPT_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(authBody({ sheet:'get_certification_formateurs', targetRestaurant: currentRestaurant })) }),
-        fetch(APPS_SCRIPT_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(authBody({ sheet:'get_formateurs_for_integration', targetRestaurant: currentRestaurant })) }),
-      ]);
+      const resRec = await fetch(APPS_SCRIPT_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(authBody({ sheet:'get_certification_formateurs', targetRestaurant: currentRestaurant })) });
       const dRec = await resRec.json();
       if(!dRec.ok) throw new Error(dRec.error || 'Échec du chargement');
       certifRecords = dRec.records || [];
       certifCanEdit = !!dRec.canEdit;
-      certifProfils = (await resProfils.json()).formateurs || [];
       renderCertifTable();
     } catch(err){
       certifTableWrap.innerHTML = '<p style="color:var(--red);font-size:13px;">Erreur de chargement : ' + err.message + '</p>';
