@@ -105,6 +105,10 @@
     white-space:nowrap;
   }
   .today-chip b{color:#fff;}
+  .logout-btn{appearance:none; margin-left:10px; border:1px solid rgba(255,255,255,0.3); background:transparent; color:#e7ecf2; border-radius:999px; padding:7px 14px; font-size:12px; font-weight:700; cursor:pointer; white-space:nowrap;}
+  .logout-btn:hover{background:rgba(255,255,255,0.12);}
+  #authFormRestaurant label.auth-remember, #authFormGerant label.auth-remember{display:flex; align-items:center; gap:8px; font-weight:600; font-size:12.5px; cursor:pointer;}
+  #authFormRestaurant .auth-remember input, #authFormGerant .auth-remember input{width:auto; padding:0; margin:0;}
 
   /* ---------- TAB NAV ---------- */
   .tabnav{
@@ -1148,12 +1152,14 @@
         <option value="">Chargement…</option>
       </select>
       <input type="password" id="authRestaurantPassword" placeholder="Mot de passe du restaurant" autocomplete="current-password" required>
+      <label class="auth-remember"><input type="checkbox" id="authRememberRestaurant"> Se souvenir de moi sur cet ordinateur</label>
       <button type="submit">Accéder</button>
     </form>
 
     <form id="authFormGerant" style="display:none;">
       <label for="authGerantPassword">Mot de passe gérant</label>
       <input type="password" id="authGerantPassword" placeholder="Mot de passe gérant" autocomplete="current-password" required>
+      <label class="auth-remember"><input type="checkbox" id="authRememberGerant"> Se souvenir de moi sur cet ordinateur</label>
       <button type="submit">Accéder à tous les restaurants</button>
     </form>
 
@@ -1176,6 +1182,7 @@
       <button type="button" class="auth-formateur-btn" data-postes="Responsable de zone">Responsable de zone</button>
       <button type="button" class="auth-formateur-btn" data-postes="Formateur/Formatrice">Formateur/Formatrice</button>
     </div>
+    <button type="button" id="posteChangeAccess" class="auth-formateur-back" style="margin-top:10px;">← Changer de restaurant ou d'accès</button>
   </div>
 </div>
 
@@ -1213,7 +1220,10 @@
       <h1>Suivi des formations</h1>
       <p class="subtitle">Échéances de formation et polyvalence des équipiers</p>
     </div>
-    <div class="today-chip">Aujourd'hui : <b id="todayLabel"></b></div>
+    <div style="display:flex; align-items:center; flex-wrap:wrap; gap:6px 0;">
+      <div class="today-chip">Aujourd'hui : <b id="todayLabel"></b></div>
+      <button type="button" class="logout-btn" id="logoutBtn" title="Quitter la session en cours">Se déconnecter</button>
+    </div>
   </div>
   <nav class="tabnav">
     <button class="tab-btn" data-tab="polyvalence">Postes &amp; Polyvalence</button>
@@ -2622,10 +2632,11 @@ function initApp(appData, isGerant, fixedRestaurant, sessionPassword, sessionFor
           'Sélectionne ton restaurant, puis entre le <strong>mot de passe du restaurant</strong>.',
           'Choisis ton poste, puis clique sur ton prénom dans la liste et entre ton <strong>code personnel</strong>. Un code peut commencer par 0.',
         ])
+        + tip('<strong>« Se souvenir de moi sur cet ordinateur »</strong> : coche la case à la connexion (mot de passe du restaurant ou accès gérant) et l\'ordinateur ne te le redemandera plus. Les codes personnels ne sont jamais mémorisés : chacun choisit toujours son poste, son nom et son code. À ne faire que sur un ordinateur de confiance. Le gérant qui clique sur « Se déconnecter » est oublié ; pour oublier un restaurant, utilise « ← Changer de restaurant ou d\'accès ».')
         + sub('Se repérer sur le site')
         + list([
           'Les <strong>onglets</strong> en haut donnent accès à chaque thème (Postes &amp; Polyvalence, Formations obligatoires, Planification, Alternant…). Clique sur un onglet pour y aller.',
-          'Pour changer de personne, ferme l\'onglet puis rouvre le site : tu te reconnectes avec ton poste, ton prénom et ton code. Pendant la connexion, « ← Changer de poste » et « ← Choisir un autre nom » permettent de revenir en arrière.',
+          'Pour changer de personne, clique sur <strong>« Se déconnecter »</strong> (en haut à droite) ou ferme l\'onglet : tu te reconnectes avec ton poste, ton prénom et ton code. Pendant la connexion, « ← Changer de poste » et « ← Choisir un autre nom » permettent de revenir en arrière.',
           'Ce guide reste accessible à tout moment avec le bouton <strong>« 📖 Guide d\'utilisation »</strong>. Les thèmes se déplient d\'un clic, et « Tout déplier » les ouvre tous.',
         ])
         + sub('Les couleurs')
@@ -7760,6 +7771,68 @@ const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz0Dg-wg4Y4XFo7
   const formateurCodeBack = document.getElementById('formateurCodeBack');
   const whoAreYouError = document.getElementById('whoAreYouError');
 
+  // ---- Mémorisation de la connexion (gérant ou restaurant uniquement) ----
+  // Stockée dans ce navigateur seulement. Les codes personnels des membres de
+  // l'équipe ne sont JAMAIS mémorisés : chacun se ré-identifie (poste, nom, code).
+  const REMEMBER_KEY = 'crewAcademyRemember';
+  const rememberRestaurantChk = document.getElementById('authRememberRestaurant');
+  const rememberGerantChk = document.getElementById('authRememberGerant');
+  function getRemembered(){
+    try{ const r = JSON.parse(localStorage.getItem(REMEMBER_KEY) || 'null'); return (r && r.password && (r.mode === 'gerant' || (r.mode === 'restaurant' && r.restaurant))) ? r : null; } catch(e){ return null; }
+  }
+  function setRemembered(obj){ try{ localStorage.setItem(REMEMBER_KEY, JSON.stringify(obj)); } catch(e){} }
+  function forgetRemembered(){ try{ localStorage.removeItem(REMEMBER_KEY); } catch(e){} }
+  function applyRememberedToForms(){
+    const r = getRemembered();
+    if(!r) return;
+    if(r.mode === 'gerant'){
+      gerantPasswordInput.value = r.password; rememberGerantChk.checked = true;
+      const b = document.querySelector('.auth-mode-btn[data-mode="gerant"]'); if(b) b.click();
+    } else {
+      restaurantPasswordInput.value = r.password; rememberRestaurantChk.checked = true;
+      if([...restaurantSelectAuth.options].some(o => o.value === r.restaurant)) restaurantSelectAuth.value = r.restaurant;
+    }
+  }
+  async function autoLoginRemembered(){
+    const r = getRemembered();
+    if(!r) return;
+    authGate.style.display = 'none';
+    loadingState.style.display = 'flex';
+    try{
+      const res = await fetch(APPS_SCRIPT_URL, {
+        method: 'POST',
+        headers: {'Content-Type': 'text/plain;charset=utf-8'},
+        body: JSON.stringify(r.mode === 'gerant'
+          ? { sheet: 'login_gerant', password: r.password }
+          : { sheet: 'login_restaurant', restaurant: r.restaurant, password: r.password })
+      });
+      const data = await res.json();
+      if(!data.ok){ forgetRemembered(); throw new Error(data.error || 'Connexion refusée'); }
+      loadingState.style.display = 'none';
+      if(r.mode === 'gerant'){
+        await afterLogin(data, true, null, r.password, 'Gérant');
+      } else {
+        pendingLoginData = { appData: data, restaurant: r.restaurant, password: r.password };
+        showPostePick(r.restaurant);
+      }
+    } catch(err){
+      authGate.style.display = '';
+      loadingState.style.display = 'none';
+    }
+  }
+  document.getElementById('logoutBtn').addEventListener('click', () => {
+    let wasGerant = false;
+    try{ const s = JSON.parse(sessionStorage.getItem('crewAcademySession') || 'null'); wasGerant = !!(s && s.isGerant); } catch(e){}
+    try{ sessionStorage.removeItem('crewAcademySession'); } catch(e){}
+    if(wasGerant) forgetRemembered(); // un gérant qui se déconnecte ne doit pas être reconnecté automatiquement
+    location.reload();
+  });
+  document.getElementById('posteChangeAccess').addEventListener('click', () => {
+    forgetRemembered();
+    try{ sessionStorage.removeItem('crewAcademySession'); } catch(e){}
+    location.reload();
+  });
+
   modeBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       modeBtns.forEach(b => b.classList.toggle('active', b === btn));
@@ -7780,12 +7853,13 @@ const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz0Dg-wg4Y4XFo7
       restaurantSelectAuth.innerHTML = names.length
         ? names.map(n => `<option value="${n}">${n}</option>`).join('')
         : `<option value="">Aucun restaurant configuré</option>`;
+      applyRememberedToForms();
     } catch(err){
       restaurantSelectAuth.innerHTML = `<option value="">Erreur de chargement</option>`;
     }
   }
   loadRestaurantNames();
-  tryRestoreSession();
+  tryRestoreSession().then(ok => { if(!ok) autoLoginRemembered(); });
 
   async function afterLogin(appData, isGerant, fixedRestaurant, sessionPassword, sessionFormateur, sessionRole){
     try{
@@ -7952,6 +8026,8 @@ const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz0Dg-wg4Y4XFo7
       });
       const data = await res.json();
       if(!data.ok) throw new Error(data.error || 'Connexion refusée');
+      if(rememberRestaurantChk.checked) setRemembered({ mode: 'restaurant', restaurant, password });
+      else if(getRemembered()) forgetRemembered();
       pendingLoginData = { appData: data, restaurant, password };
       showPostePick(restaurant);
     } catch(err){
@@ -7976,6 +8052,8 @@ const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz0Dg-wg4Y4XFo7
       });
       const data = await res.json();
       if(!data.ok) throw new Error(data.error || 'Connexion refusée');
+      if(rememberGerantChk.checked) setRemembered({ mode: 'gerant', password });
+      else if(getRemembered()) forgetRemembered();
       authGate.style.display = 'none';
       loadingState.style.display = 'flex';
       await afterLogin(data, true, null, password, 'Gérant');
